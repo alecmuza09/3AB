@@ -65,8 +65,11 @@ const STORAGE_KEY = "orders"
 
 export function OrdersProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<OrderRecord[]>([])
+  const [isMounted, setIsMounted] = useState(false)
 
+  // Verificar que estamos en el cliente antes de acceder a localStorage
   useEffect(() => {
+    setIsMounted(true)
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
@@ -77,9 +80,16 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Guardar en localStorage solo cuando estamos en el cliente
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders))
-  }, [orders])
+    if (isMounted) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(orders))
+      } catch (error) {
+        console.error("Error saving orders to localStorage", error)
+      }
+    }
+  }, [orders, isMounted])
 
   const addOrder = (order: OrderRecord) => {
     setOrders((prev) => [order, ...prev])
