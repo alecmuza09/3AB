@@ -63,7 +63,7 @@ export default function ServiciosPage() {
         "Asesoría creativa personalizada",
         "Adaptación de logotipos y branding",
       ],
-      color: "from-purple-500 to-pink-500",
+      color: "from-primary to-red-600",
     },
     {
       icon: Package,
@@ -76,7 +76,7 @@ export default function ServiciosPage() {
         "Certificaciones internacionales ISO",
         "Tiempos de entrega garantizados",
       ],
-      color: "from-blue-500 to-cyan-500",
+      color: "from-gray-700 to-gray-900",
     },
     {
       icon: Truck,
@@ -89,7 +89,7 @@ export default function ServiciosPage() {
         "Entrega programada para eventos",
         "Coordinación de entregas múltiples",
       ],
-      color: "from-orange-500 to-red-500",
+      color: "from-red-600 to-primary",
     },
     {
       icon: HeadphonesIcon,
@@ -102,7 +102,7 @@ export default function ServiciosPage() {
         "Garantía de satisfacción 100%",
         "Atención post-venta profesional",
       ],
-      color: "from-green-500 to-emerald-500",
+      color: "from-gray-600 to-gray-800",
     },
   ]
 
@@ -151,15 +151,6 @@ export default function ServiciosPage() {
       benefits: ["Colores ilimitados", "Calidad fotográfica", "Sin relieves", "Muy durable"],
       idealFor: ["Tazas", "Playeras claras", "Textiles poliéster", "Productos blancos"],
       image: "/placeholder.svg?text=Sublimación",
-    },
-    {
-      id: "uv",
-      name: "Impresión UV",
-      icon: Scan,
-      description: "Tecnología de impresión directa de última generación para resultados impactantes.",
-      benefits: ["Versatilidad extrema", "Secado instantáneo", "Colores vibrantes", "Efecto 3D opcional"],
-      idealFor: ["Acrílico", "Metal", "Madera", "Plástico", "Vidrio"],
-      image: "/placeholder.svg?text=UV",
     },
   ]
 
@@ -369,7 +360,7 @@ export default function ServiciosPage() {
             </section>
 
             {/* Customization Techniques */}
-            <section className="bg-gradient-to-br from-primary/5 to-purple-50 dark:from-primary/10 dark:to-purple-950/20 rounded-3xl p-8 md:p-12">
+            <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 rounded-3xl p-8 md:p-12">
               <div className="text-center mb-12">
                 <Badge className="mb-4">Técnicas de Personalización</Badge>
                 <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -382,7 +373,7 @@ export default function ServiciosPage() {
               </div>
 
               <Tabs defaultValue="serigrafía" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-8 h-auto gap-2">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-5 mb-8 h-auto gap-2">
                   {customizationTechniques.map((technique) => (
                     <TabsTrigger
                       key={technique.id}
@@ -406,10 +397,10 @@ export default function ServiciosPage() {
 
                             <div className="space-y-6">
                               <div>
-                                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                                  <Star className="h-5 w-5 text-yellow-500" />
-                                  Beneficios
-                                </h4>
+                            <h4 className="font-semibold mb-3 flex items-center gap-2">
+                              <Star className="h-5 w-5 text-primary" />
+                              Beneficios
+                            </h4>
                                 <div className="grid grid-cols-2 gap-2">
                                   {technique.benefits.map((benefit, idx) => (
                                     <Badge key={idx} variant="outline" className="justify-start">
@@ -504,7 +495,7 @@ export default function ServiciosPage() {
                     className="hover:shadow-lg transition-all hover:-translate-y-2 hover:border-primary/50 cursor-pointer text-center"
                   >
                     <CardContent className="pt-6">
-                      <div className="inline-flex p-4 bg-gradient-to-br from-primary/10 to-purple-100 dark:to-purple-900/20 rounded-xl mb-3">
+                      <div className="inline-flex p-4 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-xl mb-3">
                         <industry.icon className="h-8 w-8 text-primary" />
                       </div>
                       <h3 className="font-semibold mb-1">{industry.name}</h3>
@@ -516,7 +507,7 @@ export default function ServiciosPage() {
             </section>
 
             {/* Testimonials */}
-            <section className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 rounded-3xl p-8 md:p-12">
+            <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 rounded-3xl p-8 md:p-12">
               <div className="text-center mb-12">
                 <Badge className="mb-4">Testimonios</Badge>
                 <h2 className="text-3xl md:text-4xl font-bold mb-4">Lo Que Dicen Nuestros Clientes</h2>
@@ -532,7 +523,7 @@ export default function ServiciosPage() {
                     <CardContent className="pt-6">
                       <div className="flex gap-1 mb-4">
                         {[...Array(testimonial.rating)].map((_, i) => (
-                          <Star key={i} className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                          <Star key={i} className="h-5 w-5 fill-primary text-primary" />
                         ))}
                       </div>
                       <p className="text-muted-foreground mb-4 italic">"{testimonial.comment}"</p>
@@ -580,7 +571,7 @@ export default function ServiciosPage() {
 
             {/* CTA Section */}
             <section>
-              <Card className="bg-gradient-to-br from-primary to-purple-600 text-white border-0 shadow-2xl">
+              <Card className="bg-gradient-to-br from-primary to-red-700 text-white border-0 shadow-2xl">
                 <CardContent className="p-12 text-center">
                   <Sparkles className="h-16 w-16 mx-auto mb-6" />
                   <h2 className="text-3xl md:text-4xl font-bold mb-4">¿Listo para Impulsar tu Marca?</h2>
