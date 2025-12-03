@@ -23,11 +23,9 @@ export default function CatalogosPage() {
   const catalogs = [
     {
       id: 1,
-      title: "Catálogo de Chamarras",
+      title: "Chamarras",
       description: "Chamarras corporativas y promocionales de alta calidad con opciones de personalización completa.",
-      pages: 45,
-      products: "200+",
-      size: "12 MB",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Chamarras-compressed.pdf",
       image: "/catalog-chamarras.png",
       featured: true,
       categories: ["Chamarras Ejecutivas", "Chamarras Deportivas", "Chamarras de Seguridad"],
@@ -35,12 +33,9 @@ export default function CatalogosPage() {
     },
     {
       id: 2,
-      title: "Catálogo de Uniformes",
-      description:
-        "Uniformes corporativos, médicos, industriales y de servicios con bordado y serigrafía personalizada.",
-      pages: 60,
-      products: "350+",
-      size: "18 MB",
+      title: "Uniformes",
+      description: "Uniformes corporativos, médicos, industriales y de servicios con bordado y serigrafía personalizada.",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Uniformes-compressed.pdf",
       image: "/catalog-uniformes.png",
       featured: false,
       categories: ["Uniformes Médicos", "Uniformes Corporativos", "Uniformes Industriales"],
@@ -48,64 +43,83 @@ export default function CatalogosPage() {
     },
     {
       id: 3,
-      title: "Catálogo de Reconocimientos",
-      description:
-        "Placas, trofeos, medallas y reconocimientos personalizados para eventos corporativos y premiaciones.",
-      pages: 35,
-      products: "180+",
-      size: "8 MB",
-      image: "/catalog-reconocimientos.png",
-      featured: false,
-      categories: ["Placas", "Trofeos", "Medallas", "Reconocimientos Acrílicos"],
-      icon: Award,
-    },
-    {
-      id: 4,
-      title: "Catálogo de Stands",
+      title: "Stands",
       description: "Stands modulares, displays y estructuras para eventos, ferias y exposiciones corporativas.",
-      pages: 40,
-      products: "120+",
-      size: "15 MB",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A_Book-Stands-compressed.pdf",
       image: "/catalog-stands.png",
       featured: false,
       categories: ["Stands Modulares", "Displays", "Estructuras Portátiles"],
       icon: Building,
     },
     {
-      id: 5,
-      title: "Catálogo de Seguridad",
+      id: 4,
+      title: "Seguridad",
       description: "Equipos de protección personal, señalética de seguridad y productos para seguridad industrial.",
-      pages: 50,
-      products: "280+",
-      size: "14 MB",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3ABranding_catalogo_seguridad_compressed-compressed.pdf",
       image: "/catalog-seguridad.png",
       featured: false,
       categories: ["EPP", "Señalética", "Seguridad Industrial"],
       icon: Shield,
     },
     {
-      id: 6,
-      title: "Catálogo de Mobiliario",
+      id: 5,
+      title: "Mobiliario",
       description: "Mobiliario corporativo, sillas ejecutivas, escritorios y muebles para oficina personalizables.",
-      pages: 55,
-      products: "150+",
-      size: "20 MB",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Mobiliario-Renra-compressed.pdf",
       image: "/catalog-mobiliario.png",
       featured: false,
       categories: ["Sillas Ejecutivas", "Escritorios", "Muebles de Oficina"],
       icon: Sofa,
     },
     {
-      id: 7,
-      title: "Catálogo Promocionales Varios",
-      description: "Amplia variedad de productos promocionales: bolígrafos, tazas, USB, llaveros y artículos diversos.",
-      pages: 80,
-      products: "500+",
-      size: "25 MB",
+      id: 6,
+      title: "Promocionales 1",
+      description: "Primera colección de productos promocionales: bolígrafos, tazas, USB, llaveros y artículos diversos.",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Promocionales-1-compressed.pdf",
       image: "/catalog-promocionales.png",
       featured: false,
       categories: ["Escritura", "Tecnología", "Hogar", "Accesorios"],
       icon: Gift,
+    },
+    {
+      id: 7,
+      title: "Promocionales 2",
+      description: "Segunda colección de productos promocionales con amplia variedad de opciones personalizables.",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Promocionales-2.pdf-compressed.pdf",
+      image: "/catalog-promocionales.png",
+      featured: false,
+      categories: ["Escritura", "Tecnología", "Hogar", "Accesorios"],
+      icon: Gift,
+    },
+    {
+      id: 8,
+      title: "Promocionales 3",
+      description: "Tercera colección de productos promocionales ideales para eventos y campañas corporativas.",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Promocionales-3-compressed.pdf",
+      image: "/catalog-promocionales.png",
+      featured: false,
+      categories: ["Escritura", "Tecnología", "Hogar", "Accesorios"],
+      icon: Gift,
+    },
+    {
+      id: 9,
+      title: "Promocionales 4",
+      description: "Cuarta colección de productos promocionales con las últimas novedades del mercado.",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/07/3A-Promocionales-4-compressed.pdf",
+      image: "/catalog-promocionales.png",
+      featured: false,
+      categories: ["Escritura", "Tecnología", "Hogar", "Accesorios"],
+      icon: Gift,
+    },
+    {
+      id: 10,
+      title: "Reconocimientos",
+      description: "Placas, trofeos, medallas y reconocimientos personalizados para eventos corporativos y premiaciones.",
+      pdfUrl: "https://catalago.3abranding.com/wp-content/uploads/2025/08/3A-Reconocimientos.pdf",
+      image: "/catalog-reconocimientos.png",
+      featured: false,
+      categories: ["Placas", "Trofeos", "Medallas", "Reconocimientos Acrílicos"],
+      icon: Award,
     },
   ]
 
@@ -173,28 +187,21 @@ export default function CatalogosPage() {
                             <h2 className="text-2xl font-bold">{catalog.title}</h2>
                           </div>
                           <p className="text-muted-foreground mb-4">{catalog.description}</p>
-                          <div className="flex flex-wrap gap-4 mb-4">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{catalog.pages} páginas</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Package className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{catalog.products} productos</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Download className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{catalog.size}</span>
-                            </div>
-                          </div>
                           <div className="flex gap-3">
-                            <Button className="bg-primary hover:bg-primary/90">
-                              <Download className="h-4 w-4 mr-2" />
-                              Descargar PDF
+                            <Button
+                              className="bg-primary hover:bg-primary/90"
+                              asChild
+                            >
+                              <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
+                                <Download className="h-4 w-4 mr-2" />
+                                Descargar PDF
+                              </a>
                             </Button>
-                            <Button variant="outline">
-                              <Eye className="h-4 w-4 mr-2" />
-                              Ver Online
+                            <Button variant="outline" asChild>
+                              <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver Online
+                              </a>
                             </Button>
                           </div>
                         </div>
@@ -240,12 +247,6 @@ export default function CatalogosPage() {
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">{catalog.description}</p>
 
-                        <div className="flex justify-between text-xs text-muted-foreground mb-3">
-                          <span>{catalog.pages} páginas</span>
-                          <span>{catalog.products} productos</span>
-                          <span>{catalog.size}</span>
-                        </div>
-
                         <div className="flex flex-wrap gap-1 mb-4">
                           {catalog.categories.slice(0, 2).map((category, idx) => (
                             <Badge key={idx} variant="outline" className="text-xs">
@@ -260,12 +261,16 @@ export default function CatalogosPage() {
                         </div>
 
                         <div className="flex gap-2">
-                          <Button size="sm" className="flex-1">
-                            <Download className="h-3 w-3 mr-1" />
-                            Descargar
+                          <Button size="sm" className="flex-1" asChild>
+                            <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-3 w-3 mr-1" />
+                              Descargar
+                            </a>
                           </Button>
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-3 w-3" />
+                          <Button size="sm" variant="outline" asChild>
+                            <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
+                              <Eye className="h-3 w-3" />
+                            </a>
                           </Button>
                         </div>
                       </CardContent>
