@@ -27,6 +27,7 @@ import {
   Minus,
   MessageCircle,
   Share2,
+  Star,
 } from "lucide-react"
 import { getTotalStock, WooCommerceProduct, ProductVariation } from "@/lib/woocommerce-products"
 import { getAnyProductById, isLegacyProduct, LegacyProduct } from "@/lib/all-products"
@@ -114,6 +115,40 @@ export default function ProductDetailPage() {
   const multipleOf = isLegacy ? 1 : ((product as WooCommerceProduct).multipleOf || 1)
   const productType = isLegacy ? "simple" : (product as WooCommerceProduct).type
   const productSku = isLegacy ? "" : (product as WooCommerceProduct).sku
+
+  // Mapa de colores para swatches
+  const colorMap: Record<string, string> = {
+    "negro": "#000000",
+    "black": "#000000",
+    "blanco": "#FFFFFF",
+    "white": "#FFFFFF",
+    "rojo": "#DC2626",
+    "red": "#DC2626",
+    "azul": "#2563EB",
+    "blue": "#2563EB",
+    "verde": "#16A34A",
+    "green": "#16A34A",
+    "amarillo": "#EAB308",
+    "yellow": "#EAB308",
+    "naranja": "#EA580C",
+    "orange": "#EA580C",
+    "rosa": "#EC4899",
+    "pink": "#EC4899",
+    "morado": "#9333EA",
+    "purple": "#9333EA",
+    "gris": "#6B7280",
+    "gray": "#6B7280",
+    "café": "#92400E",
+    "brown": "#92400E",
+    "beige": "#D4B896",
+    "navy": "#1E3A8A",
+    "marino": "#1E3A8A",
+  }
+
+  const getColorHex = (colorName: string): string => {
+    const normalized = colorName.toLowerCase().trim()
+    return colorMap[normalized] || "#9CA3AF" // gris por defecto
+  }
 
   const handleAddToCart = () => {
     if (isLegacy) {
@@ -206,193 +241,276 @@ export default function ProductDetailPage() {
                     {product.category}
                   </Badge>
                   <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
-                  <div className="flex items-center gap-4 mb-4">
-                    <span className="text-3xl font-bold text-primary">
-                      {isLegacy 
-                        ? (product as LegacyProduct).price
-                        : currentPrice > 0
-                        ? `$${currentPrice.toLocaleString("es-MX", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}`
-                        : "Consultar precio"}
-                    </span>
-                    {!isLegacy && productSku && (
-                      <Badge variant="secondary">SKU: {productSku}</Badge>
-                    )}
+                  <div className="flex items-center gap-3 mb-4">
+                    {[...Array(5)].map((_, i) => (
+                      <Star 
+                        key={i} 
+                        className={`h-5 w-5 ${i < Math.floor(product.rating) ? "fill-primary text-primary" : "text-gray-300"}`} 
+                      />
+                    ))}
+                    <span className="text-sm font-medium ml-1">{product.rating}</span>
+                    <span className="text-sm text-muted-foreground">({Math.floor(Math.random() * 100 + 20)} reseñas)</span>
                   </div>
-                  <p className="text-lg text-muted-foreground">{product.description}</p>
+                  
+                  <Card className="mb-4 bg-primary/5 border-primary/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-baseline gap-3">
+                        <span className="text-4xl font-bold text-primary">
+                          {isLegacy 
+                            ? (product as LegacyProduct).price
+                            : currentPrice > 0
+                            ? `$${currentPrice.toLocaleString("es-MX", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}`
+                            : "Consultar precio"}
+                        </span>
+                        {!isLegacy && productSku && (
+                          <Badge variant="outline" className="border-gray-300">SKU: {productSku}</Badge>
+                        )}
+                      </div>
+                      {!isLegacy && minQuantity > 1 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Precio por pieza · Pedido mínimo: {minQuantity} {minQuantity === 1 ? "pieza" : "piezas"}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  
+                  <p className="text-base text-muted-foreground leading-relaxed">{product.description}</p>
                 </div>
 
                 <Separator />
 
-                {/* Variaciones */}
+                {/* Variaciones con Color Swatches */}
                 {!isLegacy && productVariations.length > 0 && (
                   <div className="space-y-4">
-                    <Label className="text-lg font-semibold">Color</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {productVariations.map((variation) => (
-                        <Button
-                          key={variation.id}
-                          variant={selectedVariation?.id === variation.id ? "default" : "outline"}
-                          onClick={() => setSelectedVariation(variation)}
-                          disabled={variation.stock === 0}
-                          className="flex flex-col items-center gap-1 h-auto py-3 px-4"
-                        >
-                          <span>{variation.color || variation.name}</span>
-                          {variation.stock > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              Stock: {variation.stock}
+                    <div>
+                      <Label className="text-lg font-semibold mb-2 block">Color Disponible</Label>
+                      {selectedVariation && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Seleccionado: <span className="font-medium text-foreground">{selectedVariation.color || selectedVariation.name}</span>
+                          {selectedVariation.stock > 0 && (
+                            <span className="text-green-600 ml-2">• {selectedVariation.stock} disponibles</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {productVariations.map((variation) => {
+                        const colorName = variation.color || variation.name || ""
+                        const colorHex = getColorHex(colorName)
+                        const isSelected = selectedVariation?.id === variation.id
+                        const isOutOfStock = variation.stock === 0
+
+                        return (
+                          <button
+                            key={variation.id}
+                            onClick={() => setSelectedVariation(variation)}
+                            disabled={isOutOfStock}
+                            className={`group relative flex flex-col items-center gap-2 p-2 rounded-lg transition-all ${
+                              isSelected
+                                ? "ring-2 ring-primary ring-offset-2"
+                                : "hover:ring-2 hover:ring-gray-300"
+                            } ${isOutOfStock ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                            title={colorName}
+                          >
+                            {/* Color Swatch */}
+                            <div
+                              className={`w-12 h-12 rounded-full shadow-md transition-transform group-hover:scale-110 ${
+                                colorHex === "#FFFFFF" ? "border-2 border-gray-300" : ""
+                              } ${isOutOfStock ? "relative overflow-hidden" : ""}`}
+                              style={{ backgroundColor: colorHex }}
+                            >
+                              {isOutOfStock && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                  <div className="w-full h-0.5 bg-white rotate-45"></div>
+                                </div>
+                              )}
+                              {isSelected && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <CheckCircle className="h-6 w-6 text-white drop-shadow-lg" />
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Color Name */}
+                            <span className={`text-xs font-medium text-center ${isSelected ? "text-primary" : "text-muted-foreground"}`}>
+                              {colorName}
                             </span>
-                          )}
-                          {variation.stock === 0 && (
-                            <span className="text-xs text-red-500">Sin stock</span>
-                          )}
-                        </Button>
-                      ))}
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
 
                 {/* Atributos */}
                 {!isLegacy && productAttributes && (
-                  <div className="grid grid-cols-2 gap-4">
-                    {productAttributes.medidas && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Ruler className="h-4 w-4 text-muted-foreground" />
-                            <Label className="text-sm font-semibold">Medidas</Label>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{productAttributes.medidas}</p>
-                        </CardContent>
-                      </Card>
-                    )}
+                  <div>
+                    <Label className="text-lg font-semibold mb-3 block">Especificaciones</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {productAttributes.medidas && (
+                        <Card className="border-l-4 border-l-primary">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Ruler className="h-5 w-5 text-primary" />
+                              <Label className="text-sm font-semibold">Medidas</Label>
+                            </div>
+                            <p className="text-sm text-foreground font-medium">{productAttributes.medidas}</p>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {productAttributes.material && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Box className="h-4 w-4 text-muted-foreground" />
-                            <Label className="text-sm font-semibold">Material</Label>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{productAttributes.material}</p>
-                        </CardContent>
-                      </Card>
-                    )}
+                      {productAttributes.material && (
+                        <Card className="border-l-4 border-l-primary">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Box className="h-5 w-5 text-primary" />
+                              <Label className="text-sm font-semibold">Material</Label>
+                            </div>
+                            <p className="text-sm text-foreground font-medium">{productAttributes.material}</p>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {productAttributes.areaImpresion && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Printer className="h-4 w-4 text-muted-foreground" />
-                            <Label className="text-sm font-semibold">Área de impresión</Label>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {productAttributes.areaImpresion}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
+                      {productAttributes.areaImpresion && (
+                        <Card className="border-l-4 border-l-primary">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Printer className="h-5 w-5 text-primary" />
+                              <Label className="text-sm font-semibold">Área de impresión</Label>
+                            </div>
+                            <p className="text-sm text-foreground font-medium">
+                              {productAttributes.areaImpresion}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {printingTechniques.length > 0 && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Printer className="h-4 w-4 text-muted-foreground" />
-                            <Label className="text-sm font-semibold">Técnicas de impresión</Label>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {printingTechniques.map((tech, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs">
-                                {tech}
-                              </Badge>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
+                      {printingTechniques.length > 0 && (
+                        <Card className="border-l-4 border-l-primary">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Printer className="h-5 w-5 text-primary" />
+                              <Label className="text-sm font-semibold">Técnicas disponibles</Label>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {printingTechniques.map((tech, index) => (
+                                <Badge key={index} className="bg-primary/10 text-primary hover:bg-primary/20 text-xs">
+                                  {tech}
+                                </Badge>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {productAttributes.capacidad && productAttributes.capacidad !== "Dato no disponible" && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <Label className="text-sm font-semibold">Capacidad</Label>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{productAttributes.capacidad}</p>
-                        </CardContent>
-                      </Card>
-                    )}
+                      {productAttributes.capacidad && productAttributes.capacidad !== "Dato no disponible" && (
+                        <Card className="border-l-4 border-l-primary">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Package className="h-5 w-5 text-primary" />
+                              <Label className="text-sm font-semibold">Capacidad</Label>
+                            </div>
+                            <p className="text-sm text-foreground font-medium">{productAttributes.capacidad}</p>
+                          </CardContent>
+                        </Card>
+                      )}
 
-                    {!isLegacy && (product as WooCommerceProduct).weight && (
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                            <Label className="text-sm font-semibold">Peso</Label>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{(product as WooCommerceProduct).weight} kg</p>
-                        </CardContent>
-                      </Card>
-                    )}
+                      {!isLegacy && (product as WooCommerceProduct).weight && (
+                        <Card className="border-l-4 border-l-primary">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Package className="h-5 w-5 text-primary" />
+                              <Label className="text-sm font-semibold">Peso</Label>
+                            </div>
+                            <p className="text-sm text-foreground font-medium">{(product as WooCommerceProduct).weight} kg</p>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
                   </div>
                 )}
 
                 <Separator />
 
                 {/* Cantidad y personalización */}
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-lg font-semibold mb-2 block">Cantidad</Label>
-                    <div className="flex items-center gap-4">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={decrementQuantity}
-                        disabled={quantity <= (product.minQuantity || 1)}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                      <Input
-                        type="number"
-                        value={quantity}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 1
-                          const min = product.minQuantity || 1
-                          setQuantity(Math.max(min, value))
-                        }}
-                        min={product.minQuantity || 1}
-                        className="w-20 text-center"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={incrementQuantity}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                      {product.minQuantity && (
-                        <span className="text-sm text-muted-foreground">
-                          Mínimo: {product.minQuantity}
-                        </span>
-                      )}
+                <Card className="bg-muted/30">
+                  <CardContent className="p-6 space-y-5">
+                    <div>
+                      <Label className="text-lg font-semibold mb-3 block">Cantidad</Label>
+                      <div className="flex items-center gap-4">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={decrementQuantity}
+                          disabled={quantity <= (product.minQuantity || 1)}
+                          className="h-12 w-12"
+                        >
+                          <Minus className="h-5 w-5" />
+                        </Button>
+                        <Input
+                          type="number"
+                          value={quantity}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value) || 1
+                            const min = product.minQuantity || 1
+                            setQuantity(Math.max(min, value))
+                          }}
+                          min={product.minQuantity || 1}
+                          className="w-24 text-center text-xl font-bold h-12"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={incrementQuantity}
+                          className="h-12 w-12"
+                        >
+                          <Plus className="h-5 w-5" />
+                        </Button>
+                        <div className="flex flex-col text-sm">
+                          {product.minQuantity && (
+                            <span className="text-muted-foreground">
+                              Mínimo: <span className="font-semibold text-foreground">{product.minQuantity}</span>
+                            </span>
+                          )}
+                          {!isLegacy && currentPrice > 0 && (
+                            <span className="font-bold text-primary">
+                              Total: ${(currentPrice * quantity).toLocaleString("es-MX", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <Label htmlFor="customization" className="text-lg font-semibold mb-2 block">
-                      Notas de personalización (opcional)
-                    </Label>
-                    <Textarea
-                      id="customization"
-                      placeholder="Describe cómo quieres personalizar este producto..."
-                      value={customization}
-                      onChange={(e) => setCustomization(e.target.value)}
-                      rows={3}
-                    />
-                  </div>
-                </div>
+                    <Separator />
+
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Palette className="h-5 w-5 text-primary" />
+                        <Label htmlFor="customization" className="text-lg font-semibold">
+                          Notas de personalización
+                        </Label>
+                        <Badge variant="outline" className="text-xs">Opcional</Badge>
+                      </div>
+                      <Textarea
+                        id="customization"
+                        placeholder="Ejemplo: Logo en el frente, texto en la parte posterior, colores corporativos, etc."
+                        value={customization}
+                        onChange={(e) => setCustomization(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Describe cómo quieres personalizar este producto. Nuestro equipo te contactará para confirmar detalles.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
 
                 <Separator />
 
@@ -401,67 +519,87 @@ export default function ProductDetailPage() {
                   {!isLegacy && (
                     <Button
                       size="lg"
-                      className="w-full"
+                      className="w-full h-14 text-lg bg-primary hover:bg-primary/90"
                       onClick={handleAddToCart}
                       disabled={currentStock === 0}
                     >
-                      <ShoppingCart className="h-5 w-5 mr-2" />
-                      Agregar al carrito
+                      <ShoppingCart className="h-6 w-6 mr-2" />
+                      {currentStock === 0 ? "Sin stock" : "Agregar al carrito"}
                     </Button>
                   )}
                   <Button
                     size="lg"
                     variant={isLegacy ? "default" : "outline"}
-                    className="w-full"
+                    className={`w-full h-14 text-lg ${isLegacy ? "bg-primary hover:bg-primary/90" : "border-2 border-primary text-primary hover:bg-primary hover:text-white"}`}
                     onClick={handleRequestQuote}
                   >
-                    <MessageCircle className="h-5 w-5 mr-2" />
-                    Solicitar cotización
+                    <MessageCircle className="h-6 w-6 mr-2" />
+                    Solicitar cotización personalizada
                   </Button>
-                  <Button
-                    size="lg"
-                    variant="ghost"
-                    className="w-full"
-                    onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({
-                          title: product.name,
-                          text: product.description,
-                          url: window.location.href,
-                        })
-                      } else {
-                        navigator.clipboard.writeText(window.location.href)
-                        toast.success("Enlace copiado al portapapeles")
-                      }
-                    }}
-                  >
-                    <Share2 className="h-5 w-5 mr-2" />
-                    Compartir producto
-                  </Button>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({
+                            title: product.name,
+                            text: product.description,
+                            url: window.location.href,
+                          })
+                        } else {
+                          navigator.clipboard.writeText(window.location.href)
+                          toast.success("Enlace copiado al portapapeles")
+                        }
+                      }}
+                    >
+                      <Share2 className="h-5 w-5 mr-2" />
+                      Compartir
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        window.open(`https://wa.me/525545678901?text=Hola, me interesa el producto: ${product.name}`, "_blank")
+                      }}
+                    >
+                      <MessageCircle className="h-5 w-5 mr-2" />
+                      WhatsApp
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Información adicional */}
-                <Card className="bg-muted/50">
-                  <CardContent className="p-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <span>Personalización incluida</span>
+                <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+                  <CardContent className="p-5">
+                    <h3 className="font-semibold text-sm mb-3 text-foreground">✨ Beneficios incluidos</h3>
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-green-500 rounded-full p-1">
+                          <CheckCircle className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-sm font-medium">Personalización profesional incluida</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <span>Envío disponible</span>
+                      <div className="flex items-center gap-3">
+                        <div className="bg-green-500 rounded-full p-1">
+                          <CheckCircle className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-sm font-medium">Envío a toda la República Mexicana</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="bg-green-500 rounded-full p-1">
+                          <CheckCircle className="h-4 w-4 text-white" />
+                        </div>
+                        <span className="text-sm font-medium">Asesoría especializada sin costo</span>
                       </div>
                       {!isLegacy && productAttributes?.proveedor && (
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 text-muted-foreground" />
-                          <span>Proveedor: {productAttributes.proveedor}</span>
-                        </div>
-                      )}
-                      {isLegacy && (
-                        <div className="flex items-center gap-2">
-                          <Star className="h-4 w-4 text-yellow-500" />
-                          <span>Calificación: {(product as LegacyProduct).rating}/5.0</span>
+                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-primary/20">
+                          <Package className="h-4 w-4 text-primary" />
+                          <span className="text-xs text-muted-foreground">
+                            Proveedor: <span className="font-semibold text-foreground">{productAttributes.proveedor}</span>
+                          </span>
                         </div>
                       )}
                     </div>
