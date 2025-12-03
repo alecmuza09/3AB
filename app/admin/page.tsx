@@ -52,7 +52,13 @@ import {
   Award,
   UserCog,
   Gift,
+  Plug,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react"
+import { getIntegrationsStatus } from "@/lib/integrations-config"
 
 interface Product {
   id: string
@@ -488,7 +494,7 @@ export default function AdminPage() {
 
           {/* Navigation Tabs */}
           <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-9 h-auto">
+            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-10 h-auto">
               <TabsTrigger value="dashboard" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
                 <span className="hidden sm:inline">Dashboard</span>
@@ -520,6 +526,10 @@ export default function AdminPage() {
               <TabsTrigger value="reports" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 <span className="hidden sm:inline">Reportes</span>
+              </TabsTrigger>
+              <TabsTrigger value="integrations" className="flex items-center gap-2">
+                <Plug className="h-4 w-4" />
+                <span className="hidden sm:inline">Integraciones</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -1927,6 +1937,258 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <Button className="w-full mt-6 bg-primary hover:bg-primary/90">Guardar Configuración</Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Integrations */}
+            <TabsContent value="integrations" className="space-y-6">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-2">Integraciones</h2>
+                <p className="text-muted-foreground">
+                  Configura y gestiona las conexiones con servicios externos para pagos, envíos y más.
+                </p>
+              </div>
+
+              {/* Status Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getIntegrationsStatus().map((integration, index) => (
+                  <Card
+                    key={index}
+                    className={integration.required && !integration.status ? "border-yellow-500" : ""}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          {integration.status ? (
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                          ) : integration.required ? (
+                            <AlertCircle className="h-5 w-5 text-yellow-500" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-gray-400" />
+                          )}
+                          <h3 className="font-semibold">{integration.name}</h3>
+                        </div>
+                        <Badge variant={integration.required ? "default" : "outline"} className="text-xs">
+                          {integration.required ? "Requerida" : "Opcional"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">{integration.description}</p>
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-xs">
+                          {integration.category}
+                        </Badge>
+                        <span
+                          className={`text-xs font-medium ${
+                            integration.status ? "text-green-600" : "text-gray-400"
+                          }`}
+                        >
+                          {integration.status ? "Activa" : "Inactiva"}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Detailed Configuration */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* YoloEnvio */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Truck className="h-5 w-5 text-primary" />
+                          YoloEnvio
+                        </CardTitle>
+                        <CardDescription>Gestión de envíos y rastreo</CardDescription>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://yoloenvio.com/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>API Key</Label>
+                      <Input type="password" placeholder="••••••••••••" />
+                    </div>
+                    <div>
+                      <Label>API Secret</Label>
+                      <Input type="password" placeholder="••••••••••••" />
+                    </div>
+                    <div>
+                      <Label>Modo</Label>
+                      <Select defaultValue="sandbox">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sandbox">Sandbox (Pruebas)</SelectItem>
+                          <SelectItem value="production">Producción</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button className="w-full">Guardar Configuración</Button>
+                  </CardContent>
+                </Card>
+
+                {/* Stripe */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <CreditCard className="h-5 w-5 text-primary" />
+                          Stripe
+                        </CardTitle>
+                        <CardDescription>Pagos con tarjeta internacional</CardDescription>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://stripe.com/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>Publishable Key</Label>
+                      <Input placeholder="pk_test_..." />
+                    </div>
+                    <div>
+                      <Label>Secret Key</Label>
+                      <Input type="password" placeholder="sk_test_..." />
+                    </div>
+                    <div>
+                      <Label>Webhook Secret</Label>
+                      <Input type="password" placeholder="whsec_..." />
+                    </div>
+                    <Button className="w-full">Guardar Configuración</Button>
+                  </CardContent>
+                </Card>
+
+                {/* Mercado Pago */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <DollarSign className="h-5 w-5 text-primary" />
+                          Mercado Pago
+                        </CardTitle>
+                        <CardDescription>Pagos para México y LATAM</CardDescription>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://www.mercadopago.com.mx/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>Public Key</Label>
+                      <Input placeholder="TEST-..." />
+                    </div>
+                    <div>
+                      <Label>Access Token</Label>
+                      <Input type="password" placeholder="TEST-..." />
+                    </div>
+                    <Button className="w-full">Guardar Configuración</Button>
+                  </CardContent>
+                </Card>
+
+                {/* Email */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Mail className="h-5 w-5 text-primary" />
+                          Email (Resend)
+                        </CardTitle>
+                        <CardDescription>Notificaciones por correo</CardDescription>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://resend.com/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>API Key</Label>
+                      <Input type="password" placeholder="re_..." />
+                    </div>
+                    <div>
+                      <Label>Email From</Label>
+                      <Input placeholder="ventas@3abranding.com" />
+                    </div>
+                    <Button className="w-full">Guardar Configuración</Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Documentation */}
+              <Card className="bg-muted/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Documentación e Instrucciones
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold mb-2">Variables de Entorno</h4>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Para configurar las integraciones, crea un archivo <code className="bg-muted px-2 py-1 rounded">.env.local</code> en la raíz del proyecto con las siguientes variables:
+                    </p>
+                    <pre className="bg-background p-4 rounded-lg text-xs overflow-x-auto border">
+{`# YoloEnvio
+YOLOENVIO_API_KEY=tu-api-key
+YOLOENVIO_API_SECRET=tu-api-secret
+
+# Stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_SECRET_KEY=sk_test_...
+
+# Mercado Pago
+NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY=TEST-...
+MERCADOPAGO_ACCESS_TOKEN=TEST-...
+
+# Email
+RESEND_API_KEY=re_...
+EMAIL_FROM=ventas@3abranding.com`}
+                    </pre>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold mb-2">Recursos Útiles</h4>
+                    <div className="space-y-2">
+                      <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                        <a href="https://docs.yoloenvio.com/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Documentación YoloEnvio
+                        </a>
+                      </Button>
+                      <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                        <a href="https://stripe.com/docs" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Documentación Stripe
+                        </a>
+                      </Button>
+                      <Button variant="outline" size="sm" className="w-full justify-start" asChild>
+                        <a href="https://www.mercadopago.com.mx/developers" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Documentación Mercado Pago
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
