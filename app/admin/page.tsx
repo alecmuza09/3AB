@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import { Sidebar } from "@/components/sidebar"
+import { WhatsappButton } from "@/components/whatsapp-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -472,8 +474,11 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-16 md:pt-0">
-      <div className="ml-0 md:ml-64 p-6">
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      <WhatsappButton />
+      
+      <div className="md:ml-64 p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
