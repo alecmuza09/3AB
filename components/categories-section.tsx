@@ -270,10 +270,10 @@ const categories = [
 
 export function CategoriesSection() {
   return (
-    <section id="categorias" className="py-20 bg-muted/30">
+    <section id="categorias" className="py-20 lg:py-24 bg-muted/20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-primary/10 text-primary">Explora Nuestras Categorías</Badge>
+          <Badge className="bg-primary/10 text-primary border-primary/20 px-4 py-1.5">Explora Nuestras Categorías</Badge>
           <h2 className="text-3xl lg:text-4xl font-bold text-balance">
             Encuentra el producto perfecto para tu <span className="text-primary">marca</span>
           </h2>

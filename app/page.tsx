@@ -15,14 +15,45 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <main className="md:ml-64">
+        {/* Hero Section - Primera impresión */}
         <HeroSection />
-        <AIAssistantSection />
-        <PromotionalBanners />
-        <CategoriesSection />
-        <FeaturedProducts />
-        <CustomizationSection />
-        <TestimonialsSection />
-        <CTASection />
+        
+        {/* Promotional Banners - Mantener interés después del hero */}
+        <div className="border-t border-border/50">
+          <PromotionalBanners />
+        </div>
+        
+        {/* Categories - Exploración de productos */}
+        <div className="border-t border-border/50">
+          <CategoriesSection />
+        </div>
+        
+        {/* Featured Products - Productos destacados */}
+        <div className="border-t border-border/50">
+          <FeaturedProducts />
+        </div>
+        
+        {/* AI Assistant - Herramienta de ayuda */}
+        <div className="border-t border-border/50">
+          <AIAssistantSection />
+        </div>
+        
+        {/* Customization - Personalización */}
+        <div className="border-t border-border/50">
+          <CustomizationSection />
+        </div>
+        
+        {/* Testimonials - Construcción de confianza */}
+        <div className="border-t border-border/50">
+          <TestimonialsSection />
+        </div>
+        
+        {/* CTA - Llamada a la acción final */}
+        <div className="border-t border-border/50">
+          <CTASection />
+        </div>
+        
+        {/* Footer */}
         <Footer />
       </main>
       <WhatsappButton />

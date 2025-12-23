@@ -5,11 +5,11 @@ import { ArrowRight, Phone, Mail, MessageCircle, Clock, Shield, Truck } from "lu
 
 export function CTASection() {
   return (
-    <section className="py-20 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
+    <section className="py-20 lg:py-24 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main CTA */}
         <div className="text-center space-y-8 mb-16">
-          <Badge className="bg-primary/10 text-primary">¡Comienza Ahora!</Badge>
+          <Badge className="bg-primary/10 text-primary border-primary/20 px-4 py-1.5">¡Comienza Ahora!</Badge>
           <div className="space-y-4">
             <h2 className="text-3xl lg:text-5xl font-bold text-balance">
               ¿Listo para <span className="text-primary">impulsar</span> tu marca?

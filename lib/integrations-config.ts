@@ -6,6 +6,17 @@
  */
 
 // ============================================
+// SUPABASE - Base de Datos
+// ============================================
+export const supabaseConfig = {
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+  serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+  isEnabled: () => !!(supabaseConfig.url && supabaseConfig.anonKey),
+  isServerEnabled: () => !!(supabaseConfig.url && supabaseConfig.serviceRoleKey),
+}
+
+// ============================================
 // YOLO ENVÍO - Gestión de Envíos
 // ============================================
 export const yoloenvioConfig = {
@@ -127,6 +138,7 @@ export const appConfig = {
 // ============================================
 export function validateIntegrations() {
   const integrations = {
+    supabase: supabaseConfig.isEnabled(),
     yoloenvio: yoloenvioConfig.isEnabled(),
     stripe: stripeConfig.isEnabled(),
     mercadopago: mercadopagoConfig.isEnabled(),
@@ -146,6 +158,13 @@ export function validateIntegrations() {
 // ============================================
 export function getIntegrationsStatus() {
   return [
+    {
+      name: 'Supabase',
+      category: 'Base de Datos',
+      status: supabaseConfig.isEnabled(),
+      description: 'Base de datos PostgreSQL y autenticación',
+      required: true,
+    },
     {
       name: 'YoloEnvio',
       category: 'Envíos',
@@ -218,4 +237,10 @@ export function getIntegrationsStatus() {
     },
   ]
 }
+
+
+
+
+
+
 

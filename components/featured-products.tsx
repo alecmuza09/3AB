@@ -86,10 +86,10 @@ const featuredProducts = [
 
 export function FeaturedProducts() {
   return (
-    <section id="productos" className="py-20">
+    <section id="productos" className="py-20 lg:py-24 bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-secondary/10 text-secondary">Productos Destacados</Badge>
+          <Badge className="bg-secondary/10 text-secondary border-secondary/20 px-4 py-1.5">Productos Destacados</Badge>
           <h2 className="text-3xl lg:text-4xl font-bold text-balance">
             Los más <span className="text-primary">populares</span> de nuestra colección
           </h2>

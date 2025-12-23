@@ -4,7 +4,9 @@ import { useState } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Menu, X, ShoppingCart, Search, User } from "lucide-react"
+import { Menu, X, ShoppingCart, Search } from "lucide-react"
+import { LoginDialog } from "@/components/auth/login-dialog"
+import { UserMenu } from "@/components/auth/user-menu"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -39,9 +41,8 @@ export function Header() {
             <Button variant="ghost" size="sm">
               <Search className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm">
-              <User className="h-4 w-4" />
-            </Button>
+            <UserMenu />
+            <LoginDialog />
             <Button variant="ghost" size="sm" className="relative">
               <ShoppingCart className="h-4 w-4" />
               <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs">3</Badge>
@@ -75,9 +76,8 @@ export function Header() {
                 <Button variant="ghost" size="sm">
                   <Search className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm">
-                  <User className="h-4 w-4" />
-                </Button>
+                <UserMenu />
+                <LoginDialog />
                 <Button variant="ghost" size="sm" className="relative">
                   <ShoppingCart className="h-4 w-4" />
                   <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs">3</Badge>

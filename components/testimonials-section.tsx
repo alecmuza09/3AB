@@ -67,10 +67,10 @@ const testimonials = [
 
 export function TestimonialsSection() {
   return (
-    <section className="py-20">
+    <section className="py-20 lg:py-24 bg-background">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-accent/10 text-accent">Testimonios de Clientes</Badge>
+          <Badge className="bg-accent/10 text-accent border-accent/20 px-4 py-1.5">Testimonios de Clientes</Badge>
           <h2 className="text-3xl lg:text-4xl font-bold text-balance">
             Lo que dicen nuestros <span className="text-primary">clientes</span>
           </h2>

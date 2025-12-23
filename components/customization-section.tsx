@@ -20,10 +20,10 @@ export function CustomizationSection() {
   const [logoText, setLogoText] = useState("TU MARCA")
 
   return (
-    <section id="personalizar" className="py-20 bg-muted/30">
+    <section id="personalizar" className="py-20 lg:py-24 bg-muted/20">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-accent/10 text-accent">Personalización Avanzada</Badge>
+          <Badge className="bg-accent/10 text-accent border-accent/20 px-4 py-1.5">Personalización Avanzada</Badge>
           <h2 className="text-3xl lg:text-4xl font-bold text-balance">
             <span className="text-primary">Personaliza</span> tu producto en tiempo real
           </h2>

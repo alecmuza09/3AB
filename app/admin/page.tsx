@@ -1,8 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { WhatsappButton } from "@/components/whatsapp-button"
+import { AdminGuard } from "@/components/auth/admin-guard"
+import { useSupabase } from "@/lib/supabase-client"
+import { useAuth } from "@/contexts/auth-context"
+import type { Database } from "@/lib/supabase-types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -80,6 +84,211 @@ interface InventoryMovement {
 }
 
 export default function AdminPage() {
+  // Cargar usuarios desde Supabase
+  useEffect(() => {
+    loadUsers()
+  }, [])
+
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true)
+      const supabase = useSupabase()
+      
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        setLoadingUsers(false)
+        return
+      }
+
+      // Obtener todos los perfiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (profilesError) {
+        console.error("Error loading profiles:", profilesError)
+        return
+      }
+
+      // Obtener estadísticas de pedidos para cada usuario
+      const usersWithStats = await Promise.all(
+        (profiles || []).map(async (profile) => {
+          // Obtener pedidos del usuario
+          const { data: orders, error: ordersError } = await supabase
+            .from("orders")
+            .select("id, total, created_at")
+            .eq("user_id", profile.id)
+
+          if (ordersError) {
+            console.error("Error loading orders:", ordersError)
+          }
+
+          const ordersCount = orders?.length || 0
+          const totalSpent = orders?.reduce((sum, order) => sum + Number(order.total || 0), 0) || 0
+
+          // Obtener último acceso desde auth.users (necesitarías una función server action para esto)
+          // Por ahora usamos created_at del perfil
+          const lastLogin = profile.updated_at || profile.created_at
+
+          return {
+            ...profile,
+            orders: ordersCount,
+            totalSpent,
+            lastLogin,
+          }
+        })
+      )
+
+      setUsers(usersWithStats)
+    } catch (error) {
+      console.error("Error loading users:", error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  // Crear nuevo usuario
+  const handleCreateUser = async () => {
+    try {
+      setCreatingUser(true)
+
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: newUser.email,
+          password: newUser.password,
+          full_name: newUser.full_name,
+          phone: newUser.phone,
+          role: newUser.role,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(`Error: ${data.error}`)
+        setCreatingUser(false)
+        return
+      }
+
+      // Recargar usuarios
+      await loadUsers()
+
+      // Limpiar formulario
+      setNewUser({
+        full_name: "",
+        email: "",
+        phone: "",
+        role: "customer",
+        password: "",
+        sendEmail: true,
+      })
+
+      alert("Usuario creado exitosamente")
+    } catch (error: any) {
+      console.error("Error creating user:", error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setCreatingUser(false)
+    }
+  }
+
+  // Actualizar rol de usuario
+  const handleUpdateUserRole = async (userId: string, newRole: "customer" | "admin" | "staff") => {
+    try {
+      const supabase = useSupabase()
+      if (!supabase) {
+        alert("Supabase no está disponible")
+        return
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ role: newRole })
+        .eq("id", userId)
+
+      if (error) {
+        alert(`Error al actualizar rol: ${error.message}`)
+        return
+      }
+
+      // Recargar usuarios
+      await loadUsers()
+      alert("Rol actualizado exitosamente")
+    } catch (error: any) {
+      console.error("Error updating role:", error)
+      alert(`Error: ${error.message}`)
+    }
+  }
+
+  // Eliminar usuario
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`¿Estás seguro de eliminar al usuario ${userEmail}? Esta acción no se puede deshacer.`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users?userId=${userId}`, {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        alert(`Error: ${data.error}`)
+        return
+      }
+
+
+      // Recargar usuarios
+      await loadUsers()
+      alert("Usuario eliminado exitosamente")
+    } catch (error: any) {
+      console.error("Error deleting user:", error)
+      alert(`Error: ${error.message}`)
+    }
+  }
+
+  // Actualizar información del usuario
+  const handleUpdateUser = async () => {
+    if (!editingUser) return
+
+    try {
+      const supabase = useSupabase()
+      if (!supabase) {
+        alert("Supabase no está disponible")
+        return
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          full_name: editingUser.full_name,
+          email: editingUser.email,
+          phone: editingUser.phone || null,
+          role: editingUser.role,
+        })
+        .eq("id", editingUser.id)
+
+      if (error) {
+        alert(`Error al actualizar usuario: ${error.message}`)
+        return
+      }
+
+      // Recargar usuarios
+      await loadUsers()
+      setEditingUser(null)
+      alert("Usuario actualizado exitosamente")
+    } catch (error: any) {
+      console.error("Error updating user:", error)
+      alert(`Error: ${error.message}`)
+    }
+  }
+
   const [products, setProducts] = useState<Product[]>([
     {
       id: "1",
@@ -313,52 +522,27 @@ export default function AdminPage() {
     }
   }
 
-  const [users, setUsers] = useState([
-    {
-      id: "1",
-      name: "Admin Principal",
-      email: "admin@3abranding.com",
-      role: "superadmin",
-      status: "active",
-      lastLogin: "2024-01-15",
-      totalSpent: 0,
-      orders: 0,
-      points: 0,
-    },
-    {
-      id: "2",
-      name: "Juan Pérez",
-      email: "juan@empresa.com",
-      role: "corporate",
-      status: "active",
-      lastLogin: "2024-01-14",
-      totalSpent: 45600,
-      orders: 12,
-      points: 4560,
-    },
-    {
-      id: "3",
-      name: "María González",
-      email: "maria@corporativo.com",
-      role: "corporate",
-      status: "active",
-      lastLogin: "2024-01-13",
-      totalSpent: 32400,
-      orders: 8,
-      points: 3240,
-    },
-    {
-      id: "4",
-      name: "Carlos Ramírez",
-      email: "carlos@startup.mx",
-      role: "user",
-      status: "active",
-      lastLogin: "2024-01-12",
-      totalSpent: 3200,
-      orders: 2,
-      points: 320,
-    },
-  ])
+  type UserWithStats = Database["public"]["Tables"]["profiles"]["Row"] & {
+    orders: number
+    totalSpent: number
+    lastLogin: string | null
+  }
+
+  const [users, setUsers] = useState<UserWithStats[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(true)
+  const [creatingUser, setCreatingUser] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserWithStats | null>(null)
+  const { user: currentUser } = useAuth()
+
+  // Estado para el formulario de nuevo usuario
+  const [newUser, setNewUser] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    role: "customer" as "customer" | "admin" | "staff",
+    password: "",
+    sendEmail: true,
+  })
 
   const roles = [
     {
@@ -464,27 +648,24 @@ export default function AdminPage() {
     expirationDays: 365,
   })
 
-  const getRoleBadge = (roleId: string) => {
-    const role = roles.find((r) => r.id === roleId)
-    if (!role) return <Badge>Desconocido</Badge>
-
-    const colorClasses = {
-      purple: "bg-purple-100 text-purple-800",
-      blue: "bg-blue-100 text-blue-800",
-      green: "bg-green-100 text-green-800",
-      gray: "bg-gray-100 text-gray-800",
-      amber: "bg-amber-100 text-amber-800",
+  const getRoleBadge = (role: "customer" | "admin" | "staff" | string) => {
+    const roleConfig: Record<string, { label: string; color: string }> = {
+      customer: { label: "Cliente", color: "bg-blue-100 text-blue-800" },
+      admin: { label: "Administrador", color: "bg-purple-100 text-purple-800" },
+      staff: { label: "Personal", color: "bg-green-100 text-green-800" },
     }
 
-    return <Badge className={colorClasses[role.color as keyof typeof colorClasses]}>{role.name}</Badge>
+    const config = roleConfig[role] || { label: "Desconocido", color: "bg-gray-100 text-gray-800" }
+    return <Badge className={config.color}>{config.label}</Badge>
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Sidebar />
-      <WhatsappButton />
-      
-      <div className="md:ml-64 p-6">
+    <AdminGuard>
+      <div className="min-h-screen bg-background">
+        <Sidebar />
+        <WhatsappButton />
+        
+        <div className="md:ml-64 p-6">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -1552,23 +1733,43 @@ export default function AdminPage() {
 
             <TabsContent value="users-roles" className="space-y-6">
               {/* Roles Overview */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {roles.map((role) => {
-                  const IconComponent = role.icon
-                  const userCount = users.filter((u) => u.role === role.id).length
-                  return (
-                    <Card key={role.id}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between mb-2">
-                          <IconComponent className="h-5 w-5 text-primary" />
-                          <span className="text-2xl font-bold">{userCount}</span>
-                        </div>
-                        <p className="text-sm font-medium">{role.name}</p>
-                        <p className="text-xs text-muted-foreground">{role.description}</p>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <Users className="h-5 w-5 text-primary" />
+                      <span className="text-2xl font-bold">
+                        {users.filter((u) => u.role === "customer").length}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium">Clientes</p>
+                    <p className="text-xs text-muted-foreground">Usuarios regulares</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <Shield className="h-5 w-5 text-primary" />
+                      <span className="text-2xl font-bold">
+                        {users.filter((u) => u.role === "admin").length}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium">Administradores</p>
+                    <p className="text-xs text-muted-foreground">Acceso completo al sistema</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <UserCog className="h-5 w-5 text-primary" />
+                      <span className="text-2xl font-bold">
+                        {users.filter((u) => u.role === "staff").length}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium">Personal</p>
+                    <p className="text-xs text-muted-foreground">Empleados y personal</p>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Users Management */}
@@ -1600,43 +1801,77 @@ export default function AdminPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <Label>Nombre Completo</Label>
-                                <Input placeholder="Juan Pérez" />
+                                <Input
+                                  placeholder="Juan Pérez"
+                                  value={newUser.full_name}
+                                  onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                                />
                               </div>
                               <div>
                                 <Label>Email</Label>
-                                <Input type="email" placeholder="juan@empresa.com" />
+                                <Input
+                                  type="email"
+                                  placeholder="juan@empresa.com"
+                                  value={newUser.email}
+                                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                                />
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <Label>Teléfono</Label>
-                                <Input placeholder="+52 55 1234 5678" />
+                                <Input
+                                  placeholder="+52 55 1234 5678"
+                                  value={newUser.phone}
+                                  onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                                />
                               </div>
                               <div>
                                 <Label>Rol</Label>
-                                <Select>
+                                <Select
+                                  value={newUser.role}
+                                  onValueChange={(value: "customer" | "admin" | "staff") =>
+                                    setNewUser({ ...newUser, role: value })
+                                  }
+                                >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Selecciona rol" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {roles.map((role) => (
-                                      <SelectItem key={role.id} value={role.id}>
-                                        {role.name}
-                                      </SelectItem>
-                                    ))}
+                                    <SelectItem value="customer">Cliente</SelectItem>
+                                    <SelectItem value="admin">Administrador</SelectItem>
+                                    <SelectItem value="staff">Personal</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
                             </div>
                             <div>
-                              <Label>Contraseña Temporal</Label>
-                              <Input type="password" placeholder="••••••••" />
+                              <Label>Contraseña</Label>
+                              <Input
+                                type="password"
+                                placeholder="••••••••"
+                                value={newUser.password}
+                                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                              />
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Mínimo 6 caracteres. El usuario podrá cambiarla después.
+                              </p>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <Switch id="sendEmail" defaultChecked />
+                              <Switch
+                                id="sendEmail"
+                                checked={newUser.sendEmail}
+                                onCheckedChange={(checked) => setNewUser({ ...newUser, sendEmail: checked })}
+                              />
                               <Label htmlFor="sendEmail">Enviar email de bienvenida</Label>
                             </div>
-                            <Button className="w-full bg-primary hover:bg-primary/90">Crear Usuario</Button>
+                            <Button
+                              className="w-full bg-primary hover:bg-primary/90"
+                              onClick={handleCreateUser}
+                              disabled={creatingUser || !newUser.email || !newUser.password || !newUser.full_name}
+                            >
+                              {creatingUser ? "Creando usuario..." : "Crear Usuario"}
+                            </Button>
                           </div>
                         </DialogContent>
                       </Dialog>
@@ -1644,73 +1879,184 @@ export default function AdminPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {/* Users Table */}
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Usuario</TableHead>
-                          <TableHead>Rol</TableHead>
-                          <TableHead>Pedidos</TableHead>
-                          <TableHead>Total Gastado</TableHead>
-                          <TableHead>Puntos</TableHead>
-                          <TableHead>Último Acceso</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {users.map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                  <span className="text-sm font-semibold text-primary">
-                                    {user.name
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")}
-                                  </span>
-                                </div>
-                                <div>
-                                  <p className="font-medium">{user.name}</p>
-                                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>{getRoleBadge(user.role)}</TableCell>
-                            <TableCell>{user.orders}</TableCell>
-                            <TableCell className="font-semibold">${user.totalSpent.toLocaleString()}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Gift className="h-4 w-4 text-amber-600" />
-                                <span>{user.points}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{user.lastLogin}</TableCell>
-                            <TableCell>
-                              <Badge className="bg-green-100 text-green-800">Activo</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm" title="Ver perfil">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="Editar">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="Cambiar rol">
-                                  <Shield className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  {loadingUsers ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-muted-foreground">Cargando usuarios...</div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Users Table */}
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Usuario</TableHead>
+                              <TableHead>Rol</TableHead>
+                              <TableHead>Pedidos</TableHead>
+                              <TableHead>Total Gastado</TableHead>
+                              <TableHead>Último Acceso</TableHead>
+                              <TableHead>Estado</TableHead>
+                              <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {users.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                  No hay usuarios registrados
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              users.map((user) => (
+                                <TableRow key={user.id}>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <span className="text-sm font-semibold text-primary">
+                                          {(user.full_name || user.email || "U")
+                                            .split(" ")
+                                            .map((n) => n[0])
+                                            .join("")
+                                            .toUpperCase()
+                                            .slice(0, 2)}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <p className="font-medium">{user.full_name || "Sin nombre"}</p>
+                                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Select
+                                      value={user.role}
+                                      onValueChange={(value: "customer" | "admin" | "staff") =>
+                                        handleUpdateUserRole(user.id, value)
+                                      }
+                                    >
+                                      <SelectTrigger className="w-32">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="customer">Cliente</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="staff">Personal</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                  <TableCell>{user.orders}</TableCell>
+                                  <TableCell className="font-semibold">
+                                    ${user.totalSpent.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                  </TableCell>
+                                  <TableCell>
+                                    {user.lastLogin
+                                      ? new Date(user.lastLogin).toLocaleDateString("es-MX")
+                                      : "Nunca"}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge className="bg-green-100 text-green-800">Activo</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Editar"
+                                        onClick={() => setEditingUser(user)}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      {user.id !== currentUser?.id && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          title="Eliminar"
+                                          onClick={() => handleDeleteUser(user.id, user.email || "")}
+                                          className="text-destructive hover:text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
+
+              {/* Dialog para editar usuario */}
+              {editingUser && (
+                <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Editar Usuario</DialogTitle>
+                      <DialogDescription>Modifica la información del usuario</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Nombre Completo</Label>
+                          <Input
+                            value={editingUser.full_name || ""}
+                            onChange={(e) =>
+                              setEditingUser({ ...editingUser, full_name: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Email</Label>
+                          <Input
+                            type="email"
+                            value={editingUser.email || ""}
+                            onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label>Teléfono</Label>
+                          <Input
+                            value={editingUser.phone || ""}
+                            onChange={(e) => setEditingUser({ ...editingUser, phone: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label>Rol</Label>
+                          <Select
+                            value={editingUser.role}
+                            onValueChange={(value: "customer" | "admin" | "staff") =>
+                              setEditingUser({ ...editingUser, role: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="customer">Cliente</SelectItem>
+                              <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="staff">Personal</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setEditingUser(null)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleUpdateUser} className="bg-primary hover:bg-primary/90">
+                          Guardar Cambios
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               {/* Role Permissions */}
               <Card>
@@ -2334,5 +2680,6 @@ EMAIL_FROM=ventas@3abranding.com`}
         </div>
       </div>
     </div>
+    </AdminGuard>
   )
 }

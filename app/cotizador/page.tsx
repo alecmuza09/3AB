@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { WhatsappButton } from "@/components/whatsapp-button"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,7 +20,17 @@ import {
   FileText,
   Download,
   Share2,
+  Settings,
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 interface QuotationData {
   service: string
@@ -33,6 +44,19 @@ interface QuotationData {
   margin: string
   pricePerUnit: number
   pricePerUnitWithMargin: number
+}
+
+interface CotizadorConfig {
+  margins: {
+    low: { threshold: number; percentage: number }
+    medium: { threshold: number; percentage: number }
+    high: { threshold: number; percentage: number }
+  }
+  extras: {
+    placa: number
+    ponchado: number
+    tratamiento: number
+  }
 }
 
 // ============== COTIZADOR LOGIC ==============
@@ -131,10 +155,23 @@ const calculateBordadoPrice = (quantity: number, size: string) => {
   return quantity * pricePerUnit
 }
 
-const calculateMargin = (quantity: number) => {
-  if (quantity <= 200) return { percentage: 30, divisor: 0.70, label: "30%" }
-  if (quantity <= 1000) return { percentage: 25, divisor: 0.75, label: "25%" }
-  return { percentage: 20, divisor: 0.80, label: "20%" }
+const calculateMargin = (quantity: number, config?: CotizadorConfig) => {
+  const margins = config?.margins || {
+    low: { threshold: 200, percentage: 30 },
+    medium: { threshold: 1000, percentage: 25 },
+    high: { threshold: 1001, percentage: 20 },
+  }
+
+  if (quantity <= margins.low.threshold) {
+    const percentage = margins.low.percentage
+    return { percentage, divisor: 1 - percentage / 100, label: `${percentage}%` }
+  }
+  if (quantity <= margins.medium.threshold) {
+    const percentage = margins.medium.percentage
+    return { percentage, divisor: 1 - percentage / 100, label: `${percentage}%` }
+  }
+  const percentage = margins.high.percentage
+  return { percentage, divisor: 1 - percentage / 100, label: `${percentage}%` }
 }
 
 const generateQuotation = (
@@ -142,36 +179,43 @@ const generateQuotation = (
   quantity: number,
   colors?: number,
   size?: string,
-  includeExtras?: { placa?: boolean; ponchado?: boolean; tratamiento?: boolean }
+  includeExtras?: { placa?: boolean; ponchado?: boolean; tratamiento?: boolean },
+  config?: CotizadorConfig
 ): QuotationData => {
   let subtotal = 0
   const extras: { name: string; cost: number }[] = []
 
+  const extrasConfig = config?.extras || {
+    placa: 280,
+    ponchado: 280,
+    tratamiento: 150,
+  }
+
   switch (service) {
     case "tampografia":
       subtotal = calculateTampografiaSerigrafiaPrice(quantity, colors ?? 1)
-      if (includeExtras?.placa) extras.push({ name: "Placa de tampografía", cost: 280 })
+      if (includeExtras?.placa) extras.push({ name: "Placa de tampografía", cost: extrasConfig.placa })
       break
     case "vidrio-metal":
       subtotal = calculateVidrioMetalRubberPrice(quantity, colors ?? 1)
-      if (includeExtras?.placa) extras.push({ name: "Placa de tampografía", cost: 280 })
+      if (includeExtras?.placa) extras.push({ name: "Placa de tampografía", cost: extrasConfig.placa })
       break
     case "laser":
       subtotal = calculateGrabadoLaserPrice(quantity)
       break
     case "bordado":
       subtotal = calculateBordadoPrice(quantity, size ?? "5-12cm")
-      if (includeExtras?.ponchado) extras.push({ name: "Ponchado de bordado", cost: 280 })
+      if (includeExtras?.ponchado) extras.push({ name: "Ponchado de bordado", cost: extrasConfig.ponchado })
       break
   }
 
   if (includeExtras?.tratamiento) {
-    extras.push({ name: "Tratamiento especial", cost: 150 })
+    extras.push({ name: "Tratamiento especial", cost: extrasConfig.tratamiento })
   }
 
   const extrasTotal = extras.reduce((sum, extra) => sum + extra.cost, 0)
   const total = subtotal + extrasTotal
-  const margin = calculateMargin(quantity)
+  const margin = calculateMargin(quantity, config)
   const totalWithMargin = total / margin.divisor
 
   return {
@@ -205,6 +249,7 @@ const getServiceName = (service: string) => {
 }
 
 export default function CotizadorPage() {
+  const { isAdmin } = useAuth()
   const [service, setService] = useState<string>("")
   const [quantity, setQuantity] = useState<string>("")
   const [colors, setColors] = useState<string>("1")
@@ -213,6 +258,19 @@ export default function CotizadorPage() {
   const [includePonchado, setIncludePonchado] = useState(false)
   const [includeTratamiento, setIncludeTratamiento] = useState(false)
   const [quotation, setQuotation] = useState<QuotationData | null>(null)
+  const [configOpen, setConfigOpen] = useState(false)
+  const [config, setConfig] = useState<CotizadorConfig>({
+    margins: {
+      low: { threshold: 200, percentage: 30 },
+      medium: { threshold: 1000, percentage: 25 },
+      high: { threshold: 1001, percentage: 20 },
+    },
+    extras: {
+      placa: 280,
+      ponchado: 280,
+      tratamiento: 150,
+    },
+  })
 
   const handleGenerate = () => {
     const qty = parseInt(quantity)
@@ -230,7 +288,8 @@ export default function CotizadorPage() {
         placa: includePlaca,
         ponchado: includePonchado,
         tratamiento: includeTratamiento,
-      }
+      },
+      config
     )
 
     setQuotation(result)
@@ -255,7 +314,7 @@ export default function CotizadorPage() {
         <div className="container mx-auto px-4 py-8 max-w-6xl">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center mb-4">
+            <div className="flex items-center justify-center mb-4 relative">
               <div className="bg-primary/10 p-3 rounded-full mr-4">
                 <Calculator className="h-8 w-8 text-primary" />
               </div>
@@ -265,6 +324,220 @@ export default function CotizadorPage() {
                   Calcula el precio de tus servicios de personalización de forma instantánea
                 </p>
               </div>
+              {isAdmin && (
+                <Dialog open={configOpen} onOpenChange={setConfigOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="absolute top-0 right-0 md:relative md:ml-4"
+                      title="Configuración del cotizador"
+                    >
+                      <Settings className="h-5 w-5" />
+                    </Button>
+                  </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Settings className="h-5 w-5" />
+                      Configuración del Cotizador
+                    </DialogTitle>
+                    <DialogDescription>
+                      Modifica los márgenes de ganancia y costos adicionales para personalizar los cálculos.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-6 py-4">
+                    {/* Márgenes de Ganancia */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-base">Márgenes de Ganancia</h3>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="low-threshold">Hasta (cantidad)</Label>
+                            <Input
+                              id="low-threshold"
+                              type="number"
+                              value={config.margins.low.threshold}
+                              onChange={(e) =>
+                                setConfig({
+                                  ...config,
+                                  margins: {
+                                    ...config.margins,
+                                    low: { ...config.margins.low, threshold: parseInt(e.target.value) || 0 },
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="low-percentage">Margen (%)</Label>
+                            <Input
+                              id="low-percentage"
+                              type="number"
+                              value={config.margins.low.percentage}
+                              onChange={(e) =>
+                                setConfig({
+                                  ...config,
+                                  margins: {
+                                    ...config.margins,
+                                    low: { ...config.margins.low, percentage: parseInt(e.target.value) || 0 },
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="medium-threshold">Hasta (cantidad)</Label>
+                            <Input
+                              id="medium-threshold"
+                              type="number"
+                              value={config.margins.medium.threshold}
+                              onChange={(e) =>
+                                setConfig({
+                                  ...config,
+                                  margins: {
+                                    ...config.margins,
+                                    medium: { ...config.margins.medium, threshold: parseInt(e.target.value) || 0 },
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="medium-percentage">Margen (%)</Label>
+                            <Input
+                              id="medium-percentage"
+                              type="number"
+                              value={config.margins.medium.percentage}
+                              onChange={(e) =>
+                                setConfig({
+                                  ...config,
+                                  margins: {
+                                    ...config.margins,
+                                    medium: { ...config.margins.medium, percentage: parseInt(e.target.value) || 0 },
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="high-threshold">Más de (cantidad)</Label>
+                            <Input
+                              id="high-threshold"
+                              type="number"
+                              value={config.margins.high.threshold}
+                              onChange={(e) =>
+                                setConfig({
+                                  ...config,
+                                  margins: {
+                                    ...config.margins,
+                                    high: { ...config.margins.high, threshold: parseInt(e.target.value) || 0 },
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="high-percentage">Margen (%)</Label>
+                            <Input
+                              id="high-percentage"
+                              type="number"
+                              value={config.margins.high.percentage}
+                              onChange={(e) =>
+                                setConfig({
+                                  ...config,
+                                  margins: {
+                                    ...config.margins,
+                                    high: { ...config.margins.high, percentage: parseInt(e.target.value) || 0 },
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Costos Adicionales */}
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-base">Costos Adicionales (MXN)</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="placa-cost">Placa de Tampografía</Label>
+                          <Input
+                            id="placa-cost"
+                            type="number"
+                            value={config.extras.placa}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                extras: { ...config.extras, placa: parseFloat(e.target.value) || 0 },
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="ponchado-cost">Ponchado de Bordado</Label>
+                          <Input
+                            id="ponchado-cost"
+                            type="number"
+                            value={config.extras.ponchado}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                extras: { ...config.extras, ponchado: parseFloat(e.target.value) || 0 },
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="tratamiento-cost">Tratamiento Especial</Label>
+                          <Input
+                            id="tratamiento-cost"
+                            type="number"
+                            value={config.extras.tratamiento}
+                            onChange={(e) =>
+                              setConfig({
+                                ...config,
+                                extras: { ...config.extras, tratamiento: parseFloat(e.target.value) || 0 },
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setConfig({
+                          margins: {
+                            low: { threshold: 200, percentage: 30 },
+                            medium: { threshold: 1000, percentage: 25 },
+                            high: { threshold: 1001, percentage: 20 },
+                          },
+                          extras: {
+                            placa: 280,
+                            ponchado: 280,
+                            tratamiento: 150,
+                          },
+                        })
+                      }}
+                    >
+                      Restaurar Valores por Defecto
+                    </Button>
+                    <Button onClick={() => setConfigOpen(false)}>Guardar Configuración</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">

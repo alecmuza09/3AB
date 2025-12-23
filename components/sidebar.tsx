@@ -15,7 +15,6 @@ import {
   Phone,
   ShoppingCart,
   Search,
-  User,
   Menu,
   X,
   Bot,
@@ -23,11 +22,32 @@ import {
   Calculator,
 } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
+import { useAuth } from "@/contexts/auth-context"
+import { LoginDialog } from "@/components/auth/login-dialog"
+import { UserMenu } from "@/components/auth/user-menu"
+import { LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export function Sidebar() {
   const [isOpen, setIsOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const { getItemCount } = useCart()
+  const { isAdmin, user, signOut } = useAuth()
+  const router = useRouter()
   const cartCount = getItemCount()
+
+  const handleSignOut = async () => {
+    setSigningOut(true)
+    try {
+      await signOut()
+      router.push("/")
+      router.refresh()
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error)
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   const menuItems = [
     { icon: Home, label: "Inicio", href: "/" },
@@ -40,7 +60,13 @@ export function Sidebar() {
     { icon: Bot, label: "Asistente IA", href: "/asistente" },
     { icon: Phone, label: "Contacto", href: "/contacto" },
     { icon: Shield, label: "Administración", href: "/admin", isAdmin: true },
-  ]
+  ].filter((item) => {
+    // Ocultar opciones de admin si el usuario no es administrador
+    if (item.isAdmin && !isAdmin) {
+      return false
+    }
+    return true
+  })
 
   return (
     <>
@@ -105,11 +131,8 @@ export function Sidebar() {
               <Button variant="ghost" size="sm">
                 <Search className="h-4 w-4" />
               </Button>
-              <Link href="/perfil" onClick={() => setIsOpen(false)}>
-                <Button variant="ghost" size="sm">
-                  <User className="h-4 w-4" />
-                </Button>
-              </Link>
+              <UserMenu />
+              <LoginDialog />
               <Link href="/carrito" onClick={() => setIsOpen(false)}>
                 <Button variant="ghost" size="sm" className="relative" aria-label="Abrir carrito">
                   <ShoppingCart className="h-4 w-4" />
@@ -127,6 +150,17 @@ export function Sidebar() {
                 Asistente IA
               </Button>
             </Link>
+            {user && (
+              <Button
+                variant="outline"
+                className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground mt-2"
+                onClick={handleSignOut}
+                disabled={signingOut}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                {signingOut ? "Cerrando sesión..." : "Cerrar Sesión"}
+              </Button>
+            )}
           </div>
         </div>
       </aside>

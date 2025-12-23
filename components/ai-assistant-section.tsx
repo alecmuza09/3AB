@@ -29,16 +29,16 @@ export function AIAssistantSection() {
   ]
 
   return (
-    <section className="py-16 px-6 bg-gradient-to-br from-background to-muted/30">
+    <section className="py-20 lg:py-24 px-6 bg-gradient-to-br from-background via-muted/20 to-background">
       <div className="max-w-7xl mx-auto">
         {/* Main CTA Card */}
-        <div className="text-center mb-12">
-          <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
+        <div className="text-center mb-16">
+          <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 px-4 py-1.5">
             <Sparkles className="h-3 w-3 mr-1" />
             Nuevo: Asistente IA
           </Badge>
-          <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">¿No sabes qué productos elegir?</h2>
-          <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mb-4">¿No sabes qué productos elegir?</h2>
+          <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
             Nuestro asistente de inteligencia artificial te guía paso a paso para encontrar los productos promocionales
             perfectos para tu evento o empresa.
           </p>
