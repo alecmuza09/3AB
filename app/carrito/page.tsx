@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
@@ -16,7 +16,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
 import { useSupabase } from "@/lib/supabase-client"
-import { useEffect, useState } from "react"
 import {
   ArrowLeft,
   ShoppingCart,
