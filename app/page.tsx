@@ -1,57 +1,31 @@
 import { Sidebar } from "@/components/sidebar"
 import { HeroSection } from "@/components/hero-section"
+import { HowItWorksSection } from "@/components/how-it-works-section"
+import { AIAssistantSection } from "@/components/ai-assistant-section"
 import { CategoriesSection } from "@/components/categories-section"
-import { FeaturedProducts } from "@/components/featured-products"
-import { CustomizationSection } from "@/components/customization-section"
-import { TestimonialsSection } from "@/components/testimonials-section"
-import { CTASection } from "@/components/cta-section"
+import { AboutUsSection } from "@/components/about-us-section"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
-import { AIAssistantSection } from "@/components/ai-assistant-section"
-import { PromotionalBanners } from "@/components/promotional-banners"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       <Sidebar />
       <main className="md:ml-64">
         {/* Hero Section - Primera impresión */}
         <HeroSection />
         
-        {/* Promotional Banners - Mantener interés después del hero */}
-        <div className="border-t border-border/50">
-          <PromotionalBanners />
-        </div>
+        {/* Como Trabajamos - Proceso Simple */}
+        <HowItWorksSection />
         
-        {/* Categories - Exploración de productos */}
-        <div className="border-t border-border/50">
-          <CategoriesSection />
-        </div>
+        {/* Asistente AI - Herramienta de ayuda */}
+        <AIAssistantSection />
         
-        {/* Featured Products - Productos destacados */}
-        <div className="border-t border-border/50">
-          <FeaturedProducts />
-        </div>
+        {/* Categorías - Exploración de productos */}
+        <CategoriesSection />
         
-        {/* AI Assistant - Herramienta de ayuda */}
-        <div className="border-t border-border/50">
-          <AIAssistantSection />
-        </div>
-        
-        {/* Customization - Personalización */}
-        <div className="border-t border-border/50">
-          <CustomizationSection />
-        </div>
-        
-        {/* Testimonials - Construcción de confianza */}
-        <div className="border-t border-border/50">
-          <TestimonialsSection />
-        </div>
-        
-        {/* CTA - Llamada a la acción final */}
-        <div className="border-t border-border/50">
-          <CTASection />
-        </div>
+        {/* Nosotros - Sobre la empresa */}
+        <AboutUsSection />
         
         {/* Footer */}
         <Footer />

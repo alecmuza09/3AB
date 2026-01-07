@@ -58,3 +58,4 @@ export async function testSupabaseConnection() {
 if (process.env.NODE_ENV === 'development' && typeof window === 'undefined') {
   // testSupabaseConnection().then(console.log)
 }
+

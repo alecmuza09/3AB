@@ -1,193 +1,176 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Star, Heart, ShoppingCart, Eye } from "lucide-react"
+import { Star, ShoppingCart } from "lucide-react"
+import { useSupabase } from "@/lib/supabase-client"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import Image from "next/image"
 
-const featuredProducts = [
-  {
-    id: 1,
-    name: "Taza Cerámica Premium",
-    description: "Taza de cerámica de alta calidad, perfecta para personalización",
-    price: "$12.50",
-    originalPrice: "$15.00",
-    image: "/taza-cer-mica-blanca-premium.png",
-    rating: 4.8,
-    reviews: 124,
-    category: "Drinkware",
-    bestseller: true,
-    colors: ["Blanco", "Negro", "Azul", "Rojo"],
-  },
-  {
-    id: 2,
-    name: "Bolígrafo Metálico Ejecutivo",
-    description: "Bolígrafo de metal con grabado láser, ideal para regalos corporativos",
-    price: "$8.90",
-    originalPrice: null,
-    image: "/bol-grafo-met-lico-ejecutivo.png",
-    rating: 4.9,
-    reviews: 89,
-    category: "Oficina",
-    bestseller: false,
-    colors: ["Plateado", "Dorado", "Negro"],
-  },
-  {
-    id: 3,
-    name: "Camiseta Polo Corporativa",
-    description: "Polo de algodón 100%, bordado personalizable en pecho",
-    price: "$18.75",
-    originalPrice: "$22.00",
-    image: "/polo-corporativo-azul.png",
-    rating: 4.7,
-    reviews: 156,
-    category: "Textiles",
-    bestseller: true,
-    colors: ["Azul", "Blanco", "Negro", "Gris"],
-  },
-  {
-    id: 4,
-    name: "Power Bank 10000mAh",
-    description: "Cargador portátil con logo personalizable, carga rápida",
-    price: "$25.00",
-    originalPrice: null,
-    image: "/power-bank-negro-elegante.png",
-    rating: 4.6,
-    reviews: 78,
-    category: "Tecnología",
-    bestseller: false,
-    colors: ["Negro", "Blanco", "Azul"],
-  },
-  {
-    id: 5,
-    name: "Agenda Ejecutiva 2024",
-    description: "Agenda de cuero sintético con grabado personalizado",
-    price: "$22.50",
-    originalPrice: "$28.00",
-    image: "/agenda-ejecutiva-cuero-negro.png",
-    rating: 4.8,
-    reviews: 92,
-    category: "Oficina",
-    bestseller: true,
-    colors: ["Negro", "Marrón", "Azul Marino"],
-  },
-  {
-    id: 6,
-    name: "Termo Acero Inoxidable",
-    description: "Termo de 500ml, mantiene temperatura por 12 horas",
-    price: "$16.80",
-    originalPrice: null,
-    image: "/placeholder.svg?height=250&width=250",
-    rating: 4.9,
-    reviews: 134,
-    category: "Drinkware",
-    bestseller: false,
-    colors: ["Plateado", "Negro", "Azul", "Rojo"],
-  },
-]
+interface Product {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  rating: number
+  review_count: number
+  category_id: string | null
+  is_featured: boolean
+  is_active: boolean
+  category?: {
+    name: string
+  }
+}
 
 export function FeaturedProducts() {
+  const supabase = useSupabase()
+  const router = useRouter()
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchFeaturedProducts() {
+      if (!supabase) return
+
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select(`
+            *,
+            category:categories(name)
+          `)
+          .eq("is_active", true)
+          .eq("is_featured", true)
+          .order("created_at", { ascending: false })
+          .limit(6)
+
+        if (error) {
+          console.error("Error fetching featured products:", error)
+          return
+        }
+
+        setProducts(data || [])
+      } catch (error) {
+        console.error("Error:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchFeaturedProducts()
+  }, [supabase])
+
+  if (loading) {
+    return (
+      <section id="productos" className="py-20 lg:py-24 bg-white">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <p className="text-muted-foreground">Cargando productos...</p>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (products.length === 0) {
+    return null // No mostrar sección si no hay productos destacados
+  }
+
   return (
-    <section id="productos" className="py-20 lg:py-24 bg-background">
+    <section id="productos" className="py-20 lg:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-secondary/10 text-secondary border-secondary/20 px-4 py-1.5">Productos Destacados</Badge>
-          <h2 className="text-3xl lg:text-4xl font-bold text-balance">
-            Los más <span className="text-primary">populares</span> de nuestra colección
+          <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-4 py-1.5">
+            Productos Destacados
+          </Badge>
+          <h2 className="text-3xl lg:text-4xl font-bold text-black">
+            Los más <span className="text-[#DC2626]">populares</span> de nuestra colección
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Descubre los productos más solicitados por nuestros clientes, perfectos para cualquier campaña promocional.
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredProducts.map((product) => (
+          {products.map((product) => (
             <Card
               key={product.id}
-              className="group hover:shadow-xl transition-all duration-300 border-0 bg-card/50 hover:bg-card"
+              className="group hover:shadow-xl transition-all duration-300 border border-gray-200 rounded-xl bg-white cursor-pointer"
+              onClick={() => router.push(`/productos/${product.id}`)}
             >
               <CardContent className="p-0">
-                <div className="relative overflow-hidden rounded-t-lg">
-                  <img
-                    src={product.image || "/placeholder.svg"}
+                <div className="relative overflow-hidden rounded-t-xl">
+                  <Image
+                    src={product.image_url || "/placeholder.svg?height=250&width=300"}
                     alt={product.name}
+                    width={300}
+                    height={250}
                     className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
                   />
 
-                  {/* Badges */}
-                  <div className="absolute top-3 left-3 flex flex-col gap-2">
-                    {product.bestseller && <Badge className="bg-primary text-primary-foreground">Bestseller</Badge>}
-                    {product.originalPrice && <Badge className="bg-secondary text-secondary-foreground">Oferta</Badge>}
-                  </div>
-
-                  {/* Quick Actions */}
-                  <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                      <Heart className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="secondary" className="h-8 w-8 p-0">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Category */}
-                  <div className="absolute bottom-3 left-3">
-                    <Badge variant="outline" className="bg-white/90 backdrop-blur-sm">
-                      {product.category}
-                    </Badge>
-                  </div>
+                  {/* Category Badge */}
+                  {product.category && (
+                    <div className="absolute bottom-3 left-3">
+                      <Badge variant="outline" className="bg-white/90 backdrop-blur-sm">
+                        {product.category.name}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 space-y-4">
                   {/* Rating */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`h-4 w-4 ${
-                            i < Math.floor(product.rating) ? "text-yellow-400 fill-current" : "text-gray-300"
-                          }`}
-                        />
-                      ))}
+                  {product.rating > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i < Math.floor(product.rating) ? "text-yellow-400 fill-current" : "text-gray-300"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        {product.rating.toFixed(1)} ({product.review_count || 0})
+                      </span>
                     </div>
-                    <span className="text-sm text-muted-foreground">
-                      {product.rating} ({product.reviews})
-                    </span>
-                  </div>
+                  )}
 
                   {/* Product Info */}
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold group-hover:text-primary transition-colors">{product.name}</h3>
-                    <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
-                  </div>
-
-                  {/* Colors */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Colores:</span>
-                    <div className="flex gap-1">
-                      {product.colors.slice(0, 3).map((color, index) => (
-                        <div key={index} className="w-4 h-4 rounded-full border border-border bg-muted" title={color} />
-                      ))}
-                      {product.colors.length > 3 && (
-                        <span className="text-xs text-muted-foreground">+{product.colors.length - 3}</span>
-                      )}
-                    </div>
+                    <h3 className="text-lg font-semibold group-hover:text-[#DC2626] transition-colors">
+                      {product.name}
+                    </h3>
+                    {product.description && (
+                      <p className="text-sm text-gray-600 line-clamp-2">{product.description}</p>
+                    )}
                   </div>
 
                   {/* Price and Actions */}
                   <div className="flex items-center justify-between pt-2">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-primary">{product.price}</span>
-                        {product.originalPrice && (
-                          <span className="text-sm text-muted-foreground line-through">{product.originalPrice}</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground">por unidad</span>
+                      <span className="text-lg font-bold text-[#DC2626]">
+                        ${product.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-xs text-gray-500 block">por unidad</span>
                     </div>
 
-                    <Button size="sm" className="bg-primary hover:bg-primary/90">
+                    <Button
+                      size="sm"
+                      className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        router.push(`/productos/${product.id}`)
+                      }}
+                    >
                       <ShoppingCart className="h-4 w-4 mr-1" />
-                      Cotizar
+                      Ver
                     </Button>
                   </div>
                 </div>
@@ -197,9 +180,11 @@ export function FeaturedProducts() {
         </div>
 
         <div className="text-center mt-12">
-          <Button size="lg" className="bg-primary hover:bg-primary/90">
-            Ver Todos los Productos
-          </Button>
+          <Link href="/productos">
+            <Button size="lg" className="bg-[#DC2626] hover:bg-[#B91C1C] text-white">
+              Ver Todos los Productos
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

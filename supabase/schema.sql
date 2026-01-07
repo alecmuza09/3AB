@@ -454,3 +454,4 @@ COMMENT ON TABLE quotations IS 'Cotizaciones de productos';
 COMMENT ON TABLE quotation_items IS 'Items de cada cotización';
 COMMENT ON TABLE reviews IS 'Reseñas y testimonios de productos';
 COMMENT ON TABLE customizations IS 'Personalizaciones guardadas de productos';
+

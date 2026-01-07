@@ -121,3 +121,4 @@ Si encuentras problemas:
 1. Revisa los logs en el SQL Editor de Supabase
 2. Verifica que todas las variables de entorno estén configuradas
 3. Consulta la documentación de Supabase: https://supabase.com/docs
+

@@ -8,114 +8,122 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Search, Filter, Star, ShoppingCart, Palette } from "lucide-react"
+import { Search, Star, ShoppingCart } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { getAllProductsForDisplay } from "@/lib/all-products"
-import { WooCommerceProduct } from "@/lib/woocommerce-products"
-import { useState, useMemo } from "react"
+import { useSupabase } from "@/lib/supabase-client"
+import { useState, useEffect, useMemo } from "react"
+
+interface Product {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  rating: number
+  review_count: number
+  stock: number | null
+  category_id: string | null
+  category?: {
+    id: string
+    name: string
+    slug: string
+  }
+}
+
+interface Category {
+  id: string
+  name: string
+  slug: string
+  is_active: boolean
+}
 
 export default function ProductosPage() {
   const router = useRouter()
+  const supabase = useSupabase()
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("Todos")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mapa de colores para swatches
-  const colorMap: Record<string, string> = {
-    "negro": "#000000",
-    "black": "#000000",
-    "blanco": "#FFFFFF",
-    "white": "#FFFFFF",
-    "rojo": "#DC2626",
-    "red": "#DC2626",
-    "azul": "#2563EB",
-    "blue": "#2563EB",
-    "verde": "#16A34A",
-    "green": "#16A34A",
-    "amarillo": "#EAB308",
-    "yellow": "#EAB308",
-    "naranja": "#EA580C",
-    "orange": "#EA580C",
-    "rosa": "#EC4899",
-    "pink": "#EC4899",
-    "morado": "#9333EA",
-    "purple": "#9333EA",
-    "gris": "#6B7280",
-    "gray": "#6B7280",
-    "café": "#92400E",
-    "brown": "#92400E",
-    "beige": "#D4B896",
-    "navy": "#1E3A8A",
-    "marino": "#1E3A8A",
-  }
+  // Cargar categorías desde Supabase
+  useEffect(() => {
+    async function fetchCategories() {
+      if (!supabase) return
 
-  const getColorHex = (colorName: string): string => {
-    const normalized = colorName.toLowerCase().trim()
-    return colorMap[normalized] || "#9CA3AF"
-  }
+      try {
+        const { data, error } = await supabase
+          .from("categories")
+          .select("*")
+          .eq("is_active", true)
+          .order("name", { ascending: true })
 
-  const categories = [
-    "Todos",
-    "Antiestrés",
-    "Bar",
-    "Belleza",
-    "Bolsas",
-    "Calendarios",
-    "Deportes",
-    "Ecológicos",
-    "Escritura",
-    "Folders",
-    "Gafetes",
-    "Gorras",
-    "Hogar",
-    "Mochilas",
-    "Oficina",
-    "Pines",
-    "Placas",
-    "Playeras",
-    "Plumas",
-    "Portarretratos",
-    "Reconocimientos",
-    "Relojes",
-    "Salud",
-    "Tarjetas de Presentación",
-    "Tazas",
-    "Tecnología",
-    "Termos",
-    "Textiles",
-    "USB",
-    "Vasos",
-  ]
+        if (error) {
+          console.error("Error fetching categories:", error)
+          return
+        }
 
-  // Obtener todos los productos (legacy + WooCommerce)
-  const allProducts = getAllProductsForDisplay()
+        setCategories(data || [])
+      } catch (error) {
+        console.error("Error:", error)
+      }
+    }
 
-  // Filtrar productos
+    fetchCategories()
+  }, [supabase])
+
+  // Cargar productos desde Supabase
+  useEffect(() => {
+    async function fetchProducts() {
+      if (!supabase) return
+
+      try {
+        let query = supabase
+          .from("products")
+          .select(`
+            *,
+            category:categories(id, name, slug)
+          `)
+          .eq("is_active", true)
+
+        // Filtrar por categoría si está seleccionada
+        if (selectedCategoryId) {
+          query = query.eq("category_id", selectedCategoryId)
+        }
+
+        const { data, error } = await query.order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching products:", error)
+          return
+        }
+
+        setProducts(data || [])
+      } catch (error) {
+        console.error("Error:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProducts()
+  }, [supabase, selectedCategoryId])
+
+  // Filtrar productos por búsqueda
   const filteredProducts = useMemo(() => {
-    let filtered = allProducts
+    if (!searchTerm) return products
 
-    // Filtrar por categoría
-    if (selectedCategory !== "Todos") {
-      filtered = filtered.filter(
-        (p) => p.category.toLowerCase() === selectedCategory.toLowerCase()
-      )
-    }
-
-    // Filtrar por búsqueda
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.description.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-    return filtered
-  }, [allProducts, selectedCategory, searchTerm])
+    const term = searchTerm.toLowerCase()
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        (p.description && p.description.toLowerCase().includes(term))
+    )
+  }, [products, searchTerm])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       <Sidebar />
       <WhatsappButton />
 
@@ -136,33 +144,37 @@ export default function ProductosPage() {
             <div className="mb-8">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-4xl font-bold text-foreground mb-2">Catálogo de Productos</h1>
-                  <p className="text-lg text-muted-foreground">
-                    Más de {allProducts.length} productos promocionales personalizables de alta calidad.
+                  <h1 className="text-4xl font-bold text-black mb-2">Catálogo de Productos</h1>
+                  <p className="text-lg text-gray-600">
+                    {products.length > 0
+                      ? `${products.length} productos promocionales personalizables de alta calidad.`
+                      : "Productos promocionales personalizables de alta calidad."}
                   </p>
                 </div>
-                <Badge className="bg-primary text-lg px-4 py-2">
-                  {filteredProducts.length} productos
-                </Badge>
+                {filteredProducts.length > 0 && (
+                  <Badge className="bg-[#DC2626] text-white text-lg px-4 py-2">
+                    {filteredProducts.length} productos
+                  </Badge>
+                )}
               </div>
             </div>
 
             {/* Search and Filters */}
-            <Card className="mb-8">
+            <Card className="mb-8 border border-gray-200">
               <CardContent className="pt-6">
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
-                    <Input 
-                      placeholder="Buscar por nombre, descripción, SKU..." 
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                    <Input
+                      placeholder="Buscar por nombre o descripción..."
                       className="pl-10 h-12 text-base"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
                   {searchTerm && (
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setSearchTerm("")}
                       className="h-12"
                     >
@@ -175,18 +187,29 @@ export default function ProductosPage() {
                 <div>
                   <Label className="text-sm font-semibold mb-3 block">Categorías</Label>
                   <div className="flex flex-wrap gap-2">
+                    <Badge
+                      variant={selectedCategoryId === null ? "default" : "outline"}
+                      className={`cursor-pointer transition-all ${
+                        selectedCategoryId === null
+                          ? "bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                          : "hover:bg-gray-100"
+                      } whitespace-nowrap px-3 py-1.5`}
+                      onClick={() => setSelectedCategoryId(null)}
+                    >
+                      Todos
+                    </Badge>
                     {categories.map((category) => (
                       <Badge
-                        key={category}
-                        variant={selectedCategory === category ? "default" : "outline"}
+                        key={category.id}
+                        variant={selectedCategoryId === category.id ? "default" : "outline"}
                         className={`cursor-pointer transition-all ${
-                          selectedCategory === category 
-                            ? "bg-primary hover:bg-primary/90" 
-                            : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                          selectedCategoryId === category.id
+                            ? "bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                            : "hover:bg-gray-100"
                         } whitespace-nowrap px-3 py-1.5`}
-                        onClick={() => setSelectedCategory(category)}
+                        onClick={() => setSelectedCategoryId(category.id)}
                       >
-                        {category}
+                        {category.name}
                       </Badge>
                     ))}
                   </div>
@@ -194,145 +217,120 @@ export default function ProductosPage() {
               </CardContent>
             </Card>
 
-            {/* Products Grid */}
-            {filteredProducts.length === 0 ? (
+            {/* Loading State */}
+            {loading && (
               <Card className="p-8 text-center">
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    No se encontraron productos con los filtros seleccionados.
+                  <p className="text-gray-600">Cargando productos...</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Products Grid */}
+            {!loading && filteredProducts.length === 0 && (
+              <Card className="p-8 text-center border border-gray-200">
+                <CardContent>
+                  <p className="text-gray-600">
+                    {searchTerm || selectedCategoryId
+                      ? "No se encontraron productos con los filtros seleccionados."
+                      : "Aún no hay productos disponibles. Pronto agregaremos nuestro catálogo completo."}
                   </p>
                 </CardContent>
               </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredProducts.map((product) => (
-                  <Card
-                    key={product.id}
-                    className="group hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => router.push(`/productos/${product.id}`)}
-                  >
-                    <CardHeader className="p-0">
-                      <div className="relative overflow-hidden rounded-t-lg">
-                        <Image
-                          src={product.image || `/placeholder.svg?height=200&width=300&query=${product.name}`}
-                          alt={product.name}
-                          width={300}
-                          height={200}
-                          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <Badge className="absolute top-2 right-2 bg-primary">{product.category}</Badge>
-                        {product.stock !== undefined && product.stock > 0 && (
-                          <Badge className="absolute top-2 left-2 bg-green-500">
-                            En stock: {product.stock}
-                          </Badge>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4">
-                      <CardTitle className="text-lg line-clamp-2 mb-2">{product.name}</CardTitle>
-                      <div className="flex items-center gap-1 mb-2">
-                        <Star className="h-4 w-4 fill-primary text-primary" />
-                        <span className="text-sm font-medium">{product.rating}</span>
-                        <span className="text-xs text-muted-foreground ml-1">({Math.floor(Math.random() * 50 + 10)} reseñas)</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{product.description}</p>
-                      
-                      {/* Color Swatches */}
-                      {(() => {
-                        const wooProduct = product as unknown as WooCommerceProduct
-                        return wooProduct.attributes?.color && wooProduct.attributes.color.length > 0 && (
-                          <div className="mb-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Palette className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs font-medium text-muted-foreground">Colores:</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {wooProduct.attributes.color.slice(0, 5).map((color: string, idx: number) => {
-                                const colorHex = getColorHex(color)
-                                return (
-                                  <div
-                                    key={idx}
-                                    className={`w-6 h-6 rounded-full shadow-sm border ${
-                                      colorHex === "#FFFFFF" ? "border-gray-300" : "border-gray-200"
-                                    }`}
-                                    style={{ backgroundColor: colorHex }}
-                                    title={color}
-                                  />
-                                )
-                              })}
-                              {wooProduct.attributes.color.length > 5 && (
-                                <div className="w-6 h-6 rounded-full bg-gray-200 border border-gray-300 flex items-center justify-center">
-                                  <span className="text-[9px] font-bold text-gray-600">
-                                    +{wooProduct.attributes.color.length - 5}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })()}
-
-                      {/* Técnicas de impresión */}
-                      {(() => {
-                        const wooProduct = product as unknown as WooCommerceProduct
-                        return wooProduct.attributes?.tecnicaImpresion && wooProduct.attributes.tecnicaImpresion.length > 0 && (
-                          <div className="mb-3">
-                            <div className="flex flex-wrap gap-1">
-                              {wooProduct.attributes.tecnicaImpresion.slice(0, 2).map((tech: string, idx: number) => (
-                                <Badge key={idx} variant="outline" className="text-[10px] py-0 h-5 border-gray-300">
-                                  {tech}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })()}
-
-                      <Separator className="my-3" />
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex flex-col">
-                          <span className="text-xl font-bold text-primary">{product.price}</span>
-                          {(() => {
-                            const wooProduct = product as unknown as WooCommerceProduct
-                            return wooProduct.minQuantity && wooProduct.minQuantity > 1 && (
-                              <span className="text-[10px] text-muted-foreground">Min: {wooProduct.minQuantity} pzs</span>
-                            )
-                          })()}
-                        </div>
-                        <Button
-                          size="sm"
-                          className="bg-primary hover:bg-primary/90"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push(`/productos/${product.id}`)
-                          }}
-                        >
-                          Ver más
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             )}
-            
-            {/* Results count */}
-            {filteredProducts.length > 0 && (
-              <div className="mt-6 text-sm text-muted-foreground text-center">
-                Mostrando {filteredProducts.length} de {allProducts.length} productos
-              </div>
+
+            {!loading && filteredProducts.length > 0 && (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredProducts.map((product) => (
+                    <Card
+                      key={product.id}
+                      className="group hover:shadow-lg transition-shadow cursor-pointer border border-gray-200 rounded-xl"
+                      onClick={() => router.push(`/productos/${product.id}`)}
+                    >
+                      <CardHeader className="p-0">
+                        <div className="relative overflow-hidden rounded-t-xl">
+                          <Image
+                            src={product.image_url || `/placeholder.svg?height=200&width=300&query=${product.name}`}
+                            alt={product.name}
+                            width={300}
+                            height={200}
+                            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          {product.category && (
+                            <Badge className="absolute top-2 right-2 bg-[#DC2626] text-white">
+                              {product.category.name}
+                            </Badge>
+                          )}
+                          {product.stock !== null && product.stock > 0 && (
+                            <Badge className="absolute top-2 left-2 bg-green-500 text-white">
+                              En stock
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4">
+                        <CardTitle className="text-lg line-clamp-2 mb-2 text-black">
+                          {product.name}
+                        </CardTitle>
+                        {product.rating > 0 && (
+                          <div className="flex items-center gap-1 mb-2">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
+                            {product.review_count > 0 && (
+                              <span className="text-xs text-gray-500 ml-1">
+                                ({product.review_count} reseñas)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {product.description && (
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                            {product.description}
+                          </p>
+                        )}
+
+                        <Separator className="my-3" />
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <span className="text-xl font-bold text-[#DC2626]">
+                              ${product.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-xs text-gray-500">por unidad</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              router.push(`/productos/${product.id}`)
+                            }}
+                          >
+                            Ver más
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Results count */}
+                <div className="mt-6 text-sm text-gray-600 text-center">
+                  Mostrando {filteredProducts.length} de {products.length} productos
+                </div>
+              </>
             )}
 
             {/* CTA Section */}
-            <Card className="mt-12 bg-primary/5">
+            <Card className="mt-12 bg-gray-50 border border-gray-200">
               <CardContent className="p-8 text-center">
-                <h2 className="text-2xl font-bold mb-4">¿No encuentras lo que buscas?</h2>
-                <p className="text-muted-foreground mb-6">
-                  Contamos con más de 5,000 productos promocionales disponibles. Contáctanos y te ayudamos a encontrar
+                <h2 className="text-2xl font-bold mb-4 text-black">¿No encuentras lo que buscas?</h2>
+                <p className="text-gray-600 mb-6">
+                  Contamos con una amplia variedad de productos promocionales disponibles. Contáctanos y te ayudamos a encontrar
                   el producto perfecto para tu marca.
                 </p>
-                <Button size="lg" className="bg-primary hover:bg-primary/90">
+                <Button size="lg" className="bg-[#DC2626] hover:bg-[#B91C1C] text-white">
                   Solicitar Catálogo Completo
                 </Button>
               </CardContent>

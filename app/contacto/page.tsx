@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MapPin, Phone, Mail, Clock, Send, CheckCircle } from "lucide-react"
+import { Phone, Mail, Send, CheckCircle, Linkedin, Instagram } from "lucide-react"
 
 export default function ContactoPage() {
   const [formData, setFormData] = useState({
@@ -51,24 +51,24 @@ export default function ContactoPage() {
 
   const contactInfo = [
     {
-      icon: MapPin,
-      title: "Dirección",
-      details: ["Av. Insurgentes Sur 1234", "Ciudad de México, CDMX 03100"],
-    },
-    {
       icon: Phone,
-      title: "Teléfonos",
-      details: ["+52 (55) 1234-5678", "+52 (55) 8765-4321"],
+      title: "WhatsApp",
+      details: ["5567919161"],
     },
     {
       icon: Mail,
-      title: "Email",
-      details: ["ventas@3abranding.com", "info@3abranding.com"],
+      title: "Email para pedidos",
+      details: ["ad@3abranding.com"],
     },
     {
-      icon: Clock,
-      title: "Horarios",
-      details: ["Lun - Vie: 8:00 AM - 6:00 PM", "Sáb: 9:00 AM - 2:00 PM"],
+      icon: Linkedin,
+      title: "LinkedIn",
+      details: ["linkedin.com/company/3abranding"],
+    },
+    {
+      icon: Instagram,
+      title: "Instagram",
+      details: ["@3a_branding"],
     },
   ]
 
@@ -257,14 +257,30 @@ export default function ContactoPage() {
                 <CardContent className="p-6">
                   <h3 className="font-semibold mb-4">Contacto rápido</h3>
                   <div className="space-y-3">
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <Phone className="h-4 w-4 mr-2" />
-                      Llamar ahora
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start bg-transparent">
-                      <Mail className="h-4 w-4 mr-2" />
-                      Enviar email
-                    </Button>
+                    <a href="https://wa.me/525567919161" target="_blank" rel="noopener noreferrer" className="block">
+                      <Button variant="outline" className="w-full justify-start bg-transparent">
+                        <Phone className="h-4 w-4 mr-2" />
+                        WhatsApp
+                      </Button>
+                    </a>
+                    <a href="mailto:ad@3abranding.com" className="block">
+                      <Button variant="outline" className="w-full justify-start bg-transparent">
+                        <Mail className="h-4 w-4 mr-2" />
+                        Enviar email
+                      </Button>
+                    </a>
+                    <a href="https://www.linkedin.com/company/3abranding/" target="_blank" rel="noopener noreferrer" className="block">
+                      <Button variant="outline" className="w-full justify-start bg-transparent">
+                        <Linkedin className="h-4 w-4 mr-2" />
+                        LinkedIn
+                      </Button>
+                    </a>
+                    <a href="https://www.instagram.com/3a_branding/" target="_blank" rel="noopener noreferrer" className="block">
+                      <Button variant="outline" className="w-full justify-start bg-transparent">
+                        <Instagram className="h-4 w-4 mr-2" />
+                        Instagram
+                      </Button>
+                    </a>
                   </div>
                 </CardContent>
               </Card>

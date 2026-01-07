@@ -37,3 +37,4 @@ SELECT
   p.created_at
 FROM profiles p
 WHERE p.email = 'alecmuza09@gmail.com';
+

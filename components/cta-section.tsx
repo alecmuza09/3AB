@@ -43,11 +43,13 @@ export function CTASection() {
                 <Phone className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold mb-2">Llámanos</h3>
-                <p className="text-sm text-muted-foreground mb-3">Habla directamente con nuestros asesores</p>
-                <Button variant="outline" size="sm">
-                  +1 (555) 123-4567
-                </Button>
+                <h3 className="font-semibold mb-2">WhatsApp</h3>
+                <p className="text-sm text-muted-foreground mb-3">Chatea con nosotros por WhatsApp</p>
+                <a href="https://wa.me/525567919161" target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm">
+                    5567919161
+                  </Button>
+                </a>
               </div>
             </CardContent>
           </Card>
@@ -60,9 +62,11 @@ export function CTASection() {
               <div>
                 <h3 className="font-semibold mb-2">Escríbenos</h3>
                 <p className="text-sm text-muted-foreground mb-3">Envíanos tu consulta por email</p>
-                <Button variant="outline" size="sm">
-                  ventas@3abranding.com
-                </Button>
+                <a href="mailto:ad@3abranding.com">
+                  <Button variant="outline" size="sm">
+                    ad@3abranding.com
+                  </Button>
+                </a>
               </div>
             </CardContent>
           </Card>

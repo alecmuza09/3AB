@@ -411,3 +411,4 @@ CREATE POLICY "Admins can view all customizations"
       WHERE id = auth.uid() AND role = 'admin'
     )
   );
+

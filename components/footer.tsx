@@ -1,6 +1,6 @@
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Facebook, Instagram, Linkedin, Twitter, Mail, Phone, MapPin, ArrowRight } from "lucide-react"
+import { Instagram, Linkedin, Mail, Phone, ArrowRight } from "lucide-react"
 
 export function Footer() {
   return (
@@ -42,18 +42,26 @@ export function Footer() {
               marca.
             </p>
             <div className="flex gap-4">
-              <Button variant="ghost" size="sm" className="text-background hover:text-primary hover:bg-background/10">
-                <Facebook className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-background hover:text-primary hover:bg-background/10">
-                <Instagram className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-background hover:text-primary hover:bg-background/10">
-                <Linkedin className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-background hover:text-primary hover:bg-background/10">
-                <Twitter className="h-4 w-4" />
-              </Button>
+              <a
+                href="https://www.linkedin.com/company/3abranding/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-background hover:text-primary transition-colors"
+              >
+                <Button variant="ghost" size="sm" className="text-background hover:text-primary hover:bg-background/10">
+                  <Linkedin className="h-4 w-4" />
+                </Button>
+              </a>
+              <a
+                href="https://www.instagram.com/3a_branding/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-background hover:text-primary transition-colors"
+              >
+                <Button variant="ghost" size="sm" className="text-background hover:text-primary hover:bg-background/10">
+                  <Instagram className="h-4 w-4" />
+                </Button>
+              </a>
             </div>
           </div>
 
@@ -137,19 +145,27 @@ export function Footer() {
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-primary" />
-                <span className="text-background/70">+52 (55) 1234-5678</span>
+                <a href="https://wa.me/525567919161" target="_blank" rel="noopener noreferrer" className="text-background/70 hover:text-background transition-colors">
+                  5567919161
+                </a>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-primary" />
-                <span className="text-background/70">ventas@3abranding.com</span>
+                <a href="mailto:ad@3abranding.com" className="text-background/70 hover:text-background transition-colors">
+                  ad@3abranding.com
+                </a>
               </div>
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 text-primary mt-0.5" />
-                <span className="text-background/70">
-                  Av. Insurgentes Sur 1234
-                  <br />
-                  Ciudad de México, CDMX 03100
-                </span>
+              <div className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-primary" />
+                <a href="https://www.linkedin.com/company/3abranding/" target="_blank" rel="noopener noreferrer" className="text-background/70 hover:text-background transition-colors">
+                  LinkedIn
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Instagram className="h-4 w-4 text-primary" />
+                <a href="https://www.instagram.com/3a_branding/" target="_blank" rel="noopener noreferrer" className="text-background/70 hover:text-background transition-colors">
+                  Instagram
+                </a>
               </div>
             </div>
           </div>

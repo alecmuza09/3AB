@@ -1,34 +1,15 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { ArrowRight } from "lucide-react"
+import Link from "next/link"
 import {
   Coffee,
   Shirt,
   Briefcase,
   Gift,
-  Smartphone,
-  Utensils,
-  ArrowRight,
-  ShoppingBag,
-  Calendar,
-  Dumbbell,
-  Leaf,
-  FolderOpen,
-  Award as IdCard,
-  Crown,
-  Backpack,
-  Pin,
-  Award,
-  Shirt as TShirt,
   Pen,
-  Frame,
-  Trophy,
   Watch,
-  Heart,
-  CreditCard,
-  Thermometer,
-  Usb,
-  Wine,
 } from "lucide-react"
 
 const categories = [
@@ -268,80 +249,106 @@ const categories = [
   },
 ]
 
+const featuredCategories = [
+  {
+    id: "oficina",
+    name: "Oficina",
+    description: "Bolígrafos, libretas, folders y más",
+    icon: Briefcase,
+    productCount: "250+",
+  },
+  {
+    id: "textiles",
+    name: "Textiles",
+    description: "Playeras, polos, uniformes corporativos",
+    icon: Shirt,
+    productCount: "180+",
+  },
+  {
+    id: "drinkware",
+    name: "Drinkware",
+    description: "Tazas, termos y botellas personalizadas",
+    icon: Coffee,
+    productCount: "120+",
+  },
+  {
+    id: "regalos-premium",
+    name: "Regalos Premium",
+    description: "Kits ejecutivos y regalos corporativos",
+    icon: Gift,
+    productCount: "80+",
+  },
+  {
+    id: "escritura",
+    name: "Escritura",
+    description: "Bolígrafos, plumas y sets de escritura",
+    icon: Pen,
+    productCount: "150+",
+  },
+  {
+    id: "accesorios",
+    name: "Accesorios",
+    description: "Relojes, llaveros y artículos personales",
+    icon: Watch,
+    productCount: "90+",
+  },
+]
+
 export function CategoriesSection() {
   return (
-    <section id="categorias" className="py-20 lg:py-24 bg-muted/20">
+    <section id="categorias" className="py-20 lg:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-primary/10 text-primary border-primary/20 px-4 py-1.5">Explora Nuestras Categorías</Badge>
-          <h2 className="text-3xl lg:text-4xl font-bold text-balance">
-            Encuentra el producto perfecto para tu <span className="text-primary">marca</span>
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
-            Descubre nuestra amplia selección de productos promocionales organizados por categorías para facilitar tu
-            búsqueda.
-          </p>
+        <div className="flex items-center justify-between mb-12">
+          <div>
+            <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-3 py-1 text-xs mb-3">
+              Catálogo
+            </Badge>
+            <h2 className="text-3xl lg:text-4xl font-bold text-black">
+              Explora nuestras categorías
+            </h2>
+          </div>
+          <Link href="/catalogos">
+            <Button variant="link" className="text-[#DC2626] hover:text-[#B91C1C] p-0 h-auto">
+              Ver catálogo completo
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categories.slice(0, 6).map((category) => {
+          {featuredCategories.map((category) => {
             const IconComponent = category.icon
             return (
               <Card
                 key={category.id}
-                className="group hover:shadow-lg transition-all duration-300 cursor-pointer border-0 bg-card/50 hover:bg-card"
+                className="group hover:shadow-lg transition-all duration-300 cursor-pointer border border-gray-200 rounded-xl bg-white"
               >
-                <CardContent className="p-0">
-                  <div className="relative overflow-hidden rounded-t-lg">
-                    <img
-                      src={category.image || "/placeholder.svg"}
-                      alt={category.name}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    {category.popular && (
-                      <Badge className="absolute top-3 left-3 bg-secondary text-secondary-foreground">Popular</Badge>
-                    )}
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full p-2">
-                      <IconComponent className="h-5 w-5 text-primary" />
-                    </div>
-                  </div>
-
-                  <div className="p-6 space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-semibold group-hover:text-primary transition-colors">
-                          {category.name}
-                        </h3>
-                        <Badge variant="outline" className="text-xs">
-                          {category.productCount}
-                        </Badge>
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    {/* Icon and Count */}
+                    <div className="flex items-start justify-between">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <IconComponent className="h-6 w-6 text-[#DC2626]" />
                       </div>
-                      <p className="text-muted-foreground text-sm">{category.description}</p>
+                      <Badge className="bg-[#DC2626] text-white border-0 font-bold text-sm">
+                        {category.productCount}
+                      </Badge>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-between group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                    >
-                      Ver Productos
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
+                    {/* Title */}
+                    <h3 className="text-xl font-bold text-black group-hover:text-[#DC2626] transition-colors">
+                      {category.name}
+                    </h3>
+
+                    {/* Description */}
+                    <p className="text-gray-600 text-sm leading-relaxed">
+                      {category.description}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
             )
           })}
-        </div>
-
-        <div className="text-center mt-12">
-          <Button
-            size="lg"
-            variant="outline"
-            className="border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent"
-          >
-            Ver Todas las Categorías
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
         </div>
       </div>
     </section>

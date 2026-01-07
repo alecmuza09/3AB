@@ -41,3 +41,4 @@ export function useSupabase(): SupabaseClient<Database> | null {
 
   return supabase
 }
+

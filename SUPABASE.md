@@ -337,3 +337,4 @@ USING (auth.uid() = user_id);
 3. **El cliente del navegador** (`useSupabase`) solo debe usarse en Client Components.
 
 4. **El cliente del servidor** (`createSupabaseServerClient`) debe usarse en Server Components y Server Actions.
+

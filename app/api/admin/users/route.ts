@@ -84,3 +84,4 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: error.message || "Error al eliminar usuario" }, { status: 500 })
   }
 }
+

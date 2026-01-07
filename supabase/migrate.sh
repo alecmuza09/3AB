@@ -65,3 +65,4 @@ echo "Próximos pasos:"
 echo "1. Verifica las tablas en el Dashboard de Supabase"
 echo "2. Configura el almacenamiento de archivos si es necesario"
 echo "3. Prueba la conexión desde tu aplicación"
+
