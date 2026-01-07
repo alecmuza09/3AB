@@ -10,6 +10,8 @@ import {
   Gift,
   Pen,
   Watch,
+  Smartphone,
+  Thermometer,
 } from "lucide-react"
 
 const categories = [

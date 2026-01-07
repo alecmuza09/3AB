@@ -29,33 +29,44 @@ import {
   Share2,
   Star,
 } from "lucide-react"
-import { getTotalStock, WooCommerceProduct, ProductVariation } from "@/lib/woocommerce-products"
-import { getAnyProductById, isLegacyProduct, LegacyProduct } from "@/lib/all-products"
+import { useSupabase } from "@/lib/supabase-client"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
+import { getProductByIdFromSupabase, SupabaseProduct } from "@/lib/all-products"
 
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const supabase = useSupabase()
   const { addToCart } = useCart()
   const productId = params.id as string
 
-  const [product, setProduct] = useState<WooCommerceProduct | LegacyProduct | null>(null)
-  const [selectedVariation, setSelectedVariation] = useState<ProductVariation | null>(null)
+  const [product, setProduct] = useState<SupabaseProduct | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [customization, setCustomization] = useState("")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const foundProduct = getAnyProductById(productId)
-    if (foundProduct) {
-      setProduct(foundProduct)
-      // Si tiene variaciones, seleccionar la primera por defecto
-      if (!isLegacyProduct(foundProduct) && foundProduct.variations && foundProduct.variations.length > 0) {
-        setSelectedVariation(foundProduct.variations[0])
+    async function fetchProduct() {
+      if (!productId) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const foundProduct = await getProductByIdFromSupabase(productId)
+        if (foundProduct) {
+          setProduct(foundProduct)
+          setQuantity(foundProduct.min_quantity || 1)
+        }
+      } catch (error) {
+        console.error("Error fetching product:", error)
+      } finally {
+        setLoading(false)
       }
     }
-    setLoading(false)
+
+    fetchProduct()
   }, [productId])
 
   if (loading) {
@@ -96,25 +107,11 @@ export default function ProductDetailPage() {
     )
   }
 
-  // Verificar si es un producto legacy
-  const isLegacy = isLegacyProduct(product!)
-  
   // Obtener datos del producto
-  const totalStock = isLegacy ? product.stock : getTotalStock(product as WooCommerceProduct)
-  const currentPrice = isLegacy 
-    ? 0 
-    : (selectedVariation?.price || (product as WooCommerceProduct).price)
-  const currentStock = isLegacy 
-    ? product.stock 
-    : (selectedVariation?.stock || (product as WooCommerceProduct).stock || totalStock)
-  const availableColors = isLegacy ? [] : ((product as WooCommerceProduct).attributes?.color || [])
-  const printingTechniques = isLegacy ? [] : ((product as WooCommerceProduct).attributes?.tecnicaImpresion || [])
-  const productAttributes = isLegacy ? null : (product as WooCommerceProduct).attributes
-  const productVariations = isLegacy ? [] : ((product as WooCommerceProduct).variations || [])
-  const minQuantity = isLegacy ? 1 : ((product as WooCommerceProduct).minQuantity || 1)
-  const multipleOf = isLegacy ? 1 : ((product as WooCommerceProduct).multipleOf || 1)
-  const productType = isLegacy ? "simple" : (product as WooCommerceProduct).type
-  const productSku = isLegacy ? "" : (product as WooCommerceProduct).sku
+  const currentPrice = product?.price || 0
+  const currentStock = product?.stock || 0
+  const minQuantity = product?.min_quantity || 1
+  const multipleOf = 1 // Por ahora, se puede ajustar después
 
   // Mapa de colores para swatches
   const colorMap: Record<string, string> = {
@@ -151,31 +148,33 @@ export default function ProductDetailPage() {
   }
 
   const handleAddToCart = () => {
-    if (isLegacy) {
-      // Para productos legacy, redirigir a cotizaciones
-      handleRequestQuote()
-      return
-    }
-
-    const wooProduct = product as WooCommerceProduct
-    
-    if (wooProduct.type === "variable" && !selectedVariation && wooProduct.variations && wooProduct.variations.length > 0) {
-      toast.error("Por favor selecciona una variación del producto")
-      return
-    }
+    if (!product) return
 
     if (quantity < minQuantity) {
       toast.error(`La cantidad mínima es ${minQuantity}`)
       return
     }
 
-    addToCart(wooProduct, quantity, selectedVariation?.id, customization)
+    // Agregar producto al carrito
+    addToCart(
+      {
+        id: product.id,
+        name: product.name,
+        description: product.description || "",
+        price: product.price,
+        image: product.image_url || "",
+        category: product.category?.name || "",
+      },
+      quantity,
+      undefined,
+      customization
+    )
     toast.success("Producto agregado al carrito")
   }
 
   const handleRequestQuote = () => {
     // Redirigir a la página de cotizaciones con el producto pre-seleccionado
-    router.push(`/cotizaciones?product=${productId}&variation=${selectedVariation?.id || ""}&quantity=${quantity}`)
+    router.push(`/cotizaciones?product=${productId}&quantity=${quantity}`)
   }
 
   const incrementQuantity = () => {
@@ -213,7 +212,7 @@ export default function ProductDetailPage() {
                   <CardContent className="p-0">
                     <div className="relative aspect-square w-full overflow-hidden rounded-lg">
                       <Image
-                        src={product.image || `/placeholder.svg?height=600&width=600&query=${product.name}`}
+                        src={product.image_url || `/placeholder.svg?height=600&width=600&query=${product.name}`}
                         alt={product.name}
                         fill
                         className="object-cover"
@@ -237,39 +236,40 @@ export default function ProductDetailPage() {
               {/* Información del producto */}
               <div className="space-y-6">
                 <div>
-                  <Badge variant="outline" className="mb-2">
-                    {product.category}
-                  </Badge>
+                  {product.category && (
+                    <Badge variant="outline" className="mb-2">
+                      {product.category.name}
+                    </Badge>
+                  )}
                   <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
-                  <div className="flex items-center gap-3 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star 
-                        key={i} 
-                        className={`h-5 w-5 ${i < Math.floor(product.rating) ? "fill-primary text-primary" : "text-gray-300"}`} 
-                      />
-                    ))}
-                    <span className="text-sm font-medium ml-1">{product.rating}</span>
-                    <span className="text-sm text-muted-foreground">({Math.floor(Math.random() * 100 + 20)} reseñas)</span>
-                  </div>
+                  {product.rating > 0 && (
+                    <div className="flex items-center gap-3 mb-4">
+                      {[...Array(5)].map((_, i) => (
+                        <Star 
+                          key={i} 
+                          className={`h-5 w-5 ${i < Math.floor(product.rating) ? "fill-primary text-primary" : "text-gray-300"}`} 
+                        />
+                      ))}
+                      <span className="text-sm font-medium ml-1">{product.rating.toFixed(1)}</span>
+                      {product.review_count > 0 && (
+                        <span className="text-sm text-muted-foreground">({product.review_count} reseñas)</span>
+                      )}
+                    </div>
+                  )}
                   
                   <Card className="mb-4 bg-primary/5 border-primary/20">
                     <CardContent className="p-4">
                       <div className="flex items-baseline gap-3">
                         <span className="text-4xl font-bold text-primary">
-                          {isLegacy 
-                            ? (product as LegacyProduct).price
-                            : currentPrice > 0
+                          {currentPrice > 0
                             ? `$${currentPrice.toLocaleString("es-MX", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}`
                             : "Consultar precio"}
                         </span>
-                        {!isLegacy && productSku && (
-                          <Badge variant="outline" className="border-gray-300">SKU: {productSku}</Badge>
-                        )}
                       </div>
-                      {!isLegacy && minQuantity > 1 && (
+                      {minQuantity > 1 && (
                         <p className="text-sm text-muted-foreground mt-2">
                           Precio por pieza · Pedido mínimo: {minQuantity} {minQuantity === 1 ? "pieza" : "piezas"}
                         </p>
@@ -277,13 +277,15 @@ export default function ProductDetailPage() {
                     </CardContent>
                   </Card>
                   
-                  <p className="text-base text-muted-foreground leading-relaxed">{product.description}</p>
+                  {product.description && (
+                    <p className="text-base text-muted-foreground leading-relaxed">{product.description}</p>
+                  )}
                 </div>
 
                 <Separator />
 
-                {/* Variaciones con Color Swatches */}
-                {!isLegacy && productVariations.length > 0 && (
+                {/* Variaciones con Color Swatches - Por ahora deshabilitado hasta implementar variaciones en Supabase */}
+                {false && (
                   <div className="space-y-4">
                     <div>
                       <Label className="text-lg font-semibold mb-2 block">Color Disponible</Label>
@@ -345,8 +347,8 @@ export default function ProductDetailPage() {
                   </div>
                 )}
 
-                {/* Atributos */}
-                {!isLegacy && productAttributes && (
+                {/* Atributos - Por ahora deshabilitado hasta implementar atributos en Supabase */}
+                {false && (
                   <div>
                     <Label className="text-lg font-semibold mb-3 block">Especificaciones</Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -455,10 +457,9 @@ export default function ProductDetailPage() {
                           value={quantity}
                           onChange={(e) => {
                             const value = parseInt(e.target.value) || 1
-                            const min = product.minQuantity || 1
-                            setQuantity(Math.max(min, value))
+                            setQuantity(Math.max(minQuantity, value))
                           }}
-                          min={product.minQuantity || 1}
+                          min={minQuantity}
                           className="w-24 text-center text-xl font-bold h-12"
                         />
                         <Button
@@ -470,12 +471,12 @@ export default function ProductDetailPage() {
                           <Plus className="h-5 w-5" />
                         </Button>
                         <div className="flex flex-col text-sm">
-                          {product.minQuantity && (
+                          {minQuantity > 1 && (
                             <span className="text-muted-foreground">
-                              Mínimo: <span className="font-semibold text-foreground">{product.minQuantity}</span>
+                              Mínimo: <span className="font-semibold text-foreground">{minQuantity}</span>
                             </span>
                           )}
-                          {!isLegacy && currentPrice > 0 && (
+                          {currentPrice > 0 && (
                             <span className="font-bold text-primary">
                               Total: ${(currentPrice * quantity).toLocaleString("es-MX", {
                                 minimumFractionDigits: 2,
@@ -516,21 +517,19 @@ export default function ProductDetailPage() {
 
                 {/* Botones de acción */}
                 <div className="space-y-3">
-                  {!isLegacy && (
-                    <Button
-                      size="lg"
-                      className="w-full h-14 text-lg bg-primary hover:bg-primary/90"
-                      onClick={handleAddToCart}
-                      disabled={currentStock === 0}
-                    >
-                      <ShoppingCart className="h-6 w-6 mr-2" />
-                      {currentStock === 0 ? "Sin stock" : "Agregar al carrito"}
-                    </Button>
-                  )}
                   <Button
                     size="lg"
-                    variant={isLegacy ? "default" : "outline"}
-                    className={`w-full h-14 text-lg ${isLegacy ? "bg-primary hover:bg-primary/90" : "border-2 border-primary text-primary hover:bg-primary hover:text-white"}`}
+                    className="w-full h-14 text-lg bg-primary hover:bg-primary/90"
+                    onClick={handleAddToCart}
+                    disabled={currentStock === 0}
+                  >
+                    <ShoppingCart className="h-6 w-6 mr-2" />
+                    {currentStock === 0 ? "Sin stock" : "Agregar al carrito"}
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full h-14 text-lg border-2 border-primary text-primary hover:bg-primary hover:text-white"
                     onClick={handleRequestQuote}
                   >
                     <MessageCircle className="h-6 w-6 mr-2" />
@@ -594,14 +593,6 @@ export default function ProductDetailPage() {
                         </div>
                         <span className="text-sm font-medium">Asesoría especializada sin costo</span>
                       </div>
-                      {!isLegacy && productAttributes?.proveedor && (
-                        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-primary/20">
-                          <Package className="h-4 w-4 text-primary" />
-                          <span className="text-xs text-muted-foreground">
-                            Proveedor: <span className="font-semibold text-foreground">{productAttributes.proveedor}</span>
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </CardContent>
                 </Card>

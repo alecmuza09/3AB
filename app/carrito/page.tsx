@@ -14,8 +14,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useCart } from "@/contexts/cart-context"
-import { getAllProductsForDisplay } from "@/lib/all-products"
 import { toast } from "sonner"
+import { useSupabase } from "@/lib/supabase-client"
+import { useEffect, useState } from "react"
 import {
   ArrowLeft,
   ShoppingCart,
@@ -57,10 +58,12 @@ const formatCurrency = (value: number) =>
 
 export default function CartPage() {
   const router = useRouter()
+  const supabase = useSupabase()
   const { items, updateQuantity, removeFromCart, clearCart, getItemCount } = useCart()
   const [selectedMethod, setSelectedMethod] = useState<string>(purchaseMethods[0].id)
   const [orderNotes, setOrderNotes] = useState("")
   const [coupon, setCoupon] = useState("")
+  const [recommendedProducts, setRecommendedProducts] = useState<any[]>([])
 
   const subtotal = useMemo(
     () => items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0),
@@ -71,12 +74,44 @@ export default function CartPage() {
   const estimatedTaxes = subtotal * 0.16
   const grandTotal = subtotal + estimatedShipping + estimatedTaxes
 
-  const recommendedProducts = useMemo(() => {
-    const allProducts = getAllProductsForDisplay()
-    return allProducts
-      .filter((product) => !items.some((item) => item.productId === product.id))
-      .slice(0, 4)
-  }, [items])
+  useEffect(() => {
+    async function fetchRecommendedProducts() {
+      if (!supabase) return
+
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(4)
+
+        if (error) {
+          console.error("Error fetching recommended products:", error)
+          return
+        }
+
+        // Filtrar productos que ya están en el carrito
+        const filtered = (data || []).filter(
+          (product) => !items.some((item) => item.productId === product.id)
+        )
+
+        setRecommendedProducts(
+          filtered.map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            price: `$${p.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`,
+            image: p.image_url || `/placeholder.svg?height=128&width=128&query=${p.name}`,
+          }))
+        )
+      } catch (error) {
+        console.error("Error:", error)
+      }
+    }
+
+    fetchRecommendedProducts()
+  }, [supabase, items])
 
   const handleQuantityChange = (productId: string, variationId: string | undefined, quantity: number) => {
     if (quantity <= 0) {
@@ -401,7 +436,7 @@ export default function CartPage() {
                       >
                         <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted">
                           <Image
-                            src={product.image || `/placeholder.svg?height=128&width=128&query=${product.name}`}
+                            src={product.image_url || `/placeholder.svg?height=128&width=128&query=${product.name}`}
                             alt={product.name}
                             fill
                             className="object-cover"
@@ -409,9 +444,11 @@ export default function CartPage() {
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-sm">{product.name}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{product.description || ""}</p>
                         </div>
-                        <div className="text-sm font-semibold">{product.price}</div>
+                        <div className="text-sm font-semibold">
+                          ${product.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                        </div>
                       </div>
                     ))}
                   </CardContent>
