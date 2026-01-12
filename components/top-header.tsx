@@ -15,14 +15,13 @@ import {
 } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
 import { useAuth } from "@/contexts/auth-context"
-import { UserMenu } from "@/components/auth/user-menu"
 
 export function TopHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { getItemCount } = useCart()
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const cartCount = getItemCount()
 
   const menuItems = [
@@ -83,20 +82,21 @@ export function TopHeader() {
               </Button>
             </Link>
             
-            {user ? (
-              <UserMenu />
-            ) : (
-              <Link href="/perfil">
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="text-gray-700 hover:text-[#DC2626]"
-                >
-                  <User className="h-4 w-4 mr-2" />
-                  Iniciar Sesión
-                </Button>
-              </Link>
-            )}
+            <Link href="/perfil">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="relative text-gray-700 hover:text-[#DC2626] hover:bg-primary/10 transition-colors"
+                aria-label="Perfil de usuario"
+              >
+                <User className="h-4 w-4" />
+                {isAdmin && (
+                  <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#DC2626] text-white">
+                    A
+                  </Badge>
+                )}
+              </Button>
+            </Link>
             
             <Link href="/carrito">
               <Button variant="ghost" size="sm" className="relative">
@@ -152,20 +152,21 @@ export function TopHeader() {
                     Asistente IA
                   </Button>
                 </Link>
-                {user ? (
-                  <UserMenu />
-                ) : (
-                  <Link href="/perfil" onClick={() => setIsMenuOpen(false)} className="flex-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      className="w-full"
-                    >
-                      <User className="h-4 w-4 mr-2" />
-                      Iniciar Sesión
-                    </Button>
-                  </Link>
-                )}
+                <Link href="/perfil" onClick={() => setIsMenuOpen(false)} className="flex-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="relative w-full"
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    {user ? "Mi Perfil" : "Iniciar Sesión"}
+                    {isAdmin && (
+                      <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#DC2626] text-white">
+                        A
+                      </Badge>
+                    )}
+                  </Button>
+                </Link>
                 <Link href="/carrito" onClick={() => setIsMenuOpen(false)}>
                   <Button variant="ghost" size="sm" className="relative">
                     <ShoppingCart className="h-4 w-4" />
