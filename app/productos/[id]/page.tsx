@@ -188,10 +188,10 @@ export default function ProductDetailPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
       <WhatsappButton />
 
-      <main className="md:ml-64">
+      <main>
         <div className="p-6">
           <div className="max-w-7xl mx-auto">
             {/* Breadcrumb */}

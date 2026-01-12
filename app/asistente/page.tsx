@@ -1098,9 +1098,5 @@ function QuotationCalculator({ onClose, onQuote }: { onClose: () => void; onQuot
         </Card>
       </CardContent>
     </Card>
-        </div>
-      </main>
-      <Footer />
-    </div>
   )
 }
