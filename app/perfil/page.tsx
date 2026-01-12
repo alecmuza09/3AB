@@ -232,7 +232,7 @@ export default function PerfilPage() {
   const totalSpent = history.reduce((sum, order) => sum + (order.total || 0), 0)
 
   // Si no está autenticado, mostrar formulario de registro/login
-  if (!user && !authLoadingContext) {
+  if (!user && !authLoadingContext && !authLoading) {
     return (
       <div className="min-h-screen bg-background">
         <TopHeader />
