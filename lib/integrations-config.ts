@@ -124,6 +124,16 @@ export const facturacionConfig = {
 }
 
 // ============================================
+// API DE INVENTARIO - 4Promotional
+// ============================================
+export const inventarioApiConfig = {
+  baseUrl: process.env.INVENTARIO_API_BASE_URL || 'https://4promotional.net:9090/WsEstrategia',
+  apiKey: process.env.INVENTARIO_API_KEY || '',
+  timeout: parseInt(process.env.INVENTARIO_API_TIMEOUT || '30000', 10),
+  isEnabled: () => !!inventarioApiConfig.baseUrl,
+}
+
+// ============================================
 // CONFIGURACIÓN GENERAL
 // ============================================
 export const appConfig = {
