@@ -167,8 +167,8 @@ export default function CotizacionesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
-      <main className="md:ml-64 p-6">
+      <TopHeader />
+      <main className="p-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">

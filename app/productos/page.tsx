@@ -19,11 +19,15 @@ interface Product {
   name: string
   description: string | null
   price: number
+  min_price?: number | null
+  max_price?: number | null
   image_url: string | null
   rating: number
   review_count: number
   stock: number | null
   category_id: string | null
+  is_featured?: boolean
+  is_bestseller?: boolean
   category?: {
     id: string
     name: string
