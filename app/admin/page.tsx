@@ -1551,26 +1551,58 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">12</div>
-                        <p className="text-xs text-muted-foreground">Pendientes</p>
+                        {loadingOrders ? (
+                          <div className="text-2xl font-bold">...</div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold">
+                              {orders.filter((o) => ["pending", "confirmed"].includes(o.status)).length}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Pendientes</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">8</div>
-                        <p className="text-xs text-muted-foreground">Procesando</p>
+                        {loadingOrders ? (
+                          <div className="text-2xl font-bold">...</div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold">
+                              {orders.filter((o) => ["in_production", "ready_to_ship"].includes(o.status)).length}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Procesando</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">145</div>
-                        <p className="text-xs text-muted-foreground">Completados</p>
+                        {loadingOrders ? (
+                          <div className="text-2xl font-bold">...</div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold">
+                              {orders.filter((o) => o.status === "delivered").length}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Completados</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">3</div>
-                        <p className="text-xs text-muted-foreground">Cancelados</p>
+                        {loadingOrders ? (
+                          <div className="text-2xl font-bold">...</div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold">
+                              {orders.filter((o) => o.status === "cancelled").length}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Cancelados</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -1623,7 +1655,26 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orders.map((order) => (
+                        {loadingOrders ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <ShoppingCart className="h-8 w-8 text-muted-foreground animate-pulse" />
+                                <p className="text-sm text-muted-foreground">Cargando pedidos...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : orders.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <ShoppingCart className="h-8 w-8 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">No hay pedidos disponibles</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          orders.map((order) => (
                           <TableRow key={order.id}>
                             <TableCell>
                               <div>
@@ -1652,7 +1703,8 @@ export default function AdminPage() {
                               </div>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ))
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -1700,14 +1752,30 @@ export default function AdminPage() {
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">15</div>
-                        <p className="text-xs text-muted-foreground">Nuevos este mes</p>
+                        {loadingCustomers ? (
+                          <div className="text-2xl font-bold">...</div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold">{dashboardStats.newCustomersThisMonth}</div>
+                            <p className="text-xs text-muted-foreground">Nuevos este mes</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">$1,245</div>
-                        <p className="text-xs text-muted-foreground">Valor promedio</p>
+                        {loadingCustomers ? (
+                          <div className="text-2xl font-bold">...</div>
+                        ) : (
+                          <>
+                            <div className="text-2xl font-bold">
+                              ${customers.length > 0 
+                                ? Math.round(customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0) / customers.length).toLocaleString()
+                                : 0}
+                            </div>
+                            <p className="text-xs text-muted-foreground">Valor promedio</p>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -1741,7 +1809,26 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {customers.map((customer) => (
+                        {loadingCustomers ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <Users className="h-8 w-8 text-muted-foreground animate-pulse" />
+                                <p className="text-sm text-muted-foreground">Cargando clientes...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : customers.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <Users className="h-8 w-8 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">No hay clientes disponibles</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          customers.map((customer) => (
                           <TableRow key={customer.id}>
                             <TableCell>
                               <div className="flex items-center gap-3">
