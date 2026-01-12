@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -721,6 +722,7 @@ export default function CotizacionesPage() {
           )}
         </div>
       </main>
+      <Footer />
       <WhatsappButton />
     </div>
   )

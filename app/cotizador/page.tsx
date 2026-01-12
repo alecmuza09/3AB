@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
@@ -834,7 +835,7 @@ export default function CotizadorPage() {
           </div>
         </div>
       </main>
-
+      <Footer />
       <WhatsappButton />
     </div>
   )

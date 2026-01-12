@@ -1,6 +1,7 @@
 "use client"
 
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -210,6 +211,7 @@ export default function PedidosPage() {
           )}
         </div>
       </main>
+      <Footer />
     </div>
   )
 }

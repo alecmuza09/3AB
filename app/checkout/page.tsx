@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -574,6 +575,7 @@ function CheckoutContent() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   )
 }

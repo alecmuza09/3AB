@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -904,7 +905,7 @@ export default function AsistentePage() {
           }} />}
         </div>
       </main>
-
+      <Footer />
       <WhatsappButton />
     </div>
   )
@@ -1097,5 +1098,9 @@ function QuotationCalculator({ onClose, onQuote }: { onClose: () => void; onQuot
         </Card>
       </CardContent>
     </Card>
+        </div>
+      </main>
+      <Footer />
+    </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -288,6 +289,7 @@ export default function ContactoPage() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   )
 }

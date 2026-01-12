@@ -1,4 +1,5 @@
 import { TopHeader } from "@/components/top-header"
+import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -236,6 +237,7 @@ export default function NosotrosPage() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   )
 }
