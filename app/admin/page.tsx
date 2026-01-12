@@ -300,54 +300,115 @@ export default function AdminPage() {
     }
   }
 
-  const [products, setProducts] = useState<Product[]>([
-    {
-      id: "1",
-      name: "Taza Personalizada Premium",
-      category: "Artículos de Oficina",
-      price: 150,
-      stock: 45,
-      status: "active",
-      lastUpdated: "2024-01-15",
-    },
-    {
-      id: "2",
-      name: "USB Corporativo 32GB",
-      category: "Tecnología",
-      price: 280,
-      stock: 8,
-      status: "low-stock",
-      lastUpdated: "2024-01-14",
-    },
-    {
-      id: "3",
-      name: "Playera Polo Bordada",
-      category: "Textiles Corporativos",
-      price: 320,
-      stock: 0,
-      status: "inactive",
-      lastUpdated: "2024-01-13",
-    },
-  ])
+  const [products, setProducts] = useState<Product[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [movements, setMovements] = useState<InventoryMovement[]>([])
+  const [loadingMovements, setLoadingMovements] = useState(false)
 
-  const [movements, setMovements] = useState<InventoryMovement[]>([
-    {
-      id: "1",
-      productName: "Taza Personalizada Premium",
-      type: "entrada",
-      quantity: 50,
-      date: "2024-01-15",
-      reason: "Compra a proveedor",
-    },
-    {
-      id: "2",
-      productName: "USB Corporativo 32GB",
-      type: "salida",
-      quantity: 12,
-      date: "2024-01-14",
-      reason: "Venta cliente corporativo",
-    },
-  ])
+  // Cargar productos desde Supabase
+  const loadProducts = async () => {
+    try {
+      setLoadingProducts(true)
+      const supabase = useSupabase()
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        return
+      }
+
+      const { data: productsData, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          category:categories(name)
+        `)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error loading products:", error)
+        return
+      }
+
+      // Transformar datos para el formato esperado
+      const formattedProducts = (productsData || []).map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        category: (product.category as any)?.name || "Sin categoría",
+        price: Number(product.price || 0),
+        stock: product.stock_quantity || 0,
+        status: !product.is_active 
+          ? "inactive" 
+          : (product.stock_quantity || 0) < 10 
+            ? "low-stock" 
+            : "active",
+        lastUpdated: product.updated_at ? new Date(product.updated_at).toISOString().split("T")[0] : "",
+      }))
+
+      setProducts(formattedProducts)
+    } catch (error) {
+      console.error("Error loading products:", error)
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
+
+  // Cargar movimientos de inventario (si existe la tabla)
+  const loadMovements = async () => {
+    try {
+      setLoadingMovements(true)
+      const supabase = useSupabase()
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        return
+      }
+
+      // Intentar cargar movimientos, si la tabla no existe, dejar array vacío
+      const { data: movementsData, error } = await supabase
+        .from("inventory_movements")
+        .select(`
+          *,
+          product:products(name)
+        `)
+        .order("date", { ascending: false })
+        .limit(50)
+
+      if (error) {
+        // Si la tabla no existe, simplemente no mostrar movimientos
+        if (error.code === "PGRST116" || error.message.includes("does not exist")) {
+          setMovements([])
+          return
+        }
+        console.error("Error loading movements:", error)
+        return
+      }
+
+      // Transformar datos
+      const formattedMovements = (movementsData || []).map((movement: any) => ({
+        id: movement.id,
+        productName: (movement.product as any)?.name || "Producto",
+        type: movement.type,
+        quantity: movement.quantity || 0,
+        date: movement.date || movement.created_at ? new Date(movement.date || movement.created_at).toISOString().split("T")[0] : "",
+        reason: movement.reason || movement.notes || "",
+      }))
+
+      setMovements(formattedMovements)
+    } catch (error) {
+      console.error("Error loading movements:", error)
+      setMovements([])
+    } finally {
+      setLoadingMovements(false)
+    }
+  }
+
+  // Cargar productos cuando se abre la sección
+  useEffect(() => {
+    if (activeSection === "products" || activeSection === "inventory") {
+      loadProducts()
+    }
+    if (activeSection === "inventory") {
+      loadMovements()
+    }
+  }, [activeSection])
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -480,81 +541,271 @@ export default function AdminPage() {
   }
 
   const [activeSection, setActiveSection] = useState("dashboard")
-  const [orders, setOrders] = useState([
-    {
-      id: "ORD-001",
-      customer: "Juan Pérez",
-      email: "juan@empresa.com",
-      total: 4500,
-      status: "pending",
-      date: "2024-01-15",
-      items: 3,
-    },
-    {
-      id: "ORD-002",
-      customer: "María González",
-      email: "maria@corporativo.com",
-      total: 12800,
-      status: "processing",
-      date: "2024-01-14",
-      items: 8,
-    },
-    {
-      id: "ORD-003",
-      customer: "Carlos Ramírez",
-      email: "carlos@startup.mx",
-      total: 3200,
-      status: "completed",
-      date: "2024-01-13",
-      items: 5,
-    },
-  ])
+  const [orders, setOrders] = useState<any[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+  const [customers, setCustomers] = useState<any[]>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [coupons, setCoupons] = useState<any[]>([])
+  const [loadingCoupons, setLoadingCoupons] = useState(false)
+  const [dashboardStats, setDashboardStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    averageTicket: 0,
+    newCustomersThisMonth: 0,
+    revenueGrowth: 0,
+    topProducts: [] as any[],
+    lowStockProducts: [] as any[],
+    pendingOrders: 0,
+  })
+  const [loadingStats, setLoadingStats] = useState(false)
 
-  const [customers, setCustomers] = useState([
-    {
-      id: "1",
-      name: "Juan Pérez",
-      email: "juan@empresa.com",
-      phone: "+52 55 1234 5678",
-      totalOrders: 12,
-      totalSpent: 45600,
-      lastOrder: "2024-01-15",
-      status: "active",
-    },
-    {
-      id: "2",
-      name: "María González",
-      email: "maria@corporativo.com",
-      phone: "+52 55 8765 4321",
-      totalOrders: 8,
-      totalSpent: 32400,
-      lastOrder: "2024-01-14",
-      status: "active",
-    },
-  ])
+  // Cargar pedidos desde Supabase
+  const loadOrders = async () => {
+    try {
+      setLoadingOrders(true)
+      const supabase = useSupabase()
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        return
+      }
 
-  const [coupons, setCoupons] = useState([
-    {
-      id: "1",
-      code: "BIENVENIDA10",
-      discount: 10,
-      type: "percentage",
-      uses: 45,
-      maxUses: 100,
-      status: "active",
-      expiresAt: "2024-12-31",
-    },
-    {
-      id: "2",
-      code: "VERANO2024",
-      discount: 500,
-      type: "fixed",
-      uses: 23,
-      maxUses: 50,
-      status: "active",
-      expiresAt: "2024-08-31",
-    },
-  ])
+      const { data: ordersData, error } = await supabase
+        .from("orders")
+        .select(`
+          *,
+          order_items(count)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      if (error) {
+        console.error("Error loading orders:", error)
+        return
+      }
+
+      // Transformar datos para el formato esperado
+      const formattedOrders = (ordersData || []).map((order: any) => ({
+        id: order.order_number || order.id,
+        customer: (order.contact_info as any)?.contactName || "Cliente",
+        email: (order.contact_info as any)?.email || "",
+        total: Number(order.total || 0),
+        status: order.status,
+        date: order.created_at ? new Date(order.created_at).toISOString().split("T")[0] : "",
+        items: order.order_items?.[0]?.count || 0,
+        orderData: order, // Guardar datos completos
+      }))
+
+      setOrders(formattedOrders)
+    } catch (error) {
+      console.error("Error loading orders:", error)
+    } finally {
+      setLoadingOrders(false)
+    }
+  }
+
+  // Cargar clientes desde Supabase
+  const loadCustomers = async () => {
+    try {
+      setLoadingCustomers(true)
+      const supabase = useSupabase()
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        return
+      }
+
+      // Obtener perfiles de clientes
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("role", "customer")
+        .order("created_at", { ascending: false })
+
+      if (profilesError) {
+        console.error("Error loading profiles:", profilesError)
+        return
+      }
+
+      // Obtener estadísticas de pedidos para cada cliente
+      const customersWithStats = await Promise.all(
+        (profiles || []).map(async (profile) => {
+          const { data: userOrders, error: ordersError } = await supabase
+            .from("orders")
+            .select("id, total, created_at")
+            .eq("user_id", profile.id)
+            .order("created_at", { ascending: false })
+
+          if (ordersError) {
+            console.error("Error loading orders for customer:", ordersError)
+          }
+
+          const totalOrders = userOrders?.length || 0
+          const totalSpent = userOrders?.reduce((sum, order) => sum + Number(order.total || 0), 0) || 0
+          const lastOrder = userOrders?.[0]?.created_at || null
+
+          return {
+            id: profile.id,
+            name: profile.full_name || profile.email || "Cliente",
+            email: profile.email || "",
+            phone: profile.phone || "",
+            totalOrders,
+            totalSpent,
+            lastOrder: lastOrder ? new Date(lastOrder).toISOString().split("T")[0] : "",
+            status: totalOrders > 0 ? "active" : "inactive",
+          }
+        })
+      )
+
+      setCustomers(customersWithStats)
+    } catch (error) {
+      console.error("Error loading customers:", error)
+    } finally {
+      setLoadingCustomers(false)
+    }
+  }
+
+  // Cargar cupones (si existe la tabla)
+  const loadCoupons = async () => {
+    try {
+      setLoadingCoupons(true)
+      const supabase = useSupabase()
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        return
+      }
+
+      // Intentar cargar cupones, si la tabla no existe, dejar array vacío
+      const { data: couponsData, error } = await supabase
+        .from("coupons")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        // Si la tabla no existe, simplemente no mostrar cupones
+        if (error.code === "PGRST116" || error.message.includes("does not exist")) {
+          setCoupons([])
+          return
+        }
+        console.error("Error loading coupons:", error)
+        return
+      }
+
+      setCoupons(couponsData || [])
+    } catch (error) {
+      console.error("Error loading coupons:", error)
+      setCoupons([])
+    } finally {
+      setLoadingCoupons(false)
+    }
+  }
+
+  // Cargar estadísticas del dashboard
+  const loadDashboardStats = async () => {
+    try {
+      setLoadingStats(true)
+      const supabase = useSupabase()
+      if (!supabase) {
+        console.error("Supabase no está disponible")
+        return
+      }
+
+      // Obtener todos los pedidos
+      const { data: allOrders, error: ordersError } = await supabase
+        .from("orders")
+        .select("total, status, created_at")
+
+      if (ordersError) {
+        console.error("Error loading orders for stats:", ordersError)
+      }
+
+      // Calcular estadísticas
+      const totalRevenue = (allOrders || []).reduce((sum, order) => sum + Number(order.total || 0), 0)
+      const totalOrders = (allOrders || []).length
+      const pendingOrders = (allOrders || []).filter((o: any) => 
+        ["pending", "confirmed"].includes(o.status)
+      ).length
+
+      // Obtener clientes
+      const { data: customersData } = await supabase
+        .from("profiles")
+        .select("created_at")
+        .eq("role", "customer")
+
+      const totalCustomers = customersData?.length || 0
+      
+      // Clientes nuevos este mes
+      const now = new Date()
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+      const newCustomersThisMonth = (customersData || []).filter((c: any) => 
+        new Date(c.created_at) >= firstDayOfMonth
+      ).length
+
+      // Ticket promedio
+      const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0
+
+      // Obtener productos con stock bajo
+      const { data: productsData } = await supabase
+        .from("products")
+        .select("id, name, stock_quantity")
+        .eq("is_active", true)
+        .lt("stock_quantity", 10)
+
+      const lowStockProducts = (productsData || []).map((p: any) => p.name)
+
+      // Obtener productos más vendidos (basado en order_items)
+      const { data: orderItems } = await supabase
+        .from("order_items")
+        .select("product_id, quantity, price, products(name)")
+
+      // Agrupar por producto
+      const productSales: Record<string, { name: string; sales: number; revenue: number }> = {}
+      ;(orderItems || []).forEach((item: any) => {
+        const productId = item.product_id
+        const productName = (item.products as any)?.name || "Producto"
+        if (!productSales[productId]) {
+          productSales[productId] = { name: productName, sales: 0, revenue: 0 }
+        }
+        productSales[productId].sales += item.quantity || 0
+        productSales[productId].revenue += (item.quantity || 0) * Number(item.price || 0)
+      })
+
+      const topProducts = Object.values(productSales)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5)
+
+      setDashboardStats({
+        totalRevenue,
+        totalOrders,
+        totalCustomers,
+        averageTicket,
+        newCustomersThisMonth,
+        revenueGrowth: 0, // Calcular si hay datos históricos
+        topProducts,
+        lowStockProducts,
+        pendingOrders,
+      })
+    } catch (error) {
+      console.error("Error loading dashboard stats:", error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }
+
+  // Cargar datos cuando cambia la sección activa
+  useEffect(() => {
+    if (activeSection === "orders" || activeSection === "dashboard") {
+      loadOrders()
+    }
+    if (activeSection === "customers" || activeSection === "dashboard") {
+      loadCustomers()
+    }
+    if (activeSection === "coupons") {
+      loadCoupons()
+    }
+    if (activeSection === "dashboard") {
+      loadDashboardStats()
+    }
+  }, [activeSection])
 
   const getOrderStatusBadge = (status: string) => {
     switch (status) {
@@ -777,8 +1028,14 @@ export default function AdminPage() {
                     <DollarSign className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">$124,500</div>
-                    <p className="text-xs text-green-600">+12.5% vs mes anterior</p>
+                    {loadingStats ? (
+                      <div className="text-2xl font-bold">...</div>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold">${Math.round(dashboardStats.totalRevenue).toLocaleString()}</div>
+                        <p className="text-xs text-muted-foreground">Total acumulado</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -788,8 +1045,14 @@ export default function AdminPage() {
                     <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">156</div>
-                    <p className="text-xs text-green-600">+8.2% vs mes anterior</p>
+                    {loadingStats ? (
+                      <div className="text-2xl font-bold">...</div>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold">{dashboardStats.totalOrders}</div>
+                        <p className="text-xs text-muted-foreground">Total de pedidos</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -799,8 +1062,14 @@ export default function AdminPage() {
                     <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">89</div>
-                    <p className="text-xs text-green-600">+15 nuevos este mes</p>
+                    {loadingStats ? (
+                      <div className="text-2xl font-bold">...</div>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold">{dashboardStats.totalCustomers}</div>
+                        <p className="text-xs text-green-600">+{dashboardStats.newCustomersThisMonth} nuevos este mes</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -824,25 +1093,25 @@ export default function AdminPage() {
                     <CardDescription>Top 5 productos del mes</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {[
-                        { name: "Taza Personalizada Premium", sales: 145, revenue: 21750 },
-                        { name: "USB Corporativo 32GB", sales: 98, revenue: 27440 },
-                        { name: "Playera Polo Bordada", sales: 76, revenue: 24320 },
-                        { name: "Libreta Ejecutiva", sales: 65, revenue: 9750 },
-                        { name: "Gorra Promocional", sales: 54, revenue: 8100 },
-                      ].map((product, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{product.name}</p>
-                            <p className="text-xs text-muted-foreground">{product.sales} unidades vendidas</p>
+                    {loadingStats ? (
+                      <div className="text-center py-4 text-muted-foreground">Cargando...</div>
+                    ) : dashboardStats.topProducts.length > 0 ? (
+                      <div className="space-y-4">
+                        {dashboardStats.topProducts.map((product, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{product.name}</p>
+                              <p className="text-xs text-muted-foreground">{product.sales} unidades vendidas</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold">${Math.round(product.revenue).toLocaleString()}</p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-semibold">${product.revenue.toLocaleString()}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">No hay datos de ventas aún</div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -852,20 +1121,26 @@ export default function AdminPage() {
                     <CardDescription>Últimos 5 pedidos realizados</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      {orders.slice(0, 5).map((order) => (
-                        <div key={order.id} className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">{order.id}</p>
-                            <p className="text-xs text-muted-foreground">{order.customer}</p>
+                    {loadingOrders ? (
+                      <div className="text-center py-4 text-muted-foreground">Cargando...</div>
+                    ) : orders.length > 0 ? (
+                      <div className="space-y-4">
+                        {orders.slice(0, 5).map((order) => (
+                          <div key={order.id} className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">{order.id}</p>
+                              <p className="text-xs text-muted-foreground">{order.customer}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <p className="text-sm font-semibold">${order.total.toLocaleString()}</p>
+                              {getOrderStatusBadge(order.status)}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <p className="text-sm font-semibold">${order.total.toLocaleString()}</p>
-                            {getOrderStatusBadge(order.status)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">No hay pedidos aún</div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -880,22 +1155,34 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="flex items-start gap-3">
-                      <div className="h-2 w-2 rounded-full bg-yellow-600 mt-2" />
-                      <div>
-                        <p className="text-sm font-medium text-yellow-900">
-                          2 productos con stock bajo requieren reposición
-                        </p>
-                        <p className="text-xs text-yellow-700">USB Corporativo 32GB, Playera Polo Bordada</p>
+                    {dashboardStats.lowStockProducts.length > 0 && (
+                      <div className="flex items-start gap-3">
+                        <div className="h-2 w-2 rounded-full bg-yellow-600 mt-2" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-900">
+                            {dashboardStats.lowStockProducts.length} producto{dashboardStats.lowStockProducts.length !== 1 ? 's' : ''} con stock bajo requieren reposición
+                          </p>
+                          <p className="text-xs text-yellow-700">
+                            {dashboardStats.lowStockProducts.slice(0, 3).join(", ")}
+                            {dashboardStats.lowStockProducts.length > 3 && ` y ${dashboardStats.lowStockProducts.length - 3} más`}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="h-2 w-2 rounded-full bg-yellow-600 mt-2" />
-                      <div>
-                        <p className="text-sm font-medium text-yellow-900">5 pedidos pendientes de procesamiento</p>
-                        <p className="text-xs text-yellow-700">Revisa los pedidos pendientes para evitar retrasos</p>
+                    )}
+                    {dashboardStats.pendingOrders > 0 && (
+                      <div className="flex items-start gap-3">
+                        <div className="h-2 w-2 rounded-full bg-yellow-600 mt-2" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-900">
+                            {dashboardStats.pendingOrders} pedido{dashboardStats.pendingOrders !== 1 ? 's' : ''} pendiente{dashboardStats.pendingOrders !== 1 ? 's' : ''} de procesamiento
+                          </p>
+                          <p className="text-xs text-yellow-700">Revisa los pedidos pendientes para evitar retrasos</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {dashboardStats.lowStockProducts.length === 0 && dashboardStats.pendingOrders === 0 && (
+                      <div className="text-sm text-muted-foreground">No hay alertas en este momento</div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1148,7 +1435,26 @@ export default function AdminPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredProducts.map((product) => (
+                        {loadingProducts ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <Package className="h-8 w-8 text-muted-foreground animate-pulse" />
+                                <p className="text-sm text-muted-foreground">Cargando productos...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredProducts.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-8">
+                              <div className="flex flex-col items-center gap-2">
+                                <Package className="h-8 w-8 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">No hay productos disponibles</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredProducts.map((product) => (
                           <TableRow key={product.id}>
                             <TableCell>
                               <input type="checkbox" className="rounded" />
