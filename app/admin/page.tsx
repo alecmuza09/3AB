@@ -86,11 +86,25 @@ interface InventoryMovement {
 
 export default function AdminPage() {
   const searchParams = useSearchParams()
-  
-  // Cargar usuarios desde Supabase
-  useEffect(() => {
-    loadUsers()
-  }, [])
+  const [activeSection, setActiveSection] = useState("dashboard")
+  const [orders, setOrders] = useState<any[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+  const [customers, setCustomers] = useState<any[]>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [coupons, setCoupons] = useState<any[]>([])
+  const [loadingCoupons, setLoadingCoupons] = useState(false)
+  const [dashboardStats, setDashboardStats] = useState({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    averageTicket: 0,
+    newCustomersThisMonth: 0,
+    revenueGrowth: 0,
+    topProducts: [] as any[],
+    lowStockProducts: [] as any[],
+    pendingOrders: 0,
+  })
+  const [loadingStats, setLoadingStats] = useState(false)
   
   // Leer sección desde URL si existe
   useEffect(() => {
@@ -158,6 +172,11 @@ export default function AdminPage() {
       setLoadingUsers(false)
     }
   }
+
+  // Cargar usuarios desde Supabase
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
   // Crear nuevo usuario
   const handleCreateUser = async () => {
@@ -540,25 +559,7 @@ export default function AdminPage() {
     }
   }
 
-  const [activeSection, setActiveSection] = useState("dashboard")
-  const [orders, setOrders] = useState<any[]>([])
-  const [loadingOrders, setLoadingOrders] = useState(false)
-  const [customers, setCustomers] = useState<any[]>([])
-  const [loadingCustomers, setLoadingCustomers] = useState(false)
-  const [coupons, setCoupons] = useState<any[]>([])
-  const [loadingCoupons, setLoadingCoupons] = useState(false)
-  const [dashboardStats, setDashboardStats] = useState({
-    totalRevenue: 0,
-    totalOrders: 0,
-    totalCustomers: 0,
-    averageTicket: 0,
-    newCustomersThisMonth: 0,
-    revenueGrowth: 0,
-    topProducts: [] as any[],
-    lowStockProducts: [] as any[],
-    pendingOrders: 0,
-  })
-  const [loadingStats, setLoadingStats] = useState(false)
+  // Cargar usuarios desde Supabase - se define después
 
   // Cargar pedidos desde Supabase
   const loadOrders = async () => {
@@ -572,10 +573,7 @@ export default function AdminPage() {
 
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select(`
-          *,
-          order_items(count)
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(100)
 
@@ -583,6 +581,19 @@ export default function AdminPage() {
         console.error("Error loading orders:", error)
         return
       }
+
+      // Obtener conteo de items para cada pedido
+      const orderIds = (ordersData || []).map((o: any) => o.id)
+      const { data: orderItemsData } = await supabase
+        .from("order_items")
+        .select("order_id")
+        .in("order_id", orderIds)
+
+      // Contar items por pedido
+      const itemsCountByOrder: Record<string, number> = {}
+      ;(orderItemsData || []).forEach((item: any) => {
+        itemsCountByOrder[item.order_id] = (itemsCountByOrder[item.order_id] || 0) + 1
+      })
 
       // Transformar datos para el formato esperado
       const formattedOrders = (ordersData || []).map((order: any) => ({
@@ -592,8 +603,8 @@ export default function AdminPage() {
         total: Number(order.total || 0),
         status: order.status,
         date: order.created_at ? new Date(order.created_at).toISOString().split("T")[0] : "",
-        items: order.order_items?.[0]?.count || 0,
-        orderData: order, // Guardar datos completos
+        items: itemsCountByOrder[order.id] || 0,
+        orderData: order,
       }))
 
       setOrders(formattedOrders)
@@ -755,13 +766,22 @@ export default function AdminPage() {
       // Obtener productos más vendidos (basado en order_items)
       const { data: orderItems } = await supabase
         .from("order_items")
-        .select("product_id, quantity, price, products(name)")
+        .select("product_id, quantity, price")
+
+      // Obtener nombres de productos
+      const productIds = [...new Set((orderItems || []).map((item: any) => item.product_id).filter(Boolean))]
+      const { data: productsForSales } = await supabase
+        .from("products")
+        .select("id, name")
+        .in("id", productIds)
+
+      const productMap = new Map((productsForSales || []).map((p: any) => [p.id, p.name]))
 
       // Agrupar por producto
       const productSales: Record<string, { name: string; sales: number; revenue: number }> = {}
       ;(orderItems || []).forEach((item: any) => {
         const productId = item.product_id
-        const productName = (item.products as any)?.name || "Producto"
+        const productName = productMap.get(productId) || "Producto"
         if (!productSales[productId]) {
           productSales[productId] = { name: productName, sales: 0, revenue: 0 }
         }
@@ -966,7 +986,7 @@ export default function AdminPage() {
         <WhatsappButton />
         
         <div className="md:ml-64 p-6">
-        <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
@@ -1454,61 +1474,64 @@ export default function AdminPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          filteredProducts.map((product) => (
-                          <TableRow key={product.id}>
-                            <TableCell>
-                              <input type="checkbox" className="rounded" />
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-                                  <Package className="h-5 w-5 text-muted-foreground" />
-                                </div>
-                                <div>
-                                  <p className="font-medium">{product.name}</p>
-                                  <p className="text-xs text-muted-foreground">ID: {product.id}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <code className="text-xs bg-muted px-2 py-1 rounded">SKU-{product.id}</code>
-                            </TableCell>
-                            <TableCell>{product.category}</TableCell>
-                            <TableCell>${product.price.toLocaleString()}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span>{product.stock}</span>
-                                {product.stock < 10 && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
-                              </div>
-                            </TableCell>
-                            <TableCell>{getStatusBadge(product.status)}</TableCell>
-                            <TableCell>
-                              <span className="text-sm text-muted-foreground">-</span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm" title="Ver">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="Editar">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="Duplicar">
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteProduct(product.id)}
-                                  className="text-primary hover:text-primary/80"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                          filteredProducts.map((product) => {
+                            return (
+                              <TableRow key={product.id}>
+                                <TableCell>
+                                  <input type="checkbox" className="rounded" />
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                                      <Package className="h-5 w-5 text-muted-foreground" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium">{product.name}</p>
+                                      <p className="text-xs text-muted-foreground">ID: {product.id}</p>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <code className="text-xs bg-muted px-2 py-1 rounded">SKU-{product.id}</code>
+                                </TableCell>
+                                <TableCell>{product.category}</TableCell>
+                                <TableCell>${product.price.toLocaleString()}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <span>{product.stock}</span>
+                                    {product.stock < 10 && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
+                                  </div>
+                                </TableCell>
+                                <TableCell>{getStatusBadge(product.status)}</TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button variant="ghost" size="sm" title="Ver">
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" title="Editar">
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" title="Duplicar">
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteProduct(product.id)}
+                                      className="text-primary hover:text-primary/80"
+                                      title="Eliminar"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -1828,9 +1851,10 @@ export default function AdminPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          customers.map((customer) => (
-                          <TableRow key={customer.id}>
-                            <TableCell>
+                          customers.map((customer) => {
+                            return (
+                              <TableRow key={customer.id}>
+                                <TableCell>
                               <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                                   <span className="text-sm font-semibold text-primary">
@@ -1845,37 +1869,39 @@ export default function AdminPage() {
                                   <p className="text-xs text-muted-foreground">ID: {customer.id}</p>
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Mail className="h-3 w-3 text-muted-foreground" />
-                                  <span className="text-xs">{customer.email}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-sm">
-                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                  <span className="text-xs">{customer.phone}</span>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>{customer.totalOrders}</TableCell>
-                            <TableCell className="font-semibold">${customer.totalSpent.toLocaleString()}</TableCell>
-                            <TableCell>{customer.lastOrder}</TableCell>
-                            <TableCell>
-                              <Badge className="bg-green-100 text-green-800">Activo</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm" title="Ver perfil">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="Editar">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Mail className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-xs">{customer.email}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <Phone className="h-3 w-3 text-muted-foreground" />
+                                      <span className="text-xs">{customer.phone}</span>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{customer.totalOrders}</TableCell>
+                                <TableCell className="font-semibold">${customer.totalSpent.toLocaleString()}</TableCell>
+                                <TableCell>{customer.lastOrder}</TableCell>
+                                <TableCell>
+                                  <Badge className="bg-green-100 text-green-800">Activo</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex justify-end gap-2">
+                                    <Button variant="ghost" size="sm" title="Ver perfil">
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" title="Editar">
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })
+                        )}
                       </TableBody>
                     </Table>
                   </div>
@@ -3136,9 +3162,9 @@ EMAIL_FROM=ventas@3abranding.com`}
               </div>
             </TabsContent>
           </Tabs>
+          </div>
         </div>
       </div>
-    </div>
     </AdminGuard>
   )
 }
