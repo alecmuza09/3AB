@@ -347,6 +347,44 @@ export default function AdminPage() {
   })
 
   const [searchTerm, setSearchTerm] = useState("")
+  const [syncingProducts, setSyncingProducts] = useState(false)
+  const [syncResult, setSyncResult] = useState<any>(null)
+
+  // Función para sincronizar productos desde la API de inventario
+  const handleSyncProducts = async () => {
+    if (!confirm('¿Estás seguro de sincronizar los productos desde la API de inventario? Esto puede tardar varios minutos.')) {
+      return
+    }
+
+    setSyncingProducts(true)
+    setSyncResult(null)
+
+    try {
+      const response = await fetch('/api/sync-products', {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al sincronizar productos')
+      }
+
+      setSyncResult(data)
+      
+      if (data.success) {
+        alert(`Sincronización completada exitosamente!\n\nCategorías creadas: ${data.data.categoriesCreated}\nCategorías actualizadas: ${data.data.categoriesUpdated}\nProductos creados: ${data.data.productsCreated}\nProductos actualizados: ${data.data.productsUpdated}\nVariaciones creadas: ${data.data.variationsCreated}\nVariaciones actualizadas: ${data.data.variationsUpdated}\nImágenes creadas: ${data.data.imagesCreated}`)
+      } else {
+        alert(`Sincronización completada con errores. Revisa la consola para más detalles.`)
+      }
+    } catch (error: any) {
+      console.error('Error sincronizando productos:', error)
+      alert(`Error al sincronizar productos: ${error.message}`)
+      setSyncResult({ success: false, error: error.message })
+    } finally {
+      setSyncingProducts(false)
+    }
+  }
   const [selectedCategory, setSelectedCategory] = useState("all")
 
   const categories = [
@@ -862,6 +900,23 @@ export default function AdminPage() {
                       <CardDescription>Administra el catálogo completo de productos</CardDescription>
                     </div>
                     <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={handleSyncProducts}
+                        disabled={syncingProducts}
+                      >
+                        {syncingProducts ? (
+                          <>
+                            <Package className="h-4 w-4 mr-2 animate-spin" />
+                            Sincronizando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Sincronizar desde API
+                          </>
+                        )}
+                      </Button>
                       <Button variant="outline">
                         <Download className="h-4 w-4 mr-2" />
                         Exportar

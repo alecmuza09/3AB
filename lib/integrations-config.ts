@@ -148,6 +148,7 @@ export function validateIntegrations() {
     whatsapp: whatsappConfig.isEnabled(),
     cloudinary: cloudinaryConfig.isEnabled(),
     facturacion: facturacionConfig.isEnabled(),
+    inventarioApi: inventarioApiConfig.isEnabled(),
   }
 
   return integrations
@@ -235,8 +236,16 @@ export function getIntegrationsStatus() {
       description: 'Análisis de tráfico y conversiones',
       required: false,
     },
+    {
+      name: 'API de Inventario',
+      category: 'Productos',
+      status: inventarioApiConfig.isEnabled(),
+      description: 'Sincronización de inventario desde 4Promotional',
+      required: false,
+    },
   ]
 }
+
 
 
 
