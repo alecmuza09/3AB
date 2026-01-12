@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { AdminGuard } from "@/components/auth/admin-guard"
@@ -84,10 +85,20 @@ interface InventoryMovement {
 }
 
 export default function AdminPage() {
+  const searchParams = useSearchParams()
+  
   // Cargar usuarios desde Supabase
   useEffect(() => {
     loadUsers()
   }, [])
+  
+  // Leer sección desde URL si existe
+  useEffect(() => {
+    const section = searchParams.get("section")
+    if (section) {
+      setActiveSection(section)
+    }
+  }, [searchParams])
 
   const loadUsers = async () => {
     try {
