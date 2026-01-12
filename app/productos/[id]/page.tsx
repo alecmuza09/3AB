@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -72,8 +72,8 @@ export default function ProductDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Sidebar />
-        <main className="md:ml-64 p-6">
+        <TopHeader />
+        <main className="p-6">
           <div className="max-w-7xl mx-auto">
             <div className="text-center py-12">Cargando producto...</div>
           </div>
@@ -85,8 +85,8 @@ export default function ProductDetailPage() {
   if (!product) {
     return (
       <div className="min-h-screen bg-background">
-        <Sidebar />
-        <main className="md:ml-64 p-6">
+        <TopHeader />
+        <main className="p-6">
           <div className="max-w-7xl mx-auto">
             <Card className="p-8 text-center">
               <CardContent>

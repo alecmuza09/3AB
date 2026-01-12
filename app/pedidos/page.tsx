@@ -1,6 +1,6 @@
 "use client"
 
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -45,10 +45,10 @@ export default function PedidosPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
       <WhatsappButton />
 
-      <main className="md:ml-64 p-6">
+      <main className="p-6">
         <div className="max-w-6xl mx-auto space-y-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>

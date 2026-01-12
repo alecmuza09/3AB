@@ -1,4 +1,4 @@
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -143,10 +143,10 @@ export default function CatalogosPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
       <WhatsappButton />
 
-      <main className="md:ml-64">
+      <main>
         <div className="relative w-full h-32 md:h-48 lg:h-64 overflow-hidden">
           <Image
             src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_CATALOGOS-rG2mR0uYlwK1bFLO7gxvbiOV9hUI6a.png"
@@ -163,160 +163,45 @@ export default function CatalogosPage() {
             <div className="mb-8">
               <h1 className="text-4xl font-bold text-foreground mb-4">Catálogos</h1>
               <p className="text-lg text-muted-foreground">
-                Explora nuestros catálogos especializados de 3A Branding y encuentra los productos perfectos para tu
-                marca.
+                Explora nuestros catálogos y encuentra los productos perfectos para tu marca.
               </p>
             </div>
 
-            {/* Featured Catalog */}
-            {catalogs
-              .filter((catalog) => catalog.featured)
-              .map((catalog) => {
-                const IconComponent = catalog.icon
+            {/* Catalogs Grid */}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {catalogs.map((catalog) => {
                 return (
-                  <Card key={catalog.id} className="mb-8 border-primary/20 bg-primary/5">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Badge className="bg-primary">Destacado</Badge>
-                        <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                      </div>
-                      <div className="grid md:grid-cols-3 gap-6 items-center">
-                        <div className="md:col-span-2">
-                          <div className="flex items-center gap-3 mb-3">
-                            <IconComponent className="h-8 w-8 text-primary" />
-                            <h2 className="text-2xl font-bold">{catalog.title}</h2>
-                          </div>
-                          <p className="text-muted-foreground mb-4">{catalog.description}</p>
-                          <div className="flex gap-3">
-                            <Button
-                              className="bg-primary hover:bg-primary/90"
-                              asChild
-                            >
-                              <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
-                                <Download className="h-4 w-4 mr-2" />
-                                Descargar PDF
-                              </a>
-                            </Button>
-                            <Button variant="outline" asChild>
-                              <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
-                                <Eye className="h-4 w-4 mr-2" />
-                                Ver Online
-                              </a>
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="relative">
-                          <img
-                            src={
-                              catalog.image ||
-                              "/placeholder.svg?height=300&width=200&query=catalog cover chamarras corporativas" ||
-                              "/placeholder.svg"
-                            }
-                            alt={catalog.title}
-                            className="w-full h-64 object-cover rounded-lg shadow-lg"
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-
-            {/* Other Catalogs */}
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              {catalogs
-                .filter((catalog) => !catalog.featured)
-                .map((catalog) => {
-                  const IconComponent = catalog.icon
-                  return (
-                    <Card key={catalog.id} className="hover:shadow-lg transition-shadow">
-                      <CardHeader className="p-0">
+                  <Card key={catalog.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="p-0">
+                      <div className="relative w-full h-48 bg-gray-100 rounded-t-lg overflow-hidden">
                         <img
                           src={
                             catalog.image ||
                             `/placeholder.svg?height=200&width=300&query=${catalog.title.toLowerCase()}`
                           }
                           alt={catalog.title}
-                          className="w-full h-40 object-cover rounded-t-lg"
+                          className="w-full h-full object-cover"
                         />
-                      </CardHeader>
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <IconComponent className="h-5 w-5 text-primary" />
-                          <CardTitle className="text-lg">{catalog.title}</CardTitle>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">{catalog.description}</p>
-
-                        <div className="flex flex-wrap gap-1 mb-4">
-                          {catalog.categories.slice(0, 2).map((category, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {category}
-                            </Badge>
-                          ))}
-                          {catalog.categories.length > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{catalog.categories.length - 2}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button size="sm" className="flex-1" asChild>
-                            <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
-                              <Download className="h-3 w-3 mr-1" />
-                              Descargar
-                            </a>
-                          </Button>
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
-                              <Eye className="h-3 w-3" />
-                            </a>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-            </div>
-
-            {/* Digital Services */}
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="text-2xl">Servicios Digitales</CardTitle>
-                <p className="text-muted-foreground">
-                  Aprovecha nuestras herramientas digitales para una mejor experiencia de compra.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-6">
-                  {digitalServices.map((service, index) => {
-                    const IconComponent = service.icon
-                    return (
-                      <div key={index} className="text-center p-4">
-                        <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                          <IconComponent className="h-6 w-6 text-primary" />
-                        </div>
-                        <h3 className="font-semibold mb-2">{service.title}</h3>
-                        <p className="text-sm text-muted-foreground">{service.description}</p>
                       </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* CTA Section */}
-            <Card className="bg-primary/5">
-              <CardContent className="p-8 text-center">
-                <h2 className="text-2xl font-bold mb-4">¿Necesitas un catálogo personalizado?</h2>
-                <p className="text-muted-foreground mb-6">
-                  Podemos crear un catálogo específico para tu industria o necesidades particulares.
-                </p>
-                <Button size="lg" className="bg-primary hover:bg-primary/90">
-                  Solicitar Catálogo Personalizado
-                </Button>
-              </CardContent>
-            </Card>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      <CardTitle className="text-lg mb-2">{catalog.title}</CardTitle>
+                      <p className="text-sm text-muted-foreground mb-4">{catalog.description}</p>
+                      <Button
+                        size="sm"
+                        className="w-full bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                        asChild
+                      >
+                        <a href={catalog.pdfUrl} target="_blank" rel="noopener noreferrer">
+                          <Download className="h-4 w-4 mr-2" />
+                          Descargar
+                        </a>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
           </div>
         </div>
       </main>

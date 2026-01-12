@@ -1,6 +1,6 @@
 "use client"
 
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -112,10 +112,10 @@ export default function PerfilPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
       <WhatsappButton />
 
-      <main className="md:ml-64 p-6">
+      <main className="p-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">

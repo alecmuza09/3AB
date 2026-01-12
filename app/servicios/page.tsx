@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -259,10 +259,10 @@ export default function ServiciosPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
       <WhatsappButton />
 
-      <main className="md:ml-64">
+      <main>
         {/* Hero Banner */}
         <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
           <Image

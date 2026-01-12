@@ -1,4 +1,4 @@
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { HeroSection } from "@/components/hero-section"
 import { HowItWorksSection } from "@/components/how-it-works-section"
 import { AIAssistantSection } from "@/components/ai-assistant-section"
@@ -10,8 +10,8 @@ import { WhatsappButton } from "@/components/whatsapp-button"
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-white">
-      <Sidebar />
-      <main className="md:ml-64">
+      <TopHeader />
+      <main>
         {/* Hero Section - Primera impresión */}
         <HeroSection />
         

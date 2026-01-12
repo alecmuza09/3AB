@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
@@ -308,9 +308,9 @@ export default function CotizadorPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
 
-      <main className="md:ml-64 min-h-screen">
+      <main className="min-h-screen">
         <div className="container mx-auto px-4 py-8 max-w-6xl">
           {/* Header */}
           <div className="text-center mb-8">

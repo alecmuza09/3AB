@@ -1,6 +1,6 @@
 "use client"
 
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -150,10 +150,10 @@ export default function ProductosPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Sidebar />
+      <TopHeader />
       <WhatsappButton />
 
-      <main className="md:ml-64">
+      <main>
         <div className="relative w-full h-48 md:h-64 lg:h-80 overflow-hidden">
           <Image
             src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_PRODUCTOS-eD68qdAhB00ubdTk4yOphghZ7XgISO.png"
@@ -268,79 +268,77 @@ export default function ProductosPage() {
             {!loading && filteredProducts.length > 0 && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {filteredProducts.map((product, index) => (
-                    <Card
-                      key={product.id}
-                      className="group hover:shadow-lg transition-shadow cursor-pointer border border-gray-200 rounded-xl"
-                      onClick={() => router.push(`/productos/${product.id}`)}
-                    >
-                      <CardHeader className="p-0">
-                        <div className="relative overflow-hidden rounded-t-xl">
-                          <Image
-                            src={product.image_url || `/placeholder.svg?height=200&width=300&query=${product.name}`}
-                            alt={product.name}
-                            width={300}
-                            height={200}
-                            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                            loading={index < 8 ? "eager" : "lazy"}
-                            priority={index < 4}
-                          />
-                          {product.category && (
-                            <Badge className="absolute top-2 right-2 bg-[#DC2626] text-white">
-                              {product.category.name}
-                            </Badge>
-                          )}
-                          {product.stock !== null && product.stock > 0 && (
-                            <Badge className="absolute top-2 left-2 bg-green-500 text-white">
-                              En stock
-                            </Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4">
-                        <CardTitle className="text-lg line-clamp-2 mb-2 text-black">
-                          {product.name}
-                        </CardTitle>
-                        {product.rating > 0 && (
-                          <div className="flex items-center gap-1 mb-2">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
-                            {product.review_count > 0 && (
-                              <span className="text-xs text-gray-500 ml-1">
-                                ({product.review_count} reseñas)
-                              </span>
+                  {filteredProducts.map((product, index) => {
+                    // Determinar badge según características del producto
+                    let badgeLabel = null
+                    let badgeColor = "bg-[#DC2626]"
+                    if (product.is_featured) {
+                      badgeLabel = "Bestseller"
+                    } else if (product.is_bestseller) {
+                      badgeLabel = "Nuevo"
+                    } else if (product.stock !== null && product.stock < 20) {
+                      badgeLabel = "Oferta"
+                      badgeColor = "bg-black"
+                    }
+
+                    return (
+                      <Card
+                        key={product.id}
+                        className="group hover:shadow-xl transition-all duration-300 cursor-pointer border border-gray-200 rounded-lg bg-gray-50"
+                        onClick={() => router.push(`/productos/${product.id}`)}
+                      >
+                        <CardHeader className="p-0">
+                          <div className="relative overflow-hidden rounded-t-lg bg-white">
+                            <Image
+                              src={product.image_url || `/placeholder.svg?height=200&width=300&query=${product.name}`}
+                              alt={product.name}
+                              width={300}
+                              height={200}
+                              className="w-full h-48 object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+                              loading={index < 8 ? "eager" : "lazy"}
+                              priority={index < 4}
+                            />
+                            {badgeLabel && (
+                              <Badge className={`absolute top-2 left-2 ${badgeColor} text-white text-xs`}>
+                                {badgeLabel}
+                              </Badge>
                             )}
                           </div>
-                        )}
-                        {product.description && (
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                            {product.description}
-                          </p>
-                        )}
-
-                        <Separator className="my-3" />
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex flex-col">
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-2">
+                          {product.rating > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span className="text-sm font-medium">{product.rating.toFixed(1)}</span>
+                            </div>
+                          )}
+                          <CardTitle className="text-base font-bold line-clamp-2 text-black">
+                            {product.name}
+                          </CardTitle>
+                          {product.description && (
+                            <p className="text-sm text-gray-600 line-clamp-2">
+                              {product.description}
+                            </p>
+                          )}
+                          <div className="flex items-baseline gap-2 pt-2">
                             <span className="text-xl font-bold text-[#DC2626]">
                               ${product.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                             </span>
-                            <span className="text-xs text-gray-500">por unidad</span>
+                            {product.min_price && product.max_price && product.max_price > product.min_price && (
+                              <>
+                                <span className="text-sm text-gray-400 line-through">
+                                  ${product.max_price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {Math.round(((product.max_price - product.min_price) / product.max_price) * 100)}% OFF
+                                </span>
+                              </>
+                            )}
                           </div>
-                          <Button
-                            size="sm"
-                            className="bg-[#DC2626] hover:bg-[#B91C1C] text-white"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              router.push(`/productos/${product.id}`)
-                            }}
-                          >
-                            Ver más
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
 
                 {/* Results count */}

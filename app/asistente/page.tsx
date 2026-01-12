@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -664,9 +664,9 @@ export default function AsistentePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar />
+      <TopHeader />
 
-      <main className="md:ml-64 min-h-screen">
+      <main className="min-h-screen">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           {/* Header */}
           <div className="text-center mb-8">
