@@ -16,6 +16,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName?: string, phone?: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  updateProfile: (data: { full_name?: string; phone?: string; company?: string; address?: string }) => Promise<{ error: string | null }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -189,6 +190,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null)
   }
 
+  const updateProfile = async (data: { full_name?: string; phone?: string; company?: string; address?: string }) => {
+    if (!supabase || !user) return { error: "No hay sesión activa" }
+    
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update(data)
+        .eq("id", user.id)
+
+      if (error) {
+        return { error: error.message }
+      }
+
+      await loadProfile(user.id)
+      return { error: null }
+    } catch (error: any) {
+      return { error: error.message || "Error al actualizar perfil" }
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -200,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         refreshProfile,
+        updateProfile,
       }}
     >
       {children}

@@ -15,12 +15,10 @@ import {
 } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
 import { useAuth } from "@/contexts/auth-context"
-import { AuthDialog } from "@/components/auth/auth-dialog"
 import { UserMenu } from "@/components/auth/user-menu"
 
 export function TopHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { getItemCount } = useCart()
@@ -50,10 +48,13 @@ export function TopHeader() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-[#DC2626] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">3A</span>
-            </div>
-            <span className="text-xl font-semibold text-black hidden sm:block">Branding</span>
+            <Image 
+              src="/images/3a-logo.png" 
+              alt="3A Branding" 
+              width={120} 
+              height={40} 
+              className="h-8 w-auto" 
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -85,15 +86,16 @@ export function TopHeader() {
             {user ? (
               <UserMenu />
             ) : (
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setAuthDialogOpen(true)}
-                className="text-gray-700 hover:text-[#DC2626]"
-              >
-                <User className="h-4 w-4 mr-2" />
-                Iniciar Sesión
-              </Button>
+              <Link href="/perfil">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-gray-700 hover:text-[#DC2626]"
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Iniciar Sesión
+                </Button>
+              </Link>
             )}
             
             <Link href="/carrito">
@@ -153,18 +155,16 @@ export function TopHeader() {
                 {user ? (
                   <UserMenu />
                 ) : (
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => {
-                      setAuthDialogOpen(true)
-                      setIsMenuOpen(false)
-                    }}
-                    className="flex-1"
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    Iniciar Sesión
-                  </Button>
+                  <Link href="/perfil" onClick={() => setIsMenuOpen(false)} className="flex-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="w-full"
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Iniciar Sesión
+                    </Button>
+                  </Link>
                 )}
                 <Link href="/carrito" onClick={() => setIsMenuOpen(false)}>
                   <Button variant="ghost" size="sm" className="relative">
@@ -186,9 +186,6 @@ export function TopHeader() {
           </div>
         )}
       </div>
-      
-      {/* Auth Dialog */}
-      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </header>
   )
 }

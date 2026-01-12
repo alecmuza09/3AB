@@ -1,13 +1,17 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   User,
   ShoppingBag,
@@ -22,8 +26,17 @@ import {
   Calendar,
   TrendingUp,
   Bell,
+  LogIn,
+  UserPlus,
+  Lock,
+  CheckCircle,
+  AlertCircle,
+  Save,
+  Building,
 } from "lucide-react"
 import { useOrders } from "@/contexts/orders-context"
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 
 const formatCurrency = (value: number) =>
   `$${(value || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -37,16 +50,123 @@ const formatDate = (iso: string) =>
 
 export default function PerfilPage() {
   const { orders } = useOrders()
+  const { user, profile, signIn, signUp, updateProfile, loading: authLoadingContext } = useAuth()
+  const router = useRouter()
+  
+  // Estados para autenticación
+  const [authTab, setAuthTab] = useState<"login" | "register">("login")
+  const [loginEmail, setLoginEmail] = useState("")
+  const [loginPassword, setLoginPassword] = useState("")
+  const [registerEmail, setRegisterEmail] = useState("")
+  const [registerPassword, setRegisterPassword] = useState("")
+  const [registerFullName, setRegisterFullName] = useState("")
+  const [registerPhone, setRegisterPhone] = useState("")
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null)
+  const [authLoading, setAuthLoadingState] = useState(false)
 
-  const userInfo = {
-    name: "María González",
-    email: "maria.gonzalez@empresa.com",
-    phone: "+52 55 1234 5678",
-    company: "Empresa Ejemplo S.A. de C.V.",
-    address: "Av. Reforma 123, Col. Centro, CDMX",
-    memberSince: "Enero 2023",
-    birthday: "15 de Marzo",
-    anniversary: "10 de Enero",
+  // Estados para edición de perfil
+  const [isEditing, setIsEditing] = useState(false)
+  const [editFullName, setEditFullName] = useState("")
+  const [editPhone, setEditPhone] = useState("")
+  const [editCompany, setEditCompany] = useState("")
+  const [editAddress, setEditAddress] = useState("")
+  const [editError, setEditError] = useState<string | null>(null)
+  const [editSuccess, setEditSuccess] = useState<string | null>(null)
+  const [editLoading, setEditLoading] = useState(false)
+
+  // Inicializar valores de edición cuando el perfil se carga
+  useEffect(() => {
+    if (profile) {
+      setEditFullName(profile.full_name || "")
+      setEditPhone(profile.phone || "")
+      setEditCompany((profile as any).company || "")
+      setEditAddress((profile as any).address || "")
+    }
+  }, [profile])
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthError(null)
+    setAuthSuccess(null)
+    setAuthLoadingState(true)
+
+    const { error } = await signIn(loginEmail, loginPassword)
+
+    if (error) {
+      setAuthError(error)
+      setAuthLoadingState(false)
+    } else {
+      setAuthSuccess("¡Sesión iniciada correctamente!")
+      setLoginEmail("")
+      setLoginPassword("")
+      setTimeout(() => {
+        router.refresh()
+      }, 1000)
+    }
+  }
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthError(null)
+    setAuthSuccess(null)
+    setAuthLoadingState(true)
+
+    if (!registerFullName.trim()) {
+      setAuthError("El nombre completo es requerido")
+      setAuthLoadingState(false)
+      return
+    }
+
+    if (registerPassword.length < 6) {
+      setAuthError("La contraseña debe tener al menos 6 caracteres")
+      setAuthLoadingState(false)
+      return
+    }
+
+    const { error } = await signUp(registerEmail, registerPassword, registerFullName, registerPhone || undefined)
+
+    if (error) {
+      setAuthError(error)
+      setAuthLoadingState(false)
+    } else {
+      setAuthSuccess("¡Cuenta creada exitosamente! Por favor, verifica tu email para confirmar tu cuenta.")
+      setRegisterEmail("")
+      setRegisterPassword("")
+      setRegisterFullName("")
+      setRegisterPhone("")
+      setTimeout(() => {
+        setAuthTab("login")
+        setAuthSuccess(null)
+        setAuthLoadingState(false)
+      }, 3000)
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    setEditError(null)
+    setEditSuccess(null)
+    setEditLoading(true)
+
+    const { error } = await updateProfile({
+      full_name: editFullName,
+      phone: editPhone || undefined,
+      company: editCompany || undefined,
+      address: editAddress || undefined,
+    })
+
+    if (error) {
+      setEditError(error)
+      setEditLoading(false)
+    } else {
+      setEditSuccess("Perfil actualizado correctamente")
+      setIsEditing(false)
+      setEditLoading(false)
+      setTimeout(() => {
+        setEditSuccess(null)
+        router.refresh()
+      }, 2000)
+    }
   }
 
   const fallbackHistory = [
@@ -111,6 +231,202 @@ export default function PerfilPage() {
 
   const totalSpent = history.reduce((sum, order) => sum + (order.total || 0), 0)
 
+  // Si no está autenticado, mostrar formulario de registro/login
+  if (!user && !authLoadingContext) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopHeader />
+        <WhatsappButton />
+
+        <main className="p-6">
+          <div className="max-w-2xl mx-auto">
+            <div className="mb-8 text-center">
+              <h1 className="text-4xl font-bold text-foreground mb-4">Mi Cuenta</h1>
+              <p className="text-lg text-muted-foreground">
+                Inicia sesión o crea una cuenta para acceder a tu perfil
+              </p>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Acceso a tu cuenta</CardTitle>
+                <CardDescription>
+                  Ingresa tus credenciales o crea una nueva cuenta
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={authTab} onValueChange={(value) => {
+                  setAuthTab(value as "login" | "register")
+                  setAuthError(null)
+                  setAuthSuccess(null)
+                }} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="login" className="flex items-center gap-2">
+                      <LogIn className="h-4 w-4" />
+                      Iniciar Sesión
+                    </TabsTrigger>
+                    <TabsTrigger value="register" className="flex items-center gap-2">
+                      <UserPlus className="h-4 w-4" />
+                      Crear Cuenta
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Login Tab */}
+                  <TabsContent value="login" className="space-y-4 mt-4">
+                    {authError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{authError}</AlertDescription>
+                      </Alert>
+                    )}
+                    {authSuccess && (
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>{authSuccess}</AlertDescription>
+                      </Alert>
+                    )}
+                    <form onSubmit={handleLogin} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="login-email">Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="login-email"
+                            type="email"
+                            placeholder="tu@email.com"
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            className="pl-10"
+                            required
+                            disabled={authLoading}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="login-password">Contraseña</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="login-password"
+                            type="password"
+                            placeholder="••••••••"
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            className="pl-10"
+                            required
+                            disabled={authLoading}
+                          />
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full bg-[#DC2626] hover:bg-[#B91C1C]" disabled={authLoading}>
+                        {authLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
+                      </Button>
+                    </form>
+                  </TabsContent>
+
+                  {/* Register Tab */}
+                  <TabsContent value="register" className="space-y-4 mt-4">
+                    {authError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{authError}</AlertDescription>
+                      </Alert>
+                    )}
+                    {authSuccess && (
+                      <Alert>
+                        <CheckCircle className="h-4 w-4" />
+                        <AlertDescription>{authSuccess}</AlertDescription>
+                      </Alert>
+                    )}
+                    <form onSubmit={handleRegister} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="register-name">Nombre Completo *</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="register-name"
+                            type="text"
+                            placeholder="Juan Pérez"
+                            value={registerFullName}
+                            onChange={(e) => setRegisterFullName(e.target.value)}
+                            className="pl-10"
+                            required
+                            disabled={authLoading}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="register-email">Email *</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="register-email"
+                            type="email"
+                            placeholder="tu@email.com"
+                            value={registerEmail}
+                            onChange={(e) => setRegisterEmail(e.target.value)}
+                            className="pl-10"
+                            required
+                            disabled={authLoading}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="register-phone">Teléfono (opcional)</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="register-phone"
+                            type="tel"
+                            placeholder="+52 55 1234 5678"
+                            value={registerPhone}
+                            onChange={(e) => setRegisterPhone(e.target.value)}
+                            className="pl-10"
+                            disabled={authLoading}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="register-password">Contraseña *</Label>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="register-password"
+                            type="password"
+                            placeholder="Mínimo 6 caracteres"
+                            value={registerPassword}
+                            onChange={(e) => setRegisterPassword(e.target.value)}
+                            className="pl-10"
+                            required
+                            minLength={6}
+                            disabled={authLoading}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          La contraseña debe tener al menos 6 caracteres
+                        </p>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <p className="text-xs text-blue-800">
+                          <strong>Nota:</strong> Al crear una cuenta, se creará como cliente. Si necesitas permisos de administrador, contacta al soporte.
+                        </p>
+                      </div>
+                      <Button type="submit" className="w-full bg-[#DC2626] hover:bg-[#B91C1C]" disabled={authLoading}>
+                        {authLoading ? "Creando cuenta..." : "Crear Cuenta"}
+                      </Button>
+                    </form>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    )
+  }
+
+  // Si está autenticado, mostrar configuración completa
   return (
     <div className="min-h-screen bg-background">
       <TopHeader />
@@ -141,71 +457,142 @@ export default function PerfilPage() {
                     <div className="flex items-center space-x-4">
                       <Avatar className="h-20 w-20">
                         <AvatarImage src="/placeholder.svg" />
-                        <AvatarFallback className="text-lg">MG</AvatarFallback>
+                        <AvatarFallback className="text-lg">
+                          {profile?.full_name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U"}
+                        </AvatarFallback>
                       </Avatar>
                       <div>
-                        <CardTitle className="text-2xl">{userInfo.name}</CardTitle>
-                        <p className="text-muted-foreground">{userInfo.company}</p>
+                        <CardTitle className="text-2xl">{profile?.full_name || user?.email || "Usuario"}</CardTitle>
+                        <p className="text-muted-foreground">{(profile as any)?.company || "Cliente"}</p>
                         <Badge variant="outline" className="mt-2">
-                          Cliente desde {userInfo.memberSince}
+                          Cliente desde {profile?.created_at ? formatDate(profile.created_at) : "Reciente"}
                         </Badge>
                       </div>
                     </div>
-                    <Button variant="outline">
-                      <Edit className="h-4 w-4 mr-2" />
-                      Editar Perfil
-                    </Button>
+                    {!isEditing ? (
+                      <Button variant="outline" onClick={() => setIsEditing(true)}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar Perfil
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => {
+                          setIsEditing(false)
+                          setEditError(null)
+                          setEditSuccess(null)
+                        }}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={handleSaveProfile} disabled={editLoading}>
+                          <Save className="h-4 w-4 mr-2" />
+                          {editLoading ? "Guardando..." : "Guardar"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <Mail className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Email</p>
-                          <p className="font-medium">{userInfo.email}</p>
+                  {editError && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{editError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {editSuccess && (
+                    <Alert className="mb-4">
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>{editSuccess}</AlertDescription>
+                    </Alert>
+                  )}
+                  {isEditing ? (
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-name">Nombre Completo</Label>
+                          <Input
+                            id="edit-name"
+                            value={editFullName}
+                            onChange={(e) => setEditFullName(e.target.value)}
+                            placeholder="Nombre completo"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-phone">Teléfono</Label>
+                          <Input
+                            id="edit-phone"
+                            value={editPhone}
+                            onChange={(e) => setEditPhone(e.target.value)}
+                            placeholder="+52 55 1234 5678"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-email">Email</Label>
+                          <Input
+                            id="edit-email"
+                            value={user?.email || ""}
+                            disabled
+                            className="bg-muted"
+                          />
+                          <p className="text-xs text-muted-foreground">El email no se puede cambiar</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <Phone className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Teléfono</p>
-                          <p className="font-medium">{userInfo.phone}</p>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-company">Empresa</Label>
+                          <Input
+                            id="edit-company"
+                            value={editCompany}
+                            onChange={(e) => setEditCompany(e.target.value)}
+                            placeholder="Nombre de la empresa"
+                          />
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <Gift className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Cumpleaños Empresa</p>
-                          <p className="font-medium">{userInfo.birthday}</p>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-address">Dirección</Label>
+                          <Input
+                            id="edit-address"
+                            value={editAddress}
+                            onChange={(e) => setEditAddress(e.target.value)}
+                            placeholder="Dirección completa"
+                          />
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-3">
-                        <MapPin className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Dirección</p>
-                          <p className="font-medium">{userInfo.address}</p>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <Mail className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm text-muted-foreground">Email</p>
+                            <p className="font-medium">{user?.email || "No disponible"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Phone className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm text-muted-foreground">Teléfono</p>
+                            <p className="font-medium">{profile?.phone || "No disponible"}</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <User className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Empresa</p>
-                          <p className="font-medium">{userInfo.company}</p>
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <Building className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm text-muted-foreground">Empresa</p>
+                            <p className="font-medium">{(profile as any)?.company || "No disponible"}</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <Calendar className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Aniversario Cliente</p>
-                          <p className="font-medium">{userInfo.anniversary}</p>
+                        <div className="flex items-center space-x-3">
+                          <MapPin className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm text-muted-foreground">Dirección</p>
+                            <p className="font-medium">{(profile as any)?.address || "No disponible"}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -283,7 +670,7 @@ export default function PerfilPage() {
                 <Card>
                   <CardContent className="p-6 text-center">
                     <User className="h-8 w-8 text-primary mx-auto mb-2" />
-                    <p className="text-2xl font-bold">1 año</p>
+                    <p className="text-2xl font-bold">{profile?.created_at ? formatDate(profile.created_at) : "Reciente"}</p>
                     <p className="text-sm text-muted-foreground">Cliente desde</p>
                   </CardContent>
                 </Card>
