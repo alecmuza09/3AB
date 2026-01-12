@@ -13,7 +13,7 @@ interface AuthContextType {
   loading: boolean
   isAdmin: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, fullName?: string, phone?: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, fullName?: string, phone?: string) => {
     if (!supabase) return { error: "Supabase no está inicializado" }
     
     try {
@@ -164,12 +164,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.user) {
-        // Crear perfil automáticamente
+        // Crear perfil automáticamente como cliente
         await supabase.from("profiles").insert({
           id: data.user.id,
           email: data.user.email || "",
           full_name: fullName || null,
-          role: "customer",
+          phone: phone || null,
+          role: "customer", // Siempre se crea como cliente
         })
 
         await loadProfile(data.user.id)
