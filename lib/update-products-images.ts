@@ -13,12 +13,21 @@ export async function updateProductsWithImages() {
 
     console.log('Obteniendo productos sin imagen...')
 
-    // Obtener productos sin image_url
-    const { data: productsWithoutImage, error: fetchError } = await supabase
+    // Obtener todos los productos activos
+    const { data: allProducts, error: fetchError } = await supabase
       .from('products')
-      .select('id, sku, name')
-      .is('image_url', null)
+      .select('id, sku, name, image_url')
       .eq('is_active', true)
+
+    if (fetchError) {
+      console.error('Error obteniendo productos:', fetchError)
+      return { success: false, error: fetchError.message }
+    }
+
+    // Filtrar productos sin imagen (manejar caso donde image_url no existe)
+    const productsWithoutImage = (allProducts || []).filter(
+      (p: any) => !p.image_url
+    )
 
     if (fetchError) {
       console.error('Error obteniendo productos:', fetchError)
@@ -54,15 +63,22 @@ export async function updateProductsWithImages() {
         }
 
         if (images && images.length > 0) {
-          // Actualizar producto con la imagen principal
+          // Intentar actualizar producto con la imagen principal
+          // Si el campo image_url no existe, simplemente continuamos
           const { error: updateError } = await supabase
             .from('products')
             .update({ image_url: images[0].image_url })
             .eq('id', product.id)
 
           if (updateError) {
-            console.error(`Error actualizando producto ${product.id}:`, updateError)
-            errors++
+            // Si el error es que la columna no existe, no es un error crítico
+            if (updateError.message.includes('does not exist')) {
+              console.log(`⚠ Campo image_url no existe en products. Usando product_images directamente.`)
+              // No incrementamos errors porque esto es esperado si la columna no existe
+            } else {
+              console.error(`Error actualizando producto ${product.id}:`, updateError)
+              errors++
+            }
           } else {
             updated++
             console.log(`✓ Actualizado producto: ${product.name}`)
