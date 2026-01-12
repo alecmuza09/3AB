@@ -163,6 +163,10 @@ async function upsertProduct(
       height: baseProduct.profundidad_articulo || null,
     }
 
+    // Obtener imagen principal
+    const mainImage = baseProduct.imagenes.find(img => img.tipo_imagen === 'imagen')
+    const imageUrl = mainImage?.url_imagen || null
+
     // Buscar si el producto ya existe (por SKU)
     const { data: existing } = await supabase
       .from('products')
@@ -188,6 +192,7 @@ async function upsertProduct(
       weight: baseProduct.peso_caja ? parseFloat(baseProduct.peso_caja) : null,
       dimensions: dimensions,
       attributes: attributes,
+      image_url: imageUrl, // Agregar imagen principal al producto
       is_active: baseProduct.web === 'SI',
       is_featured: baseProduct.producto_promocion === 'SI',
       is_bestseller: baseProduct.producto_nuevo === 'SI',

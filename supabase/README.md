@@ -104,3 +104,4 @@ supabase/
 - [Guía de RLS](https://supabase.com/docs/guides/auth/row-level-security)
 - [SQL Reference](https://supabase.com/docs/guides/database/tables)
 
+

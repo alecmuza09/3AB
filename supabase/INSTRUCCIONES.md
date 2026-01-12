@@ -122,3 +122,4 @@ Si encuentras problemas:
 2. Verifica que todas las variables de entorno estén configuradas
 3. Consulta la documentación de Supabase: https://supabase.com/docs
 
+

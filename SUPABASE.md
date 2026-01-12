@@ -338,3 +338,4 @@ USING (auth.uid() = user_id);
 
 4. **El cliente del servidor** (`createSupabaseServerClient`) debe usarse en Server Components y Server Actions.
 
+

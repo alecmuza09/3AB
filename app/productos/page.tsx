@@ -79,11 +79,18 @@ export default function ProductosPage() {
       if (!supabase) return
 
       try {
+        // Primero obtener productos con imagen principal desde product_images si no tienen image_url
         let query = supabase
           .from("products")
           .select(`
             *,
-            category:categories(id, name, slug)
+            category:categories(id, name, slug),
+            product_images!left(
+              id,
+              image_url,
+              is_primary,
+              order_index
+            )
           `)
           .eq("is_active", true)
 
@@ -92,14 +99,33 @@ export default function ProductosPage() {
           query = query.eq("category_id", selectedCategoryId)
         }
 
-        const { data, error } = await query.order("created_at", { ascending: false })
+        const { data, error } = await query
+          .order("created_at", { ascending: false })
+          .limit(200)
 
         if (error) {
           console.error("Error fetching products:", error)
           return
         }
 
-        setProducts(data || [])
+        // Procesar productos para obtener imagen principal
+        const processedProducts = (data || []).map((product: any) => {
+          // Si no tiene image_url, buscar en product_images
+          if (!product.image_url && product.product_images && product.product_images.length > 0) {
+            // Ordenar imágenes por is_primary y order_index
+            const sortedImages = product.product_images.sort((a: any, b: any) => {
+              if (a.is_primary && !b.is_primary) return -1
+              if (!a.is_primary && b.is_primary) return 1
+              return a.order_index - b.order_index
+            })
+            product.image_url = sortedImages[0]?.image_url || null
+          }
+          // Eliminar product_images del objeto para no enviarlo al frontend
+          delete product.product_images
+          return product
+        })
+
+        setProducts(processedProducts)
       } catch (error) {
         console.error("Error:", error)
       } finally {
@@ -242,7 +268,7 @@ export default function ProductosPage() {
             {!loading && filteredProducts.length > 0 && (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {filteredProducts.map((product) => (
+                  {filteredProducts.map((product, index) => (
                     <Card
                       key={product.id}
                       className="group hover:shadow-lg transition-shadow cursor-pointer border border-gray-200 rounded-xl"
@@ -256,6 +282,8 @@ export default function ProductosPage() {
                             width={300}
                             height={200}
                             className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading={index < 8 ? "eager" : "lazy"}
+                            priority={index < 4}
                           />
                           {product.category && (
                             <Badge className="absolute top-2 right-2 bg-[#DC2626] text-white">

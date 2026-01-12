@@ -121,3 +121,4 @@ INSERT INTO profiles (id, email, full_name, role)
 VALUES ('USER_ID', 'alecmuza09@gmail.com', 'Alec Muza', 'admin');
 ```
 
+
