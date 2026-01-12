@@ -33,6 +33,17 @@ import {
   AlertCircle,
   Save,
   Building,
+  Shield,
+  Settings,
+  Package,
+  Users,
+  ShoppingCart,
+  Truck,
+  Tag,
+  FileText,
+  Plug,
+  BarChart3,
+  ExternalLink,
 } from "lucide-react"
 import { useOrders } from "@/contexts/orders-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -50,7 +61,7 @@ const formatDate = (iso: string) =>
 
 export default function PerfilPage() {
   const { orders } = useOrders()
-  const { user, profile, signIn, signUp, updateProfile, loading: authLoadingContext } = useAuth()
+  const { user, profile, signIn, signUp, updateProfile, loading: authLoadingContext, isAdmin } = useAuth()
   const router = useRouter()
   
   // Estados para autenticación
@@ -443,10 +454,16 @@ export default function PerfilPage() {
           </div>
 
           <Tabs defaultValue="perfil" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
               <TabsTrigger value="perfil">Información Personal</TabsTrigger>
               <TabsTrigger value="historial">Historial de Compras</TabsTrigger>
               <TabsTrigger value="recordatorios">Recordatorios</TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger value="administracion" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Administración
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="perfil" className="space-y-6">
@@ -748,6 +765,253 @@ export default function PerfilPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Administración Tab - Solo para admins */}
+            {isAdmin && (
+              <TabsContent value="administracion" className="space-y-6">
+                <div className="mb-6">
+                  <h3 className="text-2xl font-bold text-foreground mb-2">Panel de Administración</h3>
+                  <p className="text-muted-foreground">
+                    Acceso rápido a las configuraciones y herramientas de administración de la plataforma.
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Dashboard */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=dashboard")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <BarChart3 className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <CardTitle className="text-lg">Dashboard</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Vista general de estadísticas y métricas de la plataforma
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Ir al Dashboard
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Productos */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=products")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Package className="h-5 w-5 text-green-600" />
+                        </div>
+                        <CardTitle className="text-lg">Productos</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Gestiona el catálogo de productos y sus variaciones
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Gestionar Productos
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Pedidos */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=orders")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                          <ShoppingCart className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <CardTitle className="text-lg">Pedidos</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Administra pedidos, cotizaciones y su estado
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Ver Pedidos
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Clientes */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=customers")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-orange-100 rounded-lg">
+                          <Users className="h-5 w-5 text-orange-600" />
+                        </div>
+                        <CardTitle className="text-lg">Clientes</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Gestiona información y datos de clientes
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Ver Clientes
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Usuarios y Roles */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=users-roles")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-red-100 rounded-lg">
+                          <Shield className="h-5 w-5 text-red-600" />
+                        </div>
+                        <CardTitle className="text-lg">Usuarios y Roles</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Administra usuarios, roles y permisos del sistema
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Gestionar Usuarios
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Inventario */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=inventory")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-teal-100 rounded-lg">
+                          <Truck className="h-5 w-5 text-teal-600" />
+                        </div>
+                        <CardTitle className="text-lg">Inventario</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Control de stock y movimientos de inventario
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Ver Inventario
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Cupones */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=coupons")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-yellow-100 rounded-lg">
+                          <Tag className="h-5 w-5 text-yellow-600" />
+                        </div>
+                        <CardTitle className="text-lg">Cupones</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Crea y gestiona cupones de descuento
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Gestionar Cupones
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Reportes */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=reports")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-indigo-100 rounded-lg">
+                          <FileText className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <CardTitle className="text-lg">Reportes</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Genera reportes y análisis de la plataforma
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Ver Reportes
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Integraciones */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=integrations")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-pink-100 rounded-lg">
+                          <Plug className="h-5 w-5 text-pink-600" />
+                        </div>
+                        <CardTitle className="text-lg">Integraciones</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Configura integraciones con servicios externos
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Configurar
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  {/* Configuración General */}
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push("/admin?section=settings")}>
+                    <CardHeader>
+                      <div className="flex items-center space-x-3">
+                        <div className="p-2 bg-gray-100 rounded-lg">
+                          <Settings className="h-5 w-5 text-gray-600" />
+                        </div>
+                        <CardTitle className="text-lg">Configuración</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Ajustes generales de la plataforma
+                      </p>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <ExternalLink className="h-3 w-3 mr-2" />
+                        Configurar
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Acceso Directo al Panel Completo */}
+                <Card className="border-2 border-primary">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="h-5 w-5" />
+                      Panel de Administración Completo
+                    </CardTitle>
+                    <CardDescription>
+                      Accede al panel completo de administración con todas las herramientas disponibles
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => router.push("/admin")} 
+                      className="w-full bg-[#DC2626] hover:bg-[#B91C1C] text-white"
+                      size="lg"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Ir al Panel de Administración
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </main>
