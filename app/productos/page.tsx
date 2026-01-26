@@ -13,7 +13,7 @@ import { Search, Star, ShoppingCart } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useSupabase } from "@/lib/supabase-client"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 
 interface Product {
   id: string
@@ -143,8 +143,8 @@ export default function ProductosPage() {
     fetchProducts()
   }, [supabase, selectedCategoryId])
 
-  // Filtrar productos por búsqueda
-  const filteredProducts = useMemo(() => {
+  // Filtrar productos por búsqueda (sin hook para evitar desajustes de hooks en producción)
+  const filteredProducts = (() => {
     if (!searchTerm) return products
 
     const term = searchTerm.toLowerCase()
@@ -153,7 +153,7 @@ export default function ProductosPage() {
         p.name.toLowerCase().includes(term) ||
         (p.description && p.description.toLowerCase().includes(term))
     )
-  }, [products, searchTerm])
+  })()
 
   return (
     <div className="min-h-screen bg-white">

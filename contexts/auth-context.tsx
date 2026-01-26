@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useEffect, useState, useMemo } from "react"
-import { createSupabaseClient } from "@/lib/supabase"
+import { getSupabaseClient } from "@/lib/supabase"
 import type { User } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase-types"
 
@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => {
     if (typeof window === "undefined") return null
     try {
-      return createSupabaseClient()
+      return getSupabaseClient()
     } catch (error) {
       console.error("Error creating Supabase client:", error)
       return null

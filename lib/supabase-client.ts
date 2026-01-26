@@ -1,9 +1,9 @@
 'use client'
 
-import { createSupabaseClient } from './supabase'
 import { useEffect, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from './supabase-types'
+import { getSupabaseClient } from './supabase'
 
 /**
  * Hook para obtener el cliente de Supabase en componentes del cliente
@@ -25,7 +25,7 @@ export function useSupabase(): SupabaseClient<Database> | null {
     }
 
     try {
-      const client = createSupabaseClient()
+      const client = getSupabaseClient()
       setSupabase(client)
     } catch (error) {
       console.error('Error al inicializar Supabase:', error)
