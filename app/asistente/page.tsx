@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import Image from "next/image"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { useSupabase } from "@/lib/supabase-client"
 import {
   Bot,
   User,
@@ -28,6 +30,22 @@ import {
 
 type Sender = "user" | "bot"
 
+type Apartado = "Eventos" | "Corporativo" | "Promocionales" | "Empresarial"
+
+interface RecommendedProduct {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  image_url: string | null
+  category?: {
+    id: string
+    name: string
+    slug: string
+  } | null
+  attributes?: any | null
+}
+
 interface Message {
   id: number
   text: string
@@ -35,6 +53,7 @@ interface Message {
   timestamp: string
   suggestions?: string[]
   quotation?: QuotationData
+  products?: RecommendedProduct[]
 }
 
 interface QuotationData {
@@ -431,6 +450,10 @@ const conversationStages: ConversationStage[] = [
 ]
 
 export default function AsistentePage() {
+  const supabase = useSupabase()
+  const [catalog, setCatalog] = useState<RecommendedProduct[]>([])
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+
   const [messages, setMessages] = useState<Message[]>(() => [
     {
       id: 1,
@@ -453,6 +476,33 @@ export default function AsistentePage() {
   }, [])
 
   useEffect(() => {
+    async function fetchCatalog() {
+      if (!supabase) return
+      setLoadingCatalog(true)
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, description, price, image_url, attributes, category:categories(id, name, slug)")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(300)
+
+        if (error) {
+          console.error("Error loading catalog for assistant:", error)
+          return
+        }
+        setCatalog((data || []) as any)
+      } catch (e) {
+        console.error("Error loading catalog:", e)
+      } finally {
+        setLoadingCatalog(false)
+      }
+    }
+
+    fetchCatalog()
+  }, [supabase])
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, isTyping])
 
@@ -464,6 +514,97 @@ export default function AsistentePage() {
 
   const getActiveStage = (responses: Responses) =>
     conversationStages.find((stage) => !responses[stage.key])
+
+  const apartadoKeywords: Record<Apartado, string[]> = {
+    Eventos: ["evento", "expo", "feria", "conferencia", "congreso", "lanyard", "gafete", "bolsa", "termo", "libreta", "pluma"],
+    Corporativo: ["corporativo", "oficina", "ejecutivo", "agenda", "carpeta", "pluma", "premium", "negocios"],
+    Promocionales: ["promocional", "regalo", "taza", "llavero", "usb", "botella", "gorra", "playera", "mochila"],
+    Empresarial: ["empresarial", "uniforme", "textil", "camisa", "chaleco", "sudadera", "equipo", "identidad"],
+  }
+
+  const preferenceKeywords: Record<string, string[]> = {
+    "Tecnología y gadgets": ["usb", "cargador", "power", "audífono", "bocina", "tecnología"],
+    "Textiles y uniformes": ["playera", "camisa", "gorra", "sudadera", "chaleco", "textil"],
+    "Artículos útiles del día a día": ["termo", "taza", "botella", "libreta", "pluma", "bolsa"],
+    "Regalos premium": ["premium", "ejecutivo", "set", "carpeta", "metal", "piel"],
+    "Opciones ecológicas": ["ecológico", "recicl", "bambú", "sustentable"],
+    "Obsequios sustentables": ["sustentable", "recicl", "bambú", "eco"],
+  }
+
+  const scoreProduct = (p: RecommendedProduct, keywords: string[]) => {
+    const haystack = `${p.name} ${p.description || ""} ${p.category?.name || ""}`.toLowerCase()
+    let score = 0
+    for (const k of keywords) {
+      const kk = k.toLowerCase()
+      if (haystack.includes(kk)) score += 2
+    }
+    // Pequeño boost a destacados/nuevos si existe en attributes (cuando el catálogo lo exponga)
+    const isFeatured = Boolean((p as any)?.is_featured)
+    const isBestseller = Boolean((p as any)?.is_bestseller)
+    if (isFeatured) score += 1
+    if (isBestseller) score += 1
+    return score
+  }
+
+  const recommendFromCatalog = (keywords: string[], limit: number = 6) => {
+    const uniqueKeywords = Array.from(new Set(keywords.filter(Boolean)))
+    if (catalog.length === 0 || uniqueKeywords.length === 0) {
+      return catalog.slice(0, limit)
+    }
+    const scored = catalog
+      .map((p) => ({ p, score: scoreProduct(p, uniqueKeywords) }))
+      .sort((a, b) => b.score - a.score)
+      .filter((x) => x.score > 0)
+      .slice(0, limit)
+      .map((x) => x.p)
+
+    return scored.length > 0 ? scored : catalog.slice(0, limit)
+  }
+
+  const buildKeywordsFromResponses = (responses: Responses) => {
+    const keywords: string[] = []
+    const eventType = responses.eventType || ""
+    const audience = responses.audience || ""
+    const objective = responses.objective || ""
+    const preference = responses.productPreference || ""
+
+    const normalizedAll = `${eventType} ${audience} ${objective} ${preference}`.toLowerCase()
+    if (normalizedAll.includes("expo") || normalizedAll.includes("feria") || normalizedAll.includes("conferencia") || normalizedAll.includes("evento")) {
+      keywords.push(...apartadoKeywords.Eventos)
+    }
+    if (normalizedAll.includes("equipo") || normalizedAll.includes("interno") || normalizedAll.includes("corporativo")) {
+      keywords.push(...apartadoKeywords.Corporativo)
+    }
+    if (normalizedAll.includes("prospect") || normalizedAll.includes("lead") || normalizedAll.includes("posicionar")) {
+      keywords.push(...apartadoKeywords.Promocionales)
+    }
+    if (preferenceKeywords[preference]) {
+      keywords.push(...preferenceKeywords[preference])
+    }
+
+    return keywords
+  }
+
+  const pushRecommendationsMessage = (apartado: Apartado, responses?: Responses) => {
+    const baseKeywords = apartadoKeywords[apartado]
+    const extraKeywords = responses ? buildKeywordsFromResponses(responses) : []
+    const products = recommendFromCatalog([...baseKeywords, ...extraKeywords], 6)
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: prev.length + 1,
+        text:
+          catalog.length === 0
+            ? "Estoy cargando el catálogo para recomendarte productos. Dame un momento y vuelve a intentarlo."
+            : `Aquí tienes recomendaciones para **${apartado}** basadas en tu catálogo.`,
+        sender: "bot",
+        timestamp: new Date().toISOString(),
+        products: catalog.length === 0 ? undefined : products,
+        suggestions: FINAL_OPTIONS,
+      },
+    ])
+  }
 
   const resetConversation = () => {
     setUserResponses({})
@@ -615,6 +756,7 @@ export default function AsistentePage() {
     setTimeout(() => {
       let botText = ""
       let suggestions: string[] | undefined
+        let productsToShow: RecommendedProduct[] | undefined
 
       if (activeStage) {
         const acknowledgement = activeStage.onAnswer ? activeStage.onAnswer(text, updatedResponses) : getAcknowledgement(activeStage.key, text)
@@ -627,11 +769,22 @@ export default function AsistentePage() {
           setHasCompletedFlow(true)
           botText = `${acknowledgement}\n\n${buildSummary(updatedResponses)}`
           suggestions = FINAL_OPTIONS
+            // Al completar el flujo, agregar recomendaciones basadas en respuestas
+            if (catalog.length > 0) {
+              productsToShow = recommendFromCatalog(buildKeywordsFromResponses(updatedResponses), 6)
+            }
         }
       } else {
         const finalInteraction = handleFinalInteractions(text, updatedResponses)
         botText = finalInteraction.text
         suggestions = finalInteraction.suggestions.length ? finalInteraction.suggestions : undefined
+
+          // Si el usuario pide ideas, adjuntar recomendaciones
+          if (normalize(text).includes("idea") || normalize(text) === normalize(FINAL_OPTIONS[0])) {
+            if (catalog.length > 0) {
+              productsToShow = recommendFromCatalog(buildKeywordsFromResponses(updatedResponses), 6)
+            }
+          }
       }
 
       setMessages((prev) => [
@@ -642,6 +795,7 @@ export default function AsistentePage() {
           sender: "bot",
           timestamp: new Date().toISOString(),
           suggestions,
+            products: productsToShow,
         },
       ])
       setIsTyping(false)
@@ -684,19 +838,31 @@ export default function AsistentePage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <Card className="p-4 text-center border-primary/20">
+              <Card
+                className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
+                onClick={() => pushRecommendationsMessage("Eventos", userResponses)}
+              >
                 <Calendar className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Eventos</p>
               </Card>
-              <Card className="p-4 text-center border-primary/20">
+              <Card
+                className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
+                onClick={() => pushRecommendationsMessage("Corporativo", userResponses)}
+              >
                 <Users className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Corporativo</p>
               </Card>
-              <Card className="p-4 text-center border-primary/20">
+              <Card
+                className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
+                onClick={() => pushRecommendationsMessage("Promocionales", userResponses)}
+              >
                 <Gift className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Promocionales</p>
               </Card>
-              <Card className="p-4 text-center border-primary/20">
+              <Card
+                className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
+                onClick={() => pushRecommendationsMessage("Empresarial", userResponses)}
+              >
                 <Briefcase className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Empresarial</p>
               </Card>
@@ -748,6 +914,36 @@ export default function AsistentePage() {
                         </p>
                       </div>
                     </div>
+
+                    {message.products && message.products.length > 0 && (
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {message.products.map((p) => (
+                          <div
+                            key={p.id}
+                            className="border rounded-lg p-3 bg-background cursor-pointer hover:border-primary transition"
+                            onClick={() => window.location.assign(`/productos/${p.id}`)}
+                          >
+                            <div className="flex gap-3">
+                              <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                                <Image
+                                  src={p.image_url || `/placeholder.svg?height=128&width=128&query=${p.name}`}
+                                  alt={p.name}
+                                  fill
+                                  className="object-contain p-2"
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold line-clamp-2 text-foreground">{p.name}</p>
+                                <p className="text-xs text-muted-foreground line-clamp-2">{p.description || ""}</p>
+                                <p className="text-sm font-bold text-primary mt-1">
+                                  ${Number(p.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {message.suggestions && (
                       <div className="mt-3 flex flex-wrap gap-2">
