@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { TopHeader } from "@/components/top-header"
@@ -34,6 +34,9 @@ import { useSupabase } from "@/lib/supabase-client"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
 import { getProductByIdFromSupabase, SupabaseProduct } from "@/lib/all-products"
+import type { CotizadorService } from "@/lib/cotizador"
+import { generateQuotation, getServiceName } from "@/lib/cotizador"
+import { getQuantityValidationError, normalizeQuantityToRules } from "@/lib/quantity"
 
 export default function ProductDetailPage() {
   const params = useParams()
@@ -46,6 +49,16 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1)
   const [customization, setCustomization] = useState("")
   const [loading, setLoading] = useState(true)
+  const [relatedProducts, setRelatedProducts] = useState<SupabaseProduct[]>([])
+  const [loadingRelated, setLoadingRelated] = useState(false)
+
+  // Cotizador por producto (personalización)
+  const [service, setService] = useState<CotizadorService | "none">("none")
+  const [colors, setColors] = useState<string>("1")
+  const [size, setSize] = useState<string>("5-12cm")
+  const [includePlaca, setIncludePlaca] = useState(false)
+  const [includePonchado, setIncludePonchado] = useState(false)
+  const [includeTratamiento, setIncludeTratamiento] = useState(false)
 
   useEffect(() => {
     async function fetchProduct() {
@@ -69,6 +82,87 @@ export default function ProductDetailPage() {
 
     fetchProduct()
   }, [productId])
+
+  const allowedServices = useMemo(() => {
+    const techniquesRaw = (product as any)?.attributes?.printing_technique
+    const techniques = Array.isArray(techniquesRaw) ? (techniquesRaw as string[]) : []
+
+    const services = new Set<CotizadorService>()
+
+    for (const t of techniques) {
+      const normalized = String(t).toLowerCase()
+      if (normalized.includes("bordad")) services.add("bordado")
+      if (normalized.includes("laser") || normalized.includes("láser") || normalized.includes("lazer")) services.add("laser")
+      if (normalized.includes("tampo") || normalized.includes("serig")) services.add("tampografia")
+    }
+
+    // Si no hay técnicas definidas aún (catálogo no validado), permitir todo
+    if (services.size === 0) {
+      return ["tampografia", "vidrio-metal", "laser", "bordado"] as CotizadorService[]
+    }
+
+    // "vidrio-metal" es un modo de cálculo alternativo; lo habilitamos si hay tampografía/serigrafía
+    if (services.has("tampografia")) {
+      services.add("vidrio-metal")
+    }
+
+    return Array.from(services)
+  }, [product])
+
+  useEffect(() => {
+    if (service !== "none" && !allowedServices.includes(service)) {
+      setService("none")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedServices])
+
+  useEffect(() => {
+    async function fetchRelatedProducts() {
+      if (!supabase || !product) return
+      setLoadingRelated(true)
+
+      try {
+        const relatedIdsRaw = (product as any)?.attributes?.related_product_ids
+        const relatedIds = Array.isArray(relatedIdsRaw) ? (relatedIdsRaw as string[]).filter(Boolean) : []
+
+        if (relatedIds.length > 0) {
+          const { data, error } = await supabase
+            .from("products")
+            .select(`*, category:categories(id, name, slug)`)
+            .in("id", relatedIds)
+            .eq("is_active", true)
+
+          if (!error && data) {
+            // Mantener el orden definido en related_product_ids
+            const byId = new Map(data.map((p: any) => [p.id, p]))
+            const ordered = relatedIds.map((id) => byId.get(id)).filter(Boolean)
+            setRelatedProducts(ordered as any)
+            return
+          }
+        }
+
+        // Fallback: misma categoría (cuando el catálogo ya está validado)
+        let query = supabase
+          .from("products")
+          .select(`*, category:categories(id, name, slug)`)
+          .eq("is_active", true)
+          .neq("id", product.id)
+
+        if (product.category_id) {
+          query = query.eq("category_id", product.category_id)
+        }
+
+        const { data } = await query.order("created_at", { ascending: false }).limit(4)
+        setRelatedProducts((data || []) as any)
+      } catch (e) {
+        console.error("Error loading related products:", e)
+      } finally {
+        setLoadingRelated(false)
+      }
+    }
+
+    fetchRelatedProducts()
+  }, [supabase, product])
 
   if (loading) {
     return (
@@ -110,9 +204,32 @@ export default function ProductDetailPage() {
 
   // Obtener datos del producto
   const currentPrice = product?.price || 0
-  const currentStock = product?.stock || 0
+  const currentStock = product?.stock_quantity ?? 0
   const minQuantity = product?.min_quantity || 1
-  const multipleOf = 1 // Por ahora, se puede ajustar después
+  const multipleOf = product?.multiple_of || 1
+
+  const quantityRules = useMemo(
+    () => ({ min: minQuantity, multipleOf }),
+    [minQuantity, multipleOf]
+  )
+
+  const personalizationQuote = useMemo(() => {
+    if (!service || service === "none") return null
+    if (!allowedServices.includes(service)) return null
+    if (!quantity || quantity <= 0) return null
+
+    return generateQuotation(
+      service,
+      quantity,
+      service === "tampografia" || service === "vidrio-metal" ? parseInt(colors) : undefined,
+      service === "bordado" ? size : undefined,
+      {
+        placa: includePlaca,
+        ponchado: includePonchado,
+        tratamiento: includeTratamiento,
+      }
+    )
+  }, [service, allowedServices, quantity, colors, size, includePlaca, includePonchado, includeTratamiento])
 
   // Mapa de colores para swatches
   const colorMap: Record<string, string> = {
@@ -151,25 +268,57 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     if (!product) return
 
-    if (quantity < minQuantity) {
-      toast.error(`La cantidad mínima es ${minQuantity}`)
+    const error = getQuantityValidationError(quantity, quantityRules)
+    if (error) {
+      const normalized = normalizeQuantityToRules(quantity, quantityRules)
+      setQuantity(normalized)
+      toast.error(error)
       return
     }
 
-    // Agregar producto al carrito
-    addToCart(
-      {
-        id: product.id,
-        name: product.name,
-        description: product.description || "",
-        price: product.price,
-        image: product.image_url || "",
-        category: product.category?.name || "",
-      },
+    const cartProduct = {
+      id: product.id,
+      name: product.name,
+      description: product.description || "",
+      price: product.price,
+      image: product.image_url || "",
+      category: product.category?.name || "",
+      categoryId: product.category_id,
+      minQuantity,
+      multipleOf,
+    }
+
+    const result = addToCart({
+      product: cartProduct,
       quantity,
-      undefined,
-      customization
-    )
+      customization,
+      quoteConfig: service !== "none"
+        ? {
+            service,
+            colors: service === "tampografia" || service === "vidrio-metal" ? parseInt(colors) : undefined,
+            size: service === "bordado" ? size : undefined,
+            includeExtras: {
+              placa: includePlaca,
+              ponchado: includePonchado,
+              tratamiento: includeTratamiento,
+            },
+          }
+        : undefined,
+    })
+
+    if (result.error) {
+      toast.error(result.error)
+      if (result.adjustedQuantity) {
+        setQuantity(result.adjustedQuantity)
+      }
+      return
+    }
+
+    if (result.adjustedQuantity) {
+      setQuantity(result.adjustedQuantity)
+      toast.info(`Ajustamos la cantidad a ${result.adjustedQuantity} por reglas del producto.`)
+    }
+
     toast.success("Producto agregado al carrito")
   }
 
@@ -179,11 +328,11 @@ export default function ProductDetailPage() {
   }
 
   const incrementQuantity = () => {
-    setQuantity((prev) => prev + multipleOf)
+    setQuantity((prev) => normalizeQuantityToRules(prev + multipleOf, quantityRules))
   }
 
   const decrementQuantity = () => {
-    setQuantity((prev) => Math.max(minQuantity, prev - multipleOf))
+    setQuantity((prev) => normalizeQuantityToRules(Math.max(minQuantity, prev - multipleOf), quantityRules))
   }
 
   return (
@@ -448,7 +597,7 @@ export default function ProductDetailPage() {
                           variant="outline"
                           size="icon"
                           onClick={decrementQuantity}
-                          disabled={quantity <= (product.minQuantity || 1)}
+                          disabled={quantity <= minQuantity}
                           className="h-12 w-12"
                         >
                           <Minus className="h-5 w-5" />
@@ -458,9 +607,10 @@ export default function ProductDetailPage() {
                           value={quantity}
                           onChange={(e) => {
                             const value = parseInt(e.target.value) || 1
-                            setQuantity(Math.max(minQuantity, value))
+                            setQuantity(normalizeQuantityToRules(Math.max(minQuantity, value), quantityRules))
                           }}
                           min={minQuantity}
+                          step={multipleOf}
                           className="w-24 text-center text-xl font-bold h-12"
                         />
                         <Button
@@ -477,6 +627,11 @@ export default function ProductDetailPage() {
                               Mínimo: <span className="font-semibold text-foreground">{minQuantity}</span>
                             </span>
                           )}
+                          {multipleOf > 1 && (
+                            <span className="text-muted-foreground">
+                              Múltiplos de: <span className="font-semibold text-foreground">{multipleOf}</span>
+                            </span>
+                          )}
                           {currentPrice > 0 && (
                             <span className="font-bold text-primary">
                               Total: ${(currentPrice * quantity).toLocaleString("es-MX", {
@@ -487,6 +642,147 @@ export default function ProductDetailPage() {
                           )}
                         </div>
                       </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Cotizador integrado (personalización opcional) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-lg font-semibold">Personalización</Label>
+                        <Badge variant="outline" className="text-xs">Opcional</Badge>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="service">Tipo de servicio</Label>
+                      <Select value={service} onValueChange={(v) => setService(v as CotizadorService | "none")}>
+                          <SelectTrigger id="service">
+                          <SelectValue placeholder="Sin personalización (solo producto)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                          <SelectItem value="none">Sin personalización</SelectItem>
+                            {allowedServices.includes("tampografia") && (
+                              <SelectItem value="tampografia">Tampografía / Serigrafía</SelectItem>
+                            )}
+                            {allowedServices.includes("vidrio-metal") && (
+                              <SelectItem value="vidrio-metal">Vidrio / Metal / Rubber</SelectItem>
+                            )}
+                            {allowedServices.includes("laser") && (
+                              <SelectItem value="laser">Grabado Láser</SelectItem>
+                            )}
+                            {allowedServices.includes("bordado") && (
+                              <SelectItem value="bordado">Bordado</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        {allowedServices.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Servicios disponibles para este producto según el catálogo.
+                          </p>
+                        )}
+                      </div>
+
+                      {(service === "tampografia" || service === "vidrio-metal") && (
+                        <div className="space-y-2">
+                          <Label htmlFor="colors">Número de tintas/colores</Label>
+                          <Select value={colors} onValueChange={setColors}>
+                            <SelectTrigger id="colors">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">1 color (incluido)</SelectItem>
+                              <SelectItem value="2">2 colores</SelectItem>
+                              <SelectItem value="3">3 colores</SelectItem>
+                              <SelectItem value="4">4 colores</SelectItem>
+                              <SelectItem value="5">5 colores</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {service === "bordado" && (
+                        <div className="space-y-2">
+                          <Label htmlFor="size">Tamaño del diseño</Label>
+                          <Select value={size} onValueChange={setSize}>
+                            <SelectTrigger id="size">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5-12cm">5-12 cm</SelectItem>
+                              <SelectItem value="12-20cm">12-20 cm</SelectItem>
+                              <SelectItem value="20-25cm">20-25 cm</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {service !== "none" && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Extras</Label>
+                          {(service === "tampografia" || service === "vidrio-metal") && (
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={includePlaca}
+                                onChange={(e) => setIncludePlaca(e.target.checked)}
+                                className="h-4 w-4"
+                              />
+                              Placa de tampografía
+                            </label>
+                          )}
+                          {service === "bordado" && (
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={includePonchado}
+                                onChange={(e) => setIncludePonchado(e.target.checked)}
+                                className="h-4 w-4"
+                              />
+                              Ponchado de bordado
+                            </label>
+                          )}
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={includeTratamiento}
+                              onChange={(e) => setIncludeTratamiento(e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            Tratamiento especial
+                          </label>
+                        </div>
+                      )}
+
+                      {personalizationQuote && (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold">{getServiceName(personalizationQuote.service)}</span>
+                            <Badge variant="secondary">Margen {personalizationQuote.margin}</Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Personalización (por pieza)</span>
+                            <span className="font-semibold">
+                              ${personalizationQuote.pricePerUnitWithMargin.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Total personalización</span>
+                            <span className="font-semibold">
+                              ${personalizationQuote.totalWithMargin.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          {currentPrice > 0 && (
+                            <div className="flex items-center justify-between pt-2">
+                              <span className="text-muted-foreground">Total estimado (producto + personalización)</span>
+                              <span className="font-bold text-primary">
+                                ${(currentPrice * quantity + personalizationQuote.totalWithMargin).toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <Separator />
@@ -600,6 +896,60 @@ export default function ProductDetailPage() {
               </div>
             </div>
           </div>
+        </div>
+        {/* Productos relacionados */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold">Productos relacionados</h2>
+            <Button variant="ghost" onClick={() => router.push("/productos")}>
+              Ver todo
+            </Button>
+          </div>
+
+          {loadingRelated && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, idx) => (
+                <Card key={idx} className="p-4 animate-pulse">
+                  <div className="h-36 bg-muted rounded-md mb-3" />
+                  <div className="h-4 bg-muted rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-muted rounded w-1/2" />
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {!loadingRelated && relatedProducts.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Aún no hay productos relacionados definidos para este artículo.
+            </p>
+          )}
+
+          {!loadingRelated && relatedProducts.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {relatedProducts.map((p) => (
+                <Card
+                  key={p.id}
+                  className="cursor-pointer hover:shadow-md transition"
+                  onClick={() => router.push(`/productos/${p.id}`)}
+                >
+                  <CardContent className="p-4">
+                    <div className="relative w-full h-36 rounded-md overflow-hidden bg-muted mb-3">
+                      <Image
+                        src={p.image_url || `/placeholder.svg?height=200&width=300&query=${p.name}`}
+                        alt={p.name}
+                        fill
+                        className="object-contain p-2"
+                      />
+                    </div>
+                    <p className="font-semibold text-sm line-clamp-2">{p.name}</p>
+                    <p className="text-sm text-primary font-bold mt-1">
+                      ${Number(p.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
       <Footer />

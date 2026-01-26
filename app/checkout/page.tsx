@@ -161,8 +161,8 @@ function CheckoutContent() {
         productId: item.productId,
         name: item.product.name,
         quantity: item.quantity,
-        unitPrice: item.price || 0,
-        subtotal: (item.price || 0) * item.quantity,
+        unitPrice: item.pricing.unitPrice || 0,
+        subtotal: (item.pricing.unitPrice || 0) * item.quantity,
         variationLabel: item.variation?.color || item.variation?.name,
         image: item.product.image,
       })),
@@ -500,7 +500,7 @@ function CheckoutContent() {
                 <CardContent className="space-y-4">
                   <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                     {items.map((item) => (
-                      <div key={`${item.productId}-${item.variationId || "base"}`} className="flex gap-3">
+                      <div key={item.key} className="flex gap-3">
                         <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted">
                           <Image
                             src={item.product.image || `/placeholder.svg?height=128&width=128&query=${item.product.name}`}
@@ -516,7 +516,9 @@ function CheckoutContent() {
                             {item.variation?.color && ` · ${item.variation.color}`}
                           </p>
                         </div>
-                        <div className="text-sm font-semibold">{formatCurrency((item.price || 0) * item.quantity)}</div>
+                        <div className="text-sm font-semibold">
+                          {formatCurrency((item.pricing.unitPrice || 0) * item.quantity)}
+                        </div>
                       </div>
                     ))}
                   </div>

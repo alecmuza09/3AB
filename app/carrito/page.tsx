@@ -63,10 +63,12 @@ export default function CartPage() {
   const [selectedMethod, setSelectedMethod] = useState<string>(purchaseMethods[0].id)
   const [orderNotes, setOrderNotes] = useState("")
   const [coupon, setCoupon] = useState("")
-  const [recommendedProducts, setRecommendedProducts] = useState<any[]>([])
+  const [recommendedProducts, setRecommendedProducts] = useState<
+    { id: string; name: string; description: string | null; price: number; image_url: string | null }[]
+  >([])
 
   const subtotal = useMemo(
-    () => items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0),
+    () => items.reduce((sum, item) => sum + (item.pricing.unitPrice || 0) * item.quantity, 0),
     [items]
   )
 
@@ -79,12 +81,21 @@ export default function CartPage() {
       if (!supabase) return
 
       try {
-        const { data, error } = await supabase
+        const categoryIds = Array.from(
+          new Set(items.map((i) => i.product.categoryId).filter((c): c is string => Boolean(c)))
+        )
+
+        let query = supabase
           .from("products")
-          .select("*")
+          .select("id, name, description, price, image_url, category_id")
           .eq("is_active", true)
-          .order("created_at", { ascending: false })
-          .limit(4)
+
+        // Sugerencias basadas en el carrito (cuando el catálogo ya está validado con category_id)
+        if (categoryIds.length > 0) {
+          query = query.in("category_id", categoryIds)
+        }
+
+        const { data, error } = await query.order("created_at", { ascending: false }).limit(8)
 
         if (error) {
           console.error("Error fetching recommended products:", error)
@@ -97,12 +108,12 @@ export default function CartPage() {
         )
 
         setRecommendedProducts(
-          filtered.map((p) => ({
+          (filtered || []).slice(0, 4).map((p: any) => ({
             id: p.id,
             name: p.name,
-            description: p.description,
-            price: `$${p.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}`,
-            image: p.image_url || `/placeholder.svg?height=128&width=128&query=${p.name}`,
+            description: p.description ?? null,
+            price: Number(p.price || 0),
+            image_url: p.image_url ?? null,
           }))
         )
       } catch (error) {
@@ -113,17 +124,41 @@ export default function CartPage() {
     fetchRecommendedProducts()
   }, [supabase, items])
 
-  const handleQuantityChange = (productId: string, variationId: string | undefined, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(productId, variationId)
-      return
+  const handleQuantityChange = (itemKey: string, quantity: number) => {
+    const result = updateQuantity(itemKey, quantity)
+    if (result.error) {
+      toast.error(result.error)
     }
-    updateQuantity(productId, quantity, variationId)
+    if (result.adjustedQuantity) {
+      toast.info(`Ajustamos la cantidad a ${result.adjustedQuantity} por reglas del producto.`)
+    }
   }
 
   const handleCheckout = () => {
     if (items.length === 0) {
       toast.error("Tu carrito está vacío. Agrega productos antes de continuar.")
+      return
+    }
+
+    // Reglas del carrito: validar cantidades (mínimos/múltiplos) antes de seguir
+    let hadIssues = false
+    let adjustedSomething = false
+    for (const item of items) {
+      const result = updateQuantity(item.key, item.quantity)
+      if (result.error) {
+        hadIssues = true
+      }
+      if (result.adjustedQuantity) {
+        adjustedSomething = true
+      }
+    }
+
+    if (hadIssues) {
+      toast.error("Ajustamos o detectamos cantidades inválidas. Revisa el carrito antes de continuar.")
+      return
+    }
+    if (adjustedSomething) {
+      toast.info("Ajustamos cantidades por reglas del producto. Revisa el carrito y vuelve a intentar.")
       return
     }
 
@@ -207,11 +242,14 @@ export default function CartPage() {
             <div className="space-y-6">
               {items.map((item) => {
                 const variationLabel = item.variation?.color || item.variation?.name
-                const itemPriceText = item.price > 0 ? formatCurrency(item.price) : "Consultar precio"
-                const itemSubtotal = item.price > 0 ? formatCurrency((item.price || 0) * item.quantity) : "Consultar precio"
+                const unitPrice = item.pricing.unitPrice || 0
+                const itemPriceText = unitPrice > 0 ? formatCurrency(unitPrice) : "Consultar precio"
+                const itemSubtotal = unitPrice > 0 ? formatCurrency(unitPrice * item.quantity) : "Consultar precio"
+                const step = item.product.multipleOf || 1
+                const minQty = item.product.minQuantity || 1
 
                 return (
-                  <Card key={`${item.productId}-${item.variationId || "base"}`}>
+                  <Card key={item.key}>
                     <CardContent className="p-6">
                       <div className="flex flex-col md:flex-row gap-6">
                         <div className="relative w-full md:w-40 h-40 rounded-lg overflow-hidden bg-muted">
@@ -234,6 +272,11 @@ export default function CartPage() {
                               <p className="text-sm text-muted-foreground max-w-lg">
                                 {item.customization || item.product.description}
                               </p>
+                              {item.pricing.mode === "cotizador" && item.pricing.quotation && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Personalización: {item.pricing.quotation.service} · +{formatCurrency(item.pricing.personalizationUnitPrice)} / pieza
+                                </p>
+                              )}
                             </div>
                             <div className="text-right">
                               <p className="text-lg font-semibold">{itemPriceText}</p>
@@ -246,7 +289,7 @@ export default function CartPage() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                onClick={() => handleQuantityChange(item.productId, item.variationId, item.quantity - 1)}
+                                onClick={() => handleQuantityChange(item.key, item.quantity - step)}
                               >
                                 <Minus className="h-4 w-4" />
                               </Button>
@@ -254,19 +297,16 @@ export default function CartPage() {
                                 type="number"
                                 value={item.quantity}
                                 onChange={(e) =>
-                                  handleQuantityChange(
-                                    item.productId,
-                                    item.variationId,
-                                    Math.max(1, parseInt(e.target.value) || item.quantity)
-                                  )
+                                  handleQuantityChange(item.key, Math.max(minQty, parseInt(e.target.value) || item.quantity))
                                 }
                                 className="w-20 text-center"
-                                min={1}
+                                min={minQty}
+                                step={step}
                               />
                               <Button
                                 variant="outline"
                                 size="icon"
-                                onClick={() => handleQuantityChange(item.productId, item.variationId, item.quantity + 1)}
+                                onClick={() => handleQuantityChange(item.key, item.quantity + step)}
                               >
                                 <Plus className="h-4 w-4" />
                               </Button>
@@ -277,7 +317,7 @@ export default function CartPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive"
-                                onClick={() => removeFromCart(item.productId, item.variationId)}
+                                onClick={() => removeFromCart(item.key)}
                               >
                                 <Trash2 className="h-4 w-4 mr-1" /> Quitar
                               </Button>
@@ -447,7 +487,7 @@ export default function CartPage() {
                           <p className="text-xs text-muted-foreground line-clamp-2">{product.description || ""}</p>
                         </div>
                         <div className="text-sm font-semibold">
-                          ${product.price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                          ${Number(product.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                         </div>
                       </div>
                     ))}

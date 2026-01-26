@@ -25,7 +25,9 @@ interface Product {
   image_url: string | null
   rating: number
   review_count: number
-  stock: number | null
+  stock_quantity: number | null
+  min_quantity?: number | null
+  multiple_of?: number | null
   category_id: string | null
   is_featured?: boolean
   is_bestseller?: boolean
@@ -281,7 +283,7 @@ export default function ProductosPage() {
                       badgeLabel = "Bestseller"
                     } else if (product.is_bestseller) {
                       badgeLabel = "Nuevo"
-                    } else if (product.stock !== null && product.stock < 20) {
+                    } else if (product.stock_quantity !== null && product.stock_quantity < 20) {
                       badgeLabel = "Oferta"
                       badgeColor = "bg-black"
                     }

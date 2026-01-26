@@ -9,12 +9,14 @@ export interface SupabaseProduct {
   price: number
   category_id: string | null
   image_url: string | null
+  attributes?: any | null
   is_active: boolean
   is_featured: boolean
   rating: number
   review_count: number
-  stock: number | null
+  stock_quantity: number | null
   min_quantity: number | null
+  multiple_of: number | null
   created_at: string
   updated_at: string
   category?: {
