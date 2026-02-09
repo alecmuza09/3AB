@@ -1,0 +1,94 @@
+/**
+ * Schema del CMS: páginas y secciones editables con valores por defecto.
+ * Añade aquí nuevas páginas o keys para que aparezcan en el admin.
+ */
+export type ContentType = "text" | "image" | "html"
+
+export interface SiteContentField {
+  key: string
+  label: string
+  type: ContentType
+  default: string
+  placeholder?: string
+  hint?: string
+}
+
+export interface PageSchema {
+  slug: string
+  name: string
+  fields: SiteContentField[]
+}
+
+/** Definición de todas las secciones editables por página */
+export const SITE_CONTENT_SCHEMA: PageSchema[] = [
+  {
+    slug: "home",
+    name: "Inicio",
+    fields: [
+      { key: "hero_badge", label: "Badge del hero", type: "text", default: "Artículos Promocionales con IA" },
+      { key: "hero_title_line1", label: "Título hero (línea 1)", type: "text", default: "La forma más fácil de comprar" },
+      { key: "hero_title_line2", label: "Título hero (línea 2)", type: "text", default: "promocionales" },
+      { key: "hero_subtitle", label: "Subtítulo hero", type: "text", default: "Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas." },
+      { key: "hero_image", label: "Imagen principal hero (URL)", type: "image", default: "/placeholder.svg?height=500&width=600", placeholder: "https://..." },
+      { key: "hero_cta_primary", label: "Texto botón principal", type: "text", default: "Explorar productos" },
+      { key: "hero_cta_secondary", label: "Texto botón secundario", type: "text", default: "Personalizar ahora" },
+      { key: "hero_social_proof", label: "Prueba social (ej. empresas)", type: "text", default: "1K 2K 3K 4K +4,000 empresas confían en nosotros" },
+      { key: "hero_badge_250", label: "Badge 250+ productos", type: "text", default: "250+ Productos" },
+      { key: "hero_badge_ia", label: "Badge asistente IA", type: "text", default: "Asistente IA Disponible 24/7" },
+      { key: "about_badge", label: "Badge sección nosotros", type: "text", default: "Nosotros" },
+      { key: "about_title", label: "Título sección nosotros", type: "text", default: "Tu aliado en marketing promocional" },
+      { key: "about_subtitle", label: "Subtítulo sección nosotros", type: "text", default: "Somos una empresa 100% mexicana con más de 10 años conectando marcas con personas a través de artículos promocionales de calidad." },
+      { key: "about_stat1_value", label: "Estadística 1 valor", type: "text", default: "+10" },
+      { key: "about_stat1_label", label: "Estadística 1 etiqueta", type: "text", default: "Años de experiencia" },
+      { key: "about_stat2_value", label: "Estadística 2 valor", type: "text", default: "4K+" },
+      { key: "about_stat2_label", label: "Estadística 2 etiqueta", type: "text", default: "Clientes satisfechos" },
+      { key: "about_stat3_value", label: "Estadística 3 valor", type: "text", default: "100%" },
+      { key: "about_stat3_label", label: "Estadística 3 etiqueta", type: "text", default: "Empresa mexicana" },
+      { key: "about_stat4_value", label: "Estadística 4 valor", type: "text", default: "250+" },
+      { key: "about_stat4_label", label: "Estadística 4 etiqueta", type: "text", default: "Productos disponibles" },
+      { key: "about_feature1_title", label: "Característica 1 título", type: "text", default: "Calidad Premium" },
+      { key: "about_feature1_desc", label: "Característica 1 descripción", type: "text", default: "Trabajamos solo con proveedores certificados para garantizar productos de primera." },
+      { key: "about_feature2_title", label: "Característica 2 título", type: "text", default: "Atención Personalizada" },
+      { key: "about_feature2_desc", label: "Característica 2 descripción", type: "text", default: "Cada cliente es único. Nos adaptamos a tus necesidades específicas." },
+      { key: "about_feature3_title", label: "Característica 3 título", type: "text", default: "Innovación Constante" },
+      { key: "about_feature3_desc", label: "Característica 3 descripción", type: "text", default: "Integramos tecnología de punta como IA para mejorar tu experiencia." },
+      { key: "how_badge", label: "Badge proceso", type: "text", default: "Proceso Simple" },
+      { key: "how_title", label: "Título proceso", type: "text", default: "Elige, diseña y ordena promocionales de forma simple" },
+      { key: "how_subtitle", label: "Subtítulo proceso", type: "text", default: "En solo 3 pasos tendrás tus artículos personalizados listos para entregar" },
+      { key: "how_step1_title", label: "Paso 1 título", type: "text", default: "Elige tu producto" },
+      { key: "how_step1_desc", label: "Paso 1 descripción", type: "text", default: "Explora el catálogo y encuentra la opción ideal para tu marca, tu equipo o tu proyecto." },
+      { key: "how_step2_title", label: "Paso 2 título", type: "text", default: "Diseña y personaliza" },
+      { key: "how_step2_desc", label: "Paso 2 descripción", type: "text", default: "Ajusta colores, impresión o bordado y visualiza cómo se verá tu diseño antes de producirlo." },
+      { key: "how_step3_title", label: "Paso 3 título", type: "text", default: "Ordena y recibe" },
+      { key: "how_step3_desc", label: "Paso 3 descripción", type: "text", default: "Define cantidades, confirma tu pedido y recibe tus promocionales donde los necesites." },
+    ],
+  },
+  {
+    slug: "nosotros",
+    name: "Nosotros",
+    fields: [
+      { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_nosotros-WznuT9mn7xdXXoRlIIIyEgsYihr7QF.png" },
+      { key: "title", label: "Título principal", type: "text", default: "Nosotros" },
+      { key: "subtitle", label: "Subtítulo", type: "text", default: "Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran." },
+      { key: "intro_p1", label: "Párrafo intro 1", type: "html", default: "Nuestro propósito es conectar a marcas, empresas y personas con quienes más les importan, recordando su valor a través de detalles significativos." },
+      { key: "intro_p2", label: "Párrafo intro 2", type: "html", default: "Con más de 10 años de experiencia en el mercado de promocionales, hemos evolucionado hasta convertirnos en la forma más fácil y accesible de comprar promocionales en México, sin dejar atrás la calidad y la atención que siempre nos han distinguido." },
+      { key: "why_title", label: "Título ¿Por qué elegirnos?", type: "text", default: "¿Por qué elegir 3A Branding?" },
+    ],
+  },
+  {
+    slug: "productos",
+    name: "Productos",
+    fields: [
+      { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_PRODUCTOS-eD68qdAhB00ubdTk4yOphghZ7XgISO.png" },
+      { key: "title", label: "Título", type: "text", default: "Catálogo de Productos" },
+      { key: "subtitle", label: "Subtítulo", type: "text", default: "Productos promocionales personalizables de alta calidad." },
+    ],
+  },
+]
+
+/** Valores por defecto planos: page_slug -> { section_key -> value } */
+export function getDefaultsForPage(pageSlug: string): Record<string, string> {
+  const page = SITE_CONTENT_SCHEMA.find((p) => p.slug === pageSlug)
+  if (!page) return {}
+  return Object.fromEntries(page.fields.map((f) => [f.key, f.default]))
+}

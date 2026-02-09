@@ -242,6 +242,35 @@ export interface Database {
           created_at?: string
         }
       }
+      site_content: {
+        Row: {
+          id: string
+          page_slug: string
+          section_key: string
+          content_type: string
+          value: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          page_slug: string
+          section_key: string
+          content_type: string
+          value?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          page_slug?: string
+          section_key?: string
+          content_type?: string
+          value?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       addresses: {
         Row: {
           id: string

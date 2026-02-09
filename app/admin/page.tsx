@@ -64,6 +64,7 @@ import {
   ExternalLink,
 } from "lucide-react"
 import { getIntegrationsStatus } from "@/lib/integrations-config"
+import { AdminSiteContentEditor } from "@/components/admin-site-content-editor"
 
 interface Product {
   id: string
@@ -1280,6 +1281,10 @@ export default function AdminPage() {
               <TabsTrigger value="integrations" className="flex items-center gap-2">
                 <Plug className="h-4 w-4" />
                 <span className="hidden sm:inline">Integraciones</span>
+              </TabsTrigger>
+              <TabsTrigger value="content" className="flex items-center gap-2">
+                <Edit className="h-4 w-4" />
+                <span className="hidden sm:inline">Contenido del sitio</span>
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -3304,6 +3309,17 @@ export default function AdminPage() {
                   <Button className="w-full mt-6 bg-primary hover:bg-primary/90">Guardar Configuración</Button>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Contenido del sitio (CMS) */}
+            <TabsContent value="content" className="space-y-6">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-2">Contenido del sitio</h2>
+                <p className="text-muted-foreground">
+                  Edita textos e imágenes de las páginas del front (Inicio, Nosotros, Productos). Los visitantes verán los cambios al guardar.
+                </p>
+              </div>
+              <AdminSiteContentEditor />
             </TabsContent>
 
             {/* Integrations */}

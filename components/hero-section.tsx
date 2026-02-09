@@ -1,37 +1,49 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, ShoppingBag, Settings, Sparkles, Flag, Star, Diamond } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { useSiteContent } from "@/hooks/use-site-content"
 
 export function HeroSection() {
+  const { content, loading } = useSiteContent("home")
+
+  if (loading) {
+    return (
+      <section className="relative overflow-hidden bg-white">
+        <div className="container mx-auto px-4 py-12 lg:py-20">
+          <div className="h-[400px] animate-pulse bg-gray-100 rounded-xl" />
+        </div>
+      </section>
+    )
+  }
+
+  const t = (key: string, fallback: string) => content[key] ?? fallback
+
   return (
     <section className="relative overflow-hidden bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left Content */}
           <div className="space-y-6 text-center lg:text-left">
-            {/* AI Badge */}
             <div className="flex justify-center lg:justify-start">
               <Badge className="bg-[#DC2626] text-white border-0 px-3 py-1 text-xs font-medium">
                 <Sparkles className="h-3 w-3 mr-1" />
-                Artículos Promocionales con IA
+                {t("hero_badge", "Artículos Promocionales con IA")}
               </Badge>
             </div>
 
-            {/* Main Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight">
-              <span className="text-black">La forma más fácil de comprar</span>
+              <span className="text-black">{t("hero_title_line1", "La forma más fácil de comprar")}</span>
               <br />
-              <span className="text-[#DC2626]">promocionales</span>
+              <span className="text-[#DC2626]">{t("hero_title_line2", "promocionales")}</span>
             </h1>
 
-            {/* Description */}
             <p className="text-lg text-gray-600 max-w-xl mx-auto lg:mx-0">
-              Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas.
+              {t("hero_subtitle", "Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas.")}
             </p>
 
-            {/* Feature Badges */}
             <div className="flex flex-wrap justify-center lg:justify-start gap-3 pt-2">
               <Badge variant="outline" className="rounded-full px-4 py-1.5 border-gray-300 bg-white">
                 <Flag className="h-3 w-3 mr-1.5 text-[#DC2626]" />
@@ -47,15 +59,14 @@ export function HeroSection() {
               </Badge>
             </div>
 
-            {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Link href="/productos">
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   className="w-full sm:w-auto px-8 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg shadow-lg"
                 >
                   <ShoppingBag className="mr-2 h-5 w-5" />
-                  Explorar productos
+                  {t("hero_cta_primary", "Explorar productos")}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
@@ -66,42 +77,36 @@ export function HeroSection() {
                   className="w-full sm:w-auto px-8 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white rounded-lg"
                 >
                   <Settings className="mr-2 h-5 w-5" />
-                  Personalizar ahora
+                  {t("hero_cta_secondary", "Personalizar ahora")}
                 </Button>
               </Link>
             </div>
 
-            {/* Social Proof */}
             <div className="pt-4">
               <p className="text-sm text-gray-500">
-                <span className="font-semibold text-gray-700">1K 2K 3K 4K</span> +4,000 empresas confían en nosotros
+                {t("hero_social_proof", "1K 2K 3K 4K +4,000 empresas confían en nosotros")}
               </p>
             </div>
           </div>
 
-          {/* Right Image */}
           <div className="relative hidden lg:block">
             <div className="relative bg-gray-100 rounded-2xl p-8">
-              {/* Product Image Placeholder - Replace with actual product image */}
               <div className="relative w-full h-[500px] bg-gray-200 rounded-lg overflow-hidden">
                 <Image
-                  src="/placeholder.svg?height=500&width=600"
+                  src={t("hero_image", "/placeholder.svg?height=500&width=600")}
                   alt="Productos promocionales"
                   fill
                   className="object-cover"
+                  unoptimized={t("hero_image", "").startsWith("http")}
                 />
               </div>
-              
-              {/* Badge: 250+ Productos */}
               <div className="absolute top-4 right-4 bg-white border-2 border-[#DC2626] rounded-lg px-4 py-2 shadow-lg">
-                <p className="text-sm font-bold text-[#DC2626]">250+ Productos</p>
+                <p className="text-sm font-bold text-[#DC2626]">{t("hero_badge_250", "250+ Productos")}</p>
               </div>
-
-              {/* Badge: Asistente IA */}
               <div className="absolute bottom-4 left-4 bg-white border-2 border-[#DC2626] rounded-lg px-4 py-2 shadow-lg">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-[#DC2626]" />
-                  <p className="text-sm font-semibold text-gray-800">Asistente IA Disponible 24/7</p>
+                  <p className="text-sm font-semibold text-gray-800">{t("hero_badge_ia", "Asistente IA Disponible 24/7")}</p>
                 </div>
               </div>
             </div>
