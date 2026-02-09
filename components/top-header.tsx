@@ -25,7 +25,6 @@ export function TopHeader() {
   const router = useRouter()
   const { getItemCount } = useCart()
   const { user, isAdmin, signOut } = useAuth()
-  const router = useRouter()
   const cartCount = getItemCount()
 
   const menuItems = [
