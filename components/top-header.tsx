@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,7 +22,6 @@ import { LoginDialog } from "@/components/auth/login-dialog"
 export function TopHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
   const { getItemCount } = useCart()
   const { user, isAdmin, signOut } = useAuth()
   const cartCount = getItemCount()
