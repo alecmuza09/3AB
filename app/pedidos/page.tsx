@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -43,6 +44,8 @@ const formatDate = (iso: string) =>
 export default function PedidosPage() {
   const router = useRouter()
   const { orders } = useOrders()
+  const { content } = useSiteContent("pedidos")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
 
   return (
     <div className="min-h-screen bg-background">
@@ -57,9 +60,9 @@ export default function PedidosPage() {
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Volver
               </Button>
-              <h1 className="text-3xl font-bold">Mis pedidos</h1>
+              <h1 className="text-3xl font-bold">{t("title", "Mis pedidos")}</h1>
               <p className="text-muted-foreground">
-                Consulta el estado de tus proyectos, descargas y documentación.
+                {t("subtitle", "Consulta el estado de tus proyectos, descargas y documentación.")}
               </p>
             </div>
             <Badge variant="secondary" className="px-4 py-2">
@@ -71,9 +74,9 @@ export default function PedidosPage() {
             <Card className="text-center py-16">
               <CardContent className="space-y-4">
                 <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto" />
-                <h2 className="text-2xl font-semibold">Todavía no tienes pedidos</h2>
+                <h2 className="text-2xl font-semibold">{t("empty_title", "Todavía no tienes pedidos")}</h2>
                 <p className="text-muted-foreground max-w-md mx-auto">
-                  Una vez que confirmes tu primer pedido, verás aquí el resumen de producción, envíos y documentos.
+                  {t("empty_text", "Una vez que confirmes tu primer pedido, verás aquí el resumen de producción, envíos y documentos.")}
                 </p>
                 <Button onClick={() => router.push("/productos")}>Explorar catálogo</Button>
               </CardContent>

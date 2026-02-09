@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -14,6 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Phone, Mail, Send, CheckCircle, Linkedin, Instagram } from "lucide-react"
 
 export default function ContactoPage() {
+  const { content } = useSiteContent("contacto")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
   const [formData, setFormData] = useState({
     nombre: "",
     empresa: "",
@@ -84,10 +87,9 @@ export default function ContactoPage() {
             <Card className="text-center">
               <CardContent className="p-12">
                 <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-4">¡Mensaje Enviado!</h2>
+                <h2 className="text-2xl font-bold mb-4">{t("success_title", "¡Mensaje Enviado!")}</h2>
                 <p className="text-muted-foreground mb-6">
-                  Gracias por contactarnos. Hemos recibido tu mensaje y nos pondremos en contacto contigo en las
-                  próximas 24 horas.
+                  {t("success_text", "Gracias por contactarnos. Hemos recibido tu mensaje y nos pondremos en contacto contigo en las próximas 24 horas.")}
                 </p>
                 <p className="text-sm text-muted-foreground">Redirigiendo automáticamente...</p>
               </CardContent>
@@ -107,9 +109,9 @@ export default function ContactoPage() {
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-4">Contacto</h1>
+            <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Contacto")}</h1>
             <p className="text-lg text-muted-foreground">
-              Estamos aquí para ayudarte. Contáctanos y descubre cómo podemos impulsar tu marca.
+              {t("subtitle", "Estamos aquí para ayudarte. Contáctanos y descubre cómo podemos impulsar tu marca.")}
             </p>
           </div>
 
@@ -118,9 +120,9 @@ export default function ContactoPage() {
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-2xl">Envíanos un mensaje</CardTitle>
+                  <CardTitle className="text-2xl">{t("form_title", "Envíanos un mensaje")}</CardTitle>
                   <p className="text-muted-foreground">
-                    Completa el formulario y nos pondremos en contacto contigo lo antes posible.
+                    {t("form_subtitle", "Completa el formulario y nos pondremos en contacto contigo lo antes posible.")}
                   </p>
                 </CardHeader>
                 <CardContent>

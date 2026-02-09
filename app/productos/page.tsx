@@ -1,5 +1,6 @@
 "use client"
 
+import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -48,6 +49,8 @@ interface Category {
 export default function ProductosPage() {
   const router = useRouter()
   const supabase = useSupabase()
+  const { content } = useSiteContent("productos")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [products, setProducts] = useState<Product[]>([])
@@ -148,13 +151,18 @@ export default function ProductosPage() {
 
       <main>
         <div className="relative w-full h-48 md:h-64 lg:h-80 overflow-hidden">
-          <Image
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_PRODUCTOS-eD68qdAhB00ubdTk4yOphghZ7XgISO.png"
-            alt="Nuestros Productos - 3A Branding"
-            fill
-            className="object-cover"
-            priority
-          />
+          {t("banner_image", "") ? (
+            <Image
+              src={t("banner_image", "")}
+              alt="Nuestros Productos - 3A Branding"
+              fill
+              className="object-cover"
+              priority
+              unoptimized={t("banner_image", "").startsWith("http")}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gray-200" />
+          )}
         </div>
 
         <div className="p-6">
@@ -163,11 +171,11 @@ export default function ProductosPage() {
             <div className="mb-8">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-4xl font-bold text-black mb-2">Catálogo de Productos</h1>
+                  <h1 className="text-4xl font-bold text-black mb-2">{t("title", "Catálogo de Productos")}</h1>
                   <p className="text-lg text-gray-600">
                     {products.length > 0
-                      ? `${products.length} productos promocionales personalizables de alta calidad.`
-                      : "Productos promocionales personalizables de alta calidad."}
+                      ? `${products.length} productos. ${t("subtitle", "Productos promocionales personalizables de alta calidad.")}`
+                      : t("subtitle", "Productos promocionales personalizables de alta calidad.")}
                   </p>
                 </div>
                 {filteredProducts.length > 0 && (

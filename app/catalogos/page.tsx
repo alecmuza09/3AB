@@ -1,3 +1,6 @@
+"use client"
+
+import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -21,6 +24,8 @@ import {
 } from "lucide-react"
 
 export default function CatalogosPage() {
+  const { content } = useSiteContent("catalogos")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
   const catalogs = [
     {
       id: 1,
@@ -149,22 +154,27 @@ export default function CatalogosPage() {
 
       <main>
         <div className="relative w-full h-32 md:h-48 lg:h-64 overflow-hidden">
-          <Image
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_CATALOGOS-rG2mR0uYlwK1bFLO7gxvbiOV9hUI6a.png"
-            alt="Catálogos 3A Branding"
-            fill
-            className="object-cover"
-            priority
-          />
+          {t("banner_image", "") ? (
+            <Image
+              src={t("banner_image", "")}
+              alt="Catálogos 3A Branding"
+              fill
+              className="object-cover"
+              priority
+              unoptimized={t("banner_image", "").startsWith("http")}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gray-200" />
+          )}
         </div>
 
         <div className="p-6">
           <div className="max-w-6xl mx-auto">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-4xl font-bold text-foreground mb-4">Catálogos</h1>
+              <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Catálogos")}</h1>
               <p className="text-lg text-muted-foreground">
-                Explora nuestros catálogos y encuentra los productos perfectos para tu marca.
+                {t("subtitle", "Explora nuestros catálogos y encuentra los productos perfectos para tu marca.")}
               </p>
             </div>
 

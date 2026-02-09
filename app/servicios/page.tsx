@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -51,6 +52,8 @@ import Image from "next/image"
 
 export default function ServiciosPage() {
   const [activeTab, setActiveTab] = useState("design")
+  const { content, loading } = useSiteContent("servicios")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
 
   const mainServices = [
     {
@@ -266,22 +269,27 @@ export default function ServiciosPage() {
       <main>
         {/* Hero Banner */}
         <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
-          <Image
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_SERVICIOS-wGr5lGK0SzOv8Qg70q5lfvL9keA81g.png"
-            alt="Nuestros Servicios - 3A Branding"
-            fill
-            className="object-cover"
-            priority
-          />
+          {t("banner_image", "") ? (
+            <Image
+              src={t("banner_image", "")}
+              alt="Nuestros Servicios - 3A Branding"
+              fill
+              className="object-cover"
+              priority
+              unoptimized={t("banner_image", "").startsWith("http")}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gray-200" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30 flex items-center">
             <div className="container mx-auto px-6">
               <div className="max-w-3xl text-white">
-                <Badge className="mb-4 bg-primary">Soluciones Integrales</Badge>
+                <Badge className="mb-4 bg-primary">{t("hero_badge", "Soluciones Integrales")}</Badge>
                 <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
-                  Servicios que Transforman tu Marca
+                  {loading ? "..." : t("hero_title", "Servicios que Transforman tu Marca")}
                 </h1>
                 <p className="text-lg md:text-xl mb-6 text-gray-200">
-                  Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.
+                  {t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
                 </p>
                 <div className="flex flex-wrap gap-4">
                   <Button size="lg" className="bg-primary hover:bg-primary/90">

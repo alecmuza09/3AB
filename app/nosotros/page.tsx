@@ -1,3 +1,6 @@
+"use client"
+
+import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -28,6 +31,9 @@ import {
 import Image from "next/image"
 
 export default function NosotrosPage() {
+  const { content } = useSiteContent("nosotros")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
+
   return (
     <div className="min-h-screen bg-background">
       <TopHeader />
@@ -35,22 +41,27 @@ export default function NosotrosPage() {
 
       <main>
         <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
-          <Image
-            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_nosotros-WznuT9mn7xdXXoRlIIIyEgsYihr7QF.png"
-            alt="Quiénes Somos - 3A Branding, más de 10 años de experiencia, empresa 100% mexicana"
-            fill
-            className="object-cover object-center"
-            priority
-          />
+          {t("banner_image", "") ? (
+            <Image
+              src={t("banner_image", "")}
+              alt="Quiénes Somos - 3A Branding"
+              fill
+              className="object-cover object-center"
+              priority
+              unoptimized={t("banner_image", "").startsWith("http")}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gray-200" />
+          )}
         </div>
 
         <div className="p-6">
           <div className="max-w-5xl mx-auto">
             {/* Header */}
             <div className="mb-8 text-center">
-              <h1 className="text-4xl font-bold text-foreground mb-4">Nosotros</h1>
+              <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Nosotros")}</h1>
               <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran.
+                {t("subtitle", "Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran.")}
               </p>
             </div>
 
@@ -58,10 +69,10 @@ export default function NosotrosPage() {
             <Card className="mb-8">
               <CardContent className="p-8">
                 <p className="text-muted-foreground leading-relaxed mb-4 text-lg">
-                  Nuestro propósito es conectar a marcas, empresas y personas con quienes más les importan, recordando su valor a través de detalles significativos.
+                  {t("intro_p1", "Nuestro propósito es conectar a marcas, empresas y personas con quienes más les importan, recordando su valor a través de detalles significativos.")}
                 </p>
                 <p className="text-muted-foreground leading-relaxed text-lg">
-                  Con más de 10 años de experiencia en el mercado de promocionales, hemos evolucionado hasta convertirnos en la forma más fácil y accesible de comprar promocionales en México, sin dejar atrás la calidad y la atención que siempre nos han distinguido.
+                  {t("intro_p2", "Con más de 10 años de experiencia en el mercado de promocionales, hemos evolucionado hasta convertirnos en la forma más fácil y accesible de comprar promocionales en México, sin dejar atrás la calidad y la atención que siempre nos han distinguido.")}
                 </p>
               </CardContent>
             </Card>
@@ -71,7 +82,7 @@ export default function NosotrosPage() {
               <CardContent className="p-8">
                 <div className="flex items-center mb-6">
                   <Award className="h-8 w-8 text-primary mr-3" />
-                  <h2 className="text-2xl font-bold">¿Por qué elegir 3A Branding?</h2>
+                  <h2 className="text-2xl font-bold">{t("why_title", "¿Por qué elegir 3A Branding?")}</h2>
                 </div>
                 <p className="text-muted-foreground mb-6">
                   Te ofrecemos valor real en cada etapa:

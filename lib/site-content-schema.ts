@@ -84,6 +84,51 @@ export const SITE_CONTENT_SCHEMA: PageSchema[] = [
       { key: "subtitle", label: "Subtítulo", type: "text", default: "Productos promocionales personalizables de alta calidad." },
     ],
   },
+  {
+    slug: "servicios",
+    name: "Servicios",
+    fields: [
+      { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_SERVICIOS-wGr5lGK0SzOv8Qg70q5lfvL9keA81g.png" },
+      { key: "hero_badge", label: "Badge del hero", type: "text", default: "Soluciones Integrales" },
+      { key: "hero_title", label: "Título del hero", type: "text", default: "Servicios que Transforman tu Marca" },
+      { key: "hero_subtitle", label: "Subtítulo del hero", type: "text", default: "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación." },
+      { key: "title", label: "Título principal (sección)", type: "text", default: "Servicios" },
+      { key: "subtitle", label: "Subtítulo (sección)", type: "text", default: "Soluciones integrales para impulsar tu marca." },
+    ],
+  },
+  {
+    slug: "contacto",
+    name: "Contacto",
+    fields: [
+      { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "" },
+      { key: "title", label: "Título principal", type: "text", default: "Contacto" },
+      { key: "subtitle", label: "Subtítulo", type: "text", default: "Estamos aquí para ayudarte. Contáctanos y descubre cómo podemos impulsar tu marca." },
+      { key: "form_title", label: "Título del formulario", type: "text", default: "Envíanos un mensaje" },
+      { key: "form_subtitle", label: "Subtítulo del formulario", type: "text", default: "Completa el formulario y nos pondremos en contacto contigo lo antes posible." },
+      { key: "success_title", label: "Título mensaje enviado", type: "text", default: "¡Mensaje Enviado!" },
+      { key: "success_text", label: "Texto mensaje enviado", type: "text", default: "Gracias por contactarnos. Hemos recibido tu mensaje y nos pondremos en contacto contigo en las próximas 24 horas." },
+    ],
+  },
+  {
+    slug: "catalogos",
+    name: "Catálogos",
+    fields: [
+      { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_CATALOGOS-rG2mR0uYlwK1bFLO7gxvbiOV9hUI6a.png" },
+      { key: "title", label: "Título principal", type: "text", default: "Catálogos" },
+      { key: "subtitle", label: "Subtítulo", type: "text", default: "Explora nuestros catálogos y encuentra los productos perfectos para tu marca." },
+    ],
+  },
+  {
+    slug: "pedidos",
+    name: "Pedidos",
+    fields: [
+      { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "" },
+      { key: "title", label: "Título principal", type: "text", default: "Mis pedidos" },
+      { key: "subtitle", label: "Subtítulo", type: "text", default: "Consulta el estado de tus proyectos, descargas y documentación." },
+      { key: "empty_title", label: "Título sin pedidos", type: "text", default: "Todavía no tienes pedidos" },
+      { key: "empty_text", label: "Texto sin pedidos", type: "text", default: "Una vez que confirmes tu primer pedido, verás aquí el resumen de producción, envíos y documentos." },
+    ],
+  },
 ]
 
 /** Valores por defecto planos: page_slug -> { section_key -> value } */
