@@ -38,23 +38,23 @@ export function UserMenu() {
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button 
           variant="ghost" 
           size="sm" 
-          className="relative hover:bg-primary/10 transition-colors"
+          className="relative hover:bg-primary/10 hover:bg-red-50 transition-colors text-gray-700 hover:text-[#DC2626]"
           aria-label="Menú de usuario"
         >
           <User className="h-4 w-4" />
           {isAdmin && (
-            <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-primary text-white">
+            <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#DC2626] text-white">
               A
             </Badge>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 z-[100]" sideOffset={8}>
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium">{profile?.full_name || user.email}</p>
