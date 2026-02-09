@@ -456,6 +456,7 @@ export default function AdminPage() {
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [syncResult, setSyncResult] = useState<any>(null)
   const [syncingPromocion, setSyncingPromocion] = useState(false)
+  const [syncingInnovation, setSyncingInnovation] = useState(false)
 
   // Función para sincronizar productos desde la API de inventario
   const handleSyncProducts = async () => {
@@ -493,9 +494,9 @@ export default function AdminPage() {
     }
   }
 
-  // Sincronizar productos desde 3A Promoción (Promocionales en Línea)
+  // Sincronizar productos desde 3A Promoción (Promopción)
   const handleSyncPromocion = async () => {
-    if (!confirm('¿Sincronizar productos desde 3A Promoción (promocionalesenlinea.net)? Esto puede tardar unos minutos.')) {
+    if (!confirm('¿Sincronizar productos desde Promopción (promocionalesenlinea.net)? Esto puede tardar unos minutos.')) {
       return
     }
     setSyncingPromocion(true)
@@ -504,7 +505,7 @@ export default function AdminPage() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Error al sincronizar')
       if (data.success) {
-        alert(`Sincronización 3A Promoción completada.\n\nCategorías creadas: ${data.data.categoriesCreated}\nCategorías actualizadas: ${data.data.categoriesUpdated}\nProductos creados: ${data.data.productsCreated}\nProductos actualizados: ${data.data.productsUpdated}\nImágenes creadas: ${data.data.imagesCreated}`)
+        alert(`Sincronización Promopción completada.\n\nCategorías creadas: ${data.data.categoriesCreated}\nCategorías actualizadas: ${data.data.categoriesUpdated}\nProductos creados: ${data.data.productsCreated}\nProductos actualizados: ${data.data.productsUpdated}\nImágenes creadas: ${data.data.imagesCreated}`)
       } else {
         alert('Sincronización completada con errores. Revisa la consola.')
       }
@@ -512,6 +513,17 @@ export default function AdminPage() {
       alert(`Error: ${error.message}`)
     } finally {
       setSyncingPromocion(false)
+    }
+  }
+
+  // Innovation Line: placeholder hasta tener integración
+  const handleSyncInnovation = async () => {
+    setSyncingInnovation(true)
+    try {
+      await new Promise((r) => setTimeout(r, 800))
+      alert('Innovation Line: integración en desarrollo. Próximamente podrás actualizar stock desde esta fuente.')
+    } finally {
+      setSyncingInnovation(false)
     }
   }
 
@@ -1471,8 +1483,11 @@ export default function AdminPage() {
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div>
-                      <CardTitle>Gestión de Productos</CardTitle>
-                      <CardDescription>Administra el catálogo completo de productos</CardDescription>
+                      <div className="flex items-center gap-2">
+                        <CardTitle>Gestión de Productos</CardTitle>
+                        <Badge variant="outline" className="text-xs">Solo administradores</Badge>
+                      </div>
+                      <CardDescription>Administra el catálogo completo de productos. Los usuarios no pueden modificar esta configuración.</CardDescription>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button 
@@ -1488,7 +1503,7 @@ export default function AdminPage() {
                         ) : (
                           <>
                             <Upload className="h-4 w-4 mr-2" />
-                            Sincronizar desde 4Promotional
+                            For Promotional
                           </>
                         )}
                       </Button>
@@ -1505,7 +1520,7 @@ export default function AdminPage() {
                         ) : (
                           <>
                             <Upload className="h-4 w-4 mr-2" />
-                            Sincronizar desde 3A Promoción
+                            Promopción
                           </>
                         )}
                       </Button>
@@ -2504,6 +2519,74 @@ export default function AdminPage() {
 
             {/* Inventory Movements */}
             <TabsContent value="inventory" className="space-y-6">
+              {/* Actualización de stock desde proveedores - Solo admin */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Actualización de stock de productos</CardTitle>
+                      <CardDescription>Sincroniza inventario desde cada proveedor. Solo administradores pueden ejecutar estas acciones.</CardDescription>
+                    </div>
+                    <Badge variant="secondary">Solo admin</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={handleSyncProducts}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation}
+                    >
+                      {syncingProducts ? (
+                        <>
+                          <Package className="h-4 w-4 mr-2 animate-spin" />
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          For Promotional
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleSyncPromocion}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation}
+                    >
+                      {syncingPromocion ? (
+                        <>
+                          <Package className="h-4 w-4 mr-2 animate-spin" />
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Promopción
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleSyncInnovation}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation}
+                    >
+                      {syncingInnovation ? (
+                        <>
+                          <Package className="h-4 w-4 mr-2 animate-spin" />
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Innovation Line
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="lg:col-span-2">
                   <CardHeader>
