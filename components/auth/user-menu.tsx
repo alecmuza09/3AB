@@ -114,7 +114,7 @@ export function UserMenu() {
                 onClick={() => handleNavigate("/admin")}
               >
                 <Shield className="mr-2 h-4 w-4" />
-                Panel de Administración
+                Configuración de Admin
               </button>
             )}
           </div>

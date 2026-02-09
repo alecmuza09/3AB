@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const isAdmin = profile?.role === "admin" || user?.email === "alecmuza09@gmail.com"
+  const isAdmin = profile?.role === "admin" || user?.email === "alecmuza09@gmail.com" || user?.email === "alec.muza@capacit.io"
 
   // Cargar perfil del usuario
   const loadProfile = async (userId: string) => {
