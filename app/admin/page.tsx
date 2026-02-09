@@ -331,7 +331,7 @@ export default function AdminPage() {
   const [movements, setMovements] = useState<InventoryMovement[]>([])
   const [loadingMovements, setLoadingMovements] = useState(false)
 
-  // Cargar productos desde Supabase
+  // Cargar productos desde Supabase (catálogo público usa fetchCatalogProducts en lib/all-products)
   const loadProducts = async () => {
     try {
       setLoadingProducts(true)
@@ -1016,7 +1016,7 @@ export default function AdminPage() {
       // Obtener productos más vendidos (basado en order_items)
       const { data: orderItems } = await supabase
         .from("order_items")
-        .select("product_id, quantity, price")
+        .select("product_id, quantity, unit_price")
 
       // Obtener nombres de productos
       const productIds = [...new Set((orderItems || []).map((item: any) => item.product_id).filter(Boolean))]
@@ -1036,7 +1036,7 @@ export default function AdminPage() {
           productSales[productId] = { name: productName, sales: 0, revenue: 0 }
         }
         productSales[productId].sales += item.quantity || 0
-        productSales[productId].revenue += (item.quantity || 0) * Number(item.price || 0)
+        productSales[productId].revenue += (item.quantity || 0) * Number(item.unit_price || 0)
       })
 
       const topProducts = Object.values(productSales)

@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "./supabase"
+import { createSupabaseClient, getSupabaseClient } from "./supabase"
 
 // Tipo para productos de Supabase
 export interface SupabaseProduct {
@@ -130,6 +130,40 @@ export async function getProductsByCategoryFromSupabase(categoryId: string): Pro
     return data || []
   } catch (error) {
     console.error("Error:", error)
+    return []
+  }
+}
+
+/**
+ * Catálogo público: productos activos desde el cliente (navegador).
+ * Usa getSupabaseClient() para no depender del hook useSupabase() y cargar siempre.
+ * Punto único de consulta para la página /productos y consistencia con el admin.
+ */
+export async function fetchCatalogProducts(categoryId?: string | null): Promise<SupabaseProduct[]> {
+  try {
+    const supabase = getSupabaseClient()
+    if (!supabase) return []
+
+    let query = supabase
+      .from("products")
+      .select(`*, category:categories(id, name, slug)`)
+      .eq("is_active", true)
+
+    if (categoryId) {
+      query = query.eq("category_id", categoryId)
+    }
+
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .limit(200)
+
+    if (error) {
+      console.error("Error fetching catalog products:", error)
+      return []
+    }
+    return data || []
+  } catch (error) {
+    console.error("Error fetchCatalogProducts:", error)
     return []
   }
 }

@@ -194,6 +194,30 @@ export default function ProductDetailPage() {
     fetchRelatedProducts()
   }, [supabase, product])
 
+  // Hooks deben ejecutarse siempre en el mismo orden (antes de cualquier return)
+  const minQuantity = product?.min_quantity || 1
+  const multipleOf = product?.multiple_of || 1
+  const quantityRules = useMemo(
+    () => ({ min: minQuantity, multipleOf }),
+    [minQuantity, multipleOf]
+  )
+  const personalizationQuote = useMemo(() => {
+    if (!service || service === "none") return null
+    if (!allowedServices.includes(service)) return null
+    if (!quantity || quantity <= 0) return null
+    return generateQuotation(
+      service,
+      quantity,
+      service === "tampografia" || service === "vidrio-metal" ? parseInt(colors) : undefined,
+      service === "bordado" ? size : undefined,
+      {
+        placa: includePlaca,
+        ponchado: includePonchado,
+        tratamiento: includeTratamiento,
+      }
+    )
+  }, [service, allowedServices, quantity, colors, size, includePlaca, includePonchado, includeTratamiento])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -232,34 +256,9 @@ export default function ProductDetailPage() {
     )
   }
 
-  // Obtener datos del producto
+  // Obtener datos del producto (minQuantity, multipleOf, quantityRules, personalizationQuote ya definidos arriba)
   const currentPrice = product?.price || 0
   const currentStock = product?.stock_quantity ?? 0
-  const minQuantity = product?.min_quantity || 1
-  const multipleOf = product?.multiple_of || 1
-
-  const quantityRules = useMemo(
-    () => ({ min: minQuantity, multipleOf }),
-    [minQuantity, multipleOf]
-  )
-
-  const personalizationQuote = useMemo(() => {
-    if (!service || service === "none") return null
-    if (!allowedServices.includes(service)) return null
-    if (!quantity || quantity <= 0) return null
-
-    return generateQuotation(
-      service,
-      quantity,
-      service === "tampografia" || service === "vidrio-metal" ? parseInt(colors) : undefined,
-      service === "bordado" ? size : undefined,
-      {
-        placa: includePlaca,
-        ponchado: includePonchado,
-        tratamiento: includeTratamiento,
-      }
-    )
-  }, [service, allowedServices, quantity, colors, size, includePlaca, includePonchado, includeTratamiento])
 
   // Mapa de colores para swatches
   const colorMap: Record<string, string> = {

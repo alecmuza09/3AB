@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator"
 import { Search, Star, ShoppingCart } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { useSupabase } from "@/lib/supabase-client"
+import { getSupabaseClient } from "@/lib/supabase"
+import { fetchCatalogProducts } from "@/lib/all-products"
 import { useState, useEffect } from "react"
 
 interface Product {
@@ -48,7 +49,6 @@ interface Category {
 
 export default function ProductosPage() {
   const router = useRouter()
-  const supabase = useSupabase()
   const { content } = useSiteContent("productos")
   const t = (key: string, fallback: string) => content[key] ?? fallback
   const [searchTerm, setSearchTerm] = useState("")
@@ -57,70 +57,40 @@ export default function ProductosPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Cargar categorías desde Supabase
+  // Cargar categorías desde Supabase (mismo cliente que productos para consistencia)
   useEffect(() => {
-    async function fetchCategories() {
-      if (!supabase) return
+    const supabase = getSupabaseClient()
+    if (!supabase) return
 
-      try {
-        const { data, error } = await supabase
-          .from("categories")
-          .select("*")
-          .eq("is_active", true)
-          .order("name", { ascending: true })
-
+    let cancelled = false
+    supabase
+      .from("categories")
+      .select("*")
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .then(({ data, error }) => {
+        if (cancelled) return
         if (error) {
           console.error("Error fetching categories:", error)
           return
         }
-
         setCategories(data || [])
-      } catch (error) {
-        console.error("Error:", error)
-      }
-    }
+      })
+    return () => { cancelled = true }
+  }, [])
 
-    fetchCategories()
-  }, [supabase])
-
-  // Cargar productos desde Supabase
+  // Cargar productos desde Supabase (misma lógica que admin: lib/all-products fetchCatalogProducts)
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
-    const client = supabase
     let cancelled = false
 
-    async function fetchProducts() {
+    async function load() {
       try {
-        // Query: productos + categoría (sin join a product_images para mayor compatibilidad)
-        let query = client
-          .from("products")
-          .select(`*, category:categories(id, name, slug)`)
-          .eq("is_active", true)
-
-        if (selectedCategoryId) {
-          query = query.eq("category_id", selectedCategoryId)
-        }
-
-        const { data, error } = await query
-          .order("created_at", { ascending: false })
-          .limit(200)
-
+        const data = await fetchCatalogProducts(selectedCategoryId)
         if (cancelled) return
-
-        if (error) {
-          console.error("Error fetching products:", error)
-          setProducts([])
-          return
-        }
-
-        setProducts(data || [])
+        setProducts(data as Product[])
       } catch (error) {
         if (!cancelled) {
-          console.error("Error:", error)
+          console.error("Error loading products:", error)
           setProducts([])
         }
       } finally {
@@ -128,9 +98,10 @@ export default function ProductosPage() {
       }
     }
 
-    fetchProducts()
+    setLoading(true)
+    load()
     return () => { cancelled = true }
-  }, [supabase, selectedCategoryId])
+  }, [selectedCategoryId])
 
   // Filtrar productos por búsqueda (sin hook para evitar desajustes de hooks en producción)
   const filteredProducts = (() => {
