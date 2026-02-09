@@ -617,9 +617,31 @@ export default function ProductDetailPage() {
 
                 <Separator />
 
-                {/* Cantidad y personalización */}
-                <Card className="bg-muted/30">
-                  <CardContent className="p-6 space-y-5">
+                {/* Calculadora de precios (producto + personalización) */}
+                <Card className="bg-muted/30 border-primary/20">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Package className="h-5 w-5 text-primary" />
+                      Calculadora de precios
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground font-normal">
+                      Precio del producto como referencia; personalización y total se calculan aquí.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="p-6 pt-0 space-y-5">
+                    {currentPrice > 0 && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-muted-foreground">Precio de referencia (por pieza)</span>
+                          <span className="text-lg font-bold text-primary">
+                            ${currentPrice.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Este es el precio base del producto; la personalización se suma según el servicio que elijas.
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <Label className="text-lg font-semibold mb-3 block">Cantidad</Label>
                       <div className="flex items-center gap-4">

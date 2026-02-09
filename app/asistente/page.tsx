@@ -24,8 +24,6 @@ import {
   Package,
   BookOpen,
   Phone,
-  Calculator,
-  DollarSign,
 } from "lucide-react"
 
 type Sender = "user" | "bot"
@@ -52,21 +50,7 @@ interface Message {
   sender: Sender
   timestamp: string
   suggestions?: string[]
-  quotation?: QuotationData
   products?: RecommendedProduct[]
-}
-
-interface QuotationData {
-  service: string
-  quantity: number
-  colors?: number
-  size?: string
-  material?: string
-  subtotal: number
-  extras: { name: string; cost: number }[]
-  total: number
-  totalWithMargin: number
-  margin: string
 }
 
 type StageKey = "eventType" | "audience" | "objective" | "attendees" | "budget" | "productPreference"
@@ -82,163 +66,10 @@ interface ConversationStage {
 
 const BOT_RESPONSE_DELAY = 900
 
-// ============== COTIZADOR LOGIC ==============
-
-const calculateTampografiaSerigrafiaPrice = (quantity: number, colors: number = 1) => {
-  let basePrice = 0
-  let extraColorPrice = 0
-
-  if (quantity <= 300) {
-    basePrice = 980
-    extraColorPrice = (colors - 1) * 3
-  } else if (quantity <= 1000) {
-    basePrice = quantity * 2.80
-    extraColorPrice = (colors - 1) * 2.70
-  } else if (quantity <= 2500) {
-    basePrice = quantity * 2.50
-    extraColorPrice = (colors - 1) * 2.40
-  } else if (quantity <= 5000) {
-    basePrice = quantity * 2.20
-    extraColorPrice = (colors - 1) * 2.10
-  } else {
-    basePrice = quantity * 2.20
-    extraColorPrice = (colors - 1) * 2.10
-  }
-
-  return basePrice + extraColorPrice
-}
-
-const calculateVidrioMetalRubberPrice = (quantity: number, colors: number = 1) => {
-  let unitPrice = 0
-  let extraColorPrice = 0
-
-  if (quantity <= 500) {
-    unitPrice = 900 / quantity // precio fijo para hasta 500
-    extraColorPrice = 3.10
-  } else if (quantity <= 1000) {
-    unitPrice = 3.30
-    extraColorPrice = 2.80
-  } else if (quantity <= 2500) {
-    unitPrice = 3.00
-    extraColorPrice = 2.50
-  } else if (quantity <= 5000) {
-    unitPrice = 2.90
-    extraColorPrice = 2.20
-  } else {
-    unitPrice = 2.60
-    extraColorPrice = 2.00
-  }
-
-  const basePrice = quantity <= 500 ? 900 : quantity * unitPrice
-  return basePrice + (colors - 1) * extraColorPrice * quantity
-}
-
-const calculateGrabadoLaserPrice = (quantity: number) => {
-  if (quantity < 1000) return quantity * 12
-  if (quantity <= 5000) return quantity * 8
-  return quantity * 7
-}
-
-const calculateBordadoPrice = (quantity: number, size: string) => {
-  const priceTable: Record<string, Record<string, number>> = {
-    "5-12cm": {
-      "1-9": 80,
-      "10-49": 55,
-      "50-99": 50,
-      "100-299": 40,
-      "300-499": 30,
-      "500+": 25,
-    },
-    "12-20cm": {
-      "1-9": 88,
-      "10-49": 70,
-      "50-99": 60,
-      "100-299": 50,
-      "300-499": 45,
-      "500+": 40,
-    },
-    "20-25cm": {
-      "1-9": 140,
-      "10-49": 110,
-      "50-99": 90,
-      "100-299": 90,
-      "300-499": 70,
-      "500+": 70,
-    },
-  }
-
-  let range = "500+"
-  if (quantity <= 9) range = "1-9"
-  else if (quantity <= 49) range = "10-49"
-  else if (quantity <= 99) range = "50-99"
-  else if (quantity <= 299) range = "100-299"
-  else if (quantity <= 499) range = "300-499"
-
-  const pricePerUnit = priceTable[size]?.[range] ?? 0
-  return quantity * pricePerUnit
-}
-
-const calculateMargin = (quantity: number) => {
-  if (quantity <= 200) return { percentage: 30, divisor: 0.70, label: "30%" }
-  if (quantity <= 1000) return { percentage: 25, divisor: 0.75, label: "25%" }
-  return { percentage: 20, divisor: 0.80, label: "20%" }
-}
-
-const generateQuotation = (
-  service: string,
-  quantity: number,
-  colors?: number,
-  size?: string,
-  includeExtras?: { placa?: boolean; ponchado?: boolean; tratamiento?: boolean }
-): QuotationData => {
-  let subtotal = 0
-  const extras: { name: string; cost: number }[] = []
-
-  switch (service) {
-    case "tampografia":
-      subtotal = calculateTampografiaSerigrafiaPrice(quantity, colors ?? 1)
-      if (includeExtras?.placa) extras.push({ name: "Placa de tampografía", cost: 280 })
-      break
-    case "vidrio-metal":
-      subtotal = calculateVidrioMetalRubberPrice(quantity, colors ?? 1)
-      if (includeExtras?.placa) extras.push({ name: "Placa de tampografía", cost: 280 })
-      break
-    case "laser":
-      subtotal = calculateGrabadoLaserPrice(quantity)
-      break
-    case "bordado":
-      subtotal = calculateBordadoPrice(quantity, size ?? "5-12cm")
-      if (includeExtras?.ponchado) extras.push({ name: "Ponchado de bordado", cost: 280 })
-      break
-  }
-
-  if (includeExtras?.tratamiento) {
-    extras.push({ name: "Tratamiento especial", cost: 150 })
-  }
-
-  const extrasTotal = extras.reduce((sum, extra) => sum + extra.cost, 0)
-  const total = subtotal + extrasTotal
-  const margin = calculateMargin(quantity)
-  const totalWithMargin = total / margin.divisor
-
-  return {
-    service,
-    quantity,
-    colors,
-    size,
-    subtotal,
-    extras,
-    total,
-    totalWithMargin,
-    margin: margin.label,
-  }
-}
-
 const FINAL_OPTIONS = [
   "Explorar ideas destacadas",
   "Ver catálogos disponibles",
   "Solicitar cotización personalizada",
-  "💰 Usar calculadora de precios",
   "Hablar con un especialista",
   "Reiniciar conversación",
 ]
@@ -587,7 +418,7 @@ export default function AsistentePage() {
       text: "¡Hola! Soy el asistente de 3A Branding 😊 Cuéntame en qué andas: ¿un evento, regalos para clientes, algo para el equipo? Escribe con libertad y te recomiendo productos de nuestro catálogo según lo que me platiques.",
       sender: "bot",
       timestamp: new Date().toISOString(),
-      suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "💰 Cotizar personalización"],
+      suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "Ver productos para cotizar"],
     },
   ])
   const [inputMessage, setInputMessage] = useState("")
@@ -595,7 +426,6 @@ export default function AsistentePage() {
   const [hasCompletedFlow, setHasCompletedFlow] = useState(true)
   const [isTyping, setIsTyping] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  const [showQuotationForm, setShowQuotationForm] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -742,7 +572,7 @@ export default function AsistentePage() {
         text: "Perfecto, retomemos. Cuéntame en qué andas: ¿evento, regalos para clientes, algo para el equipo? Escribe con libertad y te recomiendo productos.",
         sender: "bot",
         timestamp: new Date().toISOString(),
-        suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "💰 Cotizar personalización"],
+        suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "Ver productos para cotizar"],
       },
     ])
   }
@@ -799,18 +629,10 @@ export default function AsistentePage() {
       }
     }
 
-    if (normalizedAction.includes("cotiz") && !normalizedAction.includes("calculadora") && !normalizedAction.includes("💰")) {
+    if (normalizedAction.includes("cotiz")) {
       return {
-        text: "Claro, preparo un resumen con tus respuestas y se lo paso al equipo para que recibas una cotización con tiempos y opciones.",
+        text: "Claro, preparo un resumen con tus respuestas y se lo paso al equipo para que recibas una cotización. También puedes ir a la ficha de cualquier producto y usar la calculadora de precios ahí para personalizar y añadir al carrito.",
         suggestions: FINAL_OPTIONS,
-      }
-    }
-
-    if (normalizedAction.includes("calculadora") || normalizedAction.includes("💰")) {
-      setShowQuotationForm(true)
-      return {
-        text: "¡Perfecto! He activado la calculadora de precios. Ingresa los detalles del servicio que necesitas y te daré una cotización instantánea con márgenes de utilidad incluidos.",
-        suggestions: [],
       }
     }
 
@@ -851,17 +673,13 @@ export default function AsistentePage() {
           text: "Perfecto, retomemos. Cuéntame en qué andas: ¿evento, regalos para clientes, algo para el equipo? Escribe con libertad y te recomiendo productos.",
           sender: "bot",
           timestamp: new Date().toISOString(),
-          suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "💰 Cotizar personalización"],
+          suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "Ver productos para cotizar"],
         },
       ])
       setInputMessage("")
       return
     }
     if (
-      normalized.includes("calcular otra") ||
-      normalized.includes("otra cotización") ||
-      normalized.includes("calculadora") ||
-      normalized.includes("💰") ||
       (normalized.includes("catálogo") && normalized.length < 25) ||
       (normalized.includes("especialista") && normalized.length < 25) ||
       (normalized.includes("whatsapp") && normalized.length < 20)
@@ -908,7 +726,7 @@ export default function AsistentePage() {
 
       const suggestions: string[] = [
         "Ver más opciones",
-        "💰 Usar calculadora de precios",
+        "Ver productos para cotizar",
         "Hablar con un especialista",
       ]
       if (hasProducts) suggestions.unshift("Necesito algo más específico")
@@ -1169,12 +987,12 @@ export default function AsistentePage() {
             </Card>
 
             <Card
-              className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-primary/20 bg-primary/5"
-              onClick={() => handleSuggestionClick("💰 Usar calculadora de precios")}
+              className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-primary/20"
+              onClick={() => window.location.href = "/productos"}
             >
-              <Calculator className="h-8 w-8 text-primary mx-auto mb-3" />
-              <h3 className="font-semibold mb-2">Calculadora de Precios</h3>
-              <p className="text-sm text-muted-foreground">Genera cotizaciones instantáneas con márgenes</p>
+              <Package className="h-8 w-8 text-primary mx-auto mb-3" />
+              <h3 className="font-semibold mb-2">Ver productos y cotizar</h3>
+              <p className="text-sm text-muted-foreground">En cada producto puedes personalizar y ver el precio</p>
             </Card>
 
             <Card
@@ -1186,37 +1004,6 @@ export default function AsistentePage() {
               <p className="text-sm text-muted-foreground">Agenda una llamada o conecta por WhatsApp</p>
             </Card>
           </div>
-
-          {/* Quotation Calculator */}
-          {showQuotationForm && <QuotationCalculator onClose={() => setShowQuotationForm(false)} onQuote={(quotation) => {
-            const formattedQuote = `💰 **Cotización Generada**\n\n` +
-              `📦 Servicio: ${quotation.service === 'tampografia' ? 'Tampografía/Serigrafía' : 
-                             quotation.service === 'vidrio-metal' ? 'Vidrio/Metal/Rubber' :
-                             quotation.service === 'laser' ? 'Grabado Láser' : 'Bordado'}\n` +
-              `📊 Cantidad: ${quotation.quantity.toLocaleString()} piezas\n` +
-              (quotation.colors ? `🎨 Tintas: ${quotation.colors}\n` : '') +
-              (quotation.size ? `📏 Tamaño: ${quotation.size}\n` : '') +
-              `\n💵 **Costos:**\n` +
-              `• Subtotal: $${quotation.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN\n` +
-              (quotation.extras.length > 0 ? quotation.extras.map(e => `• ${e.name}: $${e.cost.toLocaleString('es-MX')} MXN`).join('\n') + '\n' : '') +
-              `• **Total Costo:** $${quotation.total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN\n\n` +
-              `📈 **Precio de Venta (${quotation.margin} utilidad):**\n` +
-              `**$${quotation.totalWithMargin.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN**\n\n` +
-              `¿Te gustaría ajustar algo o generar otra cotización?`
-
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: prev.length + 1,
-                text: formattedQuote,
-                sender: "bot",
-                timestamp: new Date().toISOString(),
-                quotation,
-                suggestions: ["Calcular otra cotización", "Solicitar cotización formal", ...FINAL_OPTIONS.slice(0, 3)],
-              },
-            ])
-            setShowQuotationForm(false)
-          }} />}
         </div>
       </main>
       <Footer />
@@ -1225,192 +1012,3 @@ export default function AsistentePage() {
   )
 }
 
-// ============== QUOTATION CALCULATOR COMPONENT ==============
-
-function QuotationCalculator({ onClose, onQuote }: { onClose: () => void; onQuote: (quotation: QuotationData) => void }) {
-  const [service, setService] = useState<string>("")
-  const [quantity, setQuantity] = useState<string>("")
-  const [colors, setColors] = useState<string>("1")
-  const [size, setSize] = useState<string>("5-12cm")
-  const [includePlaca, setIncludePlaca] = useState(false)
-  const [includePonchado, setIncludePonchado] = useState(false)
-  const [includeTratamiento, setIncludeTratamiento] = useState(false)
-
-  const handleGenerate = () => {
-    const qty = parseInt(quantity)
-    if (!service || !qty || qty <= 0) {
-      alert("Por favor completa todos los campos requeridos")
-      return
-    }
-
-    const quotation = generateQuotation(
-      service,
-      qty,
-      service === "tampografia" || service === "vidrio-metal" ? parseInt(colors) : undefined,
-      service === "bordado" ? size : undefined,
-      {
-        placa: includePlaca,
-        ponchado: includePonchado,
-        tratamiento: includeTratamiento,
-      }
-    )
-
-    onQuote(quotation)
-  }
-
-  return (
-    <Card className="mt-8 border-primary/40 shadow-lg">
-      <CardHeader className="bg-primary/5">
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calculator className="h-6 w-6 text-primary" />
-            Calculadora de Cotizaciones
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            ✕
-          </Button>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6 pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Servicio */}
-          <div className="space-y-2">
-            <Label htmlFor="service">Tipo de Servicio *</Label>
-            <Select value={service} onValueChange={setService}>
-              <SelectTrigger id="service">
-                <SelectValue placeholder="Selecciona un servicio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tampografia">Tampografía / Serigrafía</SelectItem>
-                <SelectItem value="vidrio-metal">Vidrio / Metal / Rubber</SelectItem>
-                <SelectItem value="laser">Grabado Láser</SelectItem>
-                <SelectItem value="bordado">Bordado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Cantidad */}
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Cantidad de Piezas *</Label>
-            <Input
-              id="quantity"
-              type="number"
-              placeholder="Ej: 500"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              min="1"
-            />
-          </div>
-
-          {/* Colores/Tintas (solo para tampografía y vidrio) */}
-          {(service === "tampografia" || service === "vidrio-metal") && (
-            <div className="space-y-2">
-              <Label htmlFor="colors">Número de Tintas/Colores</Label>
-              <Select value={colors} onValueChange={setColors}>
-                <SelectTrigger id="colors">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 color (incluido)</SelectItem>
-                  <SelectItem value="2">2 colores</SelectItem>
-                  <SelectItem value="3">3 colores</SelectItem>
-                  <SelectItem value="4">4 colores</SelectItem>
-                  <SelectItem value="5">5 colores</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Tamaño (solo para bordado) */}
-          {service === "bordado" && (
-            <div className="space-y-2">
-              <Label htmlFor="size">Tamaño del Diseño</Label>
-              <Select value={size} onValueChange={setSize}>
-                <SelectTrigger id="size">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5-12cm">5-12 cm</SelectItem>
-                  <SelectItem value="12-20cm">12-20 cm</SelectItem>
-                  <SelectItem value="20-25cm">20-25 cm</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        <Separator />
-
-        {/* Costos Adicionales */}
-        <div className="space-y-3">
-          <Label className="text-base font-semibold">Costos Adicionales</Label>
-          
-          {(service === "tampografia" || service === "vidrio-metal") && (
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="placa"
-                checked={includePlaca}
-                onChange={(e) => setIncludePlaca(e.target.checked)}
-                className="h-4 w-4"
-              />
-              <Label htmlFor="placa" className="font-normal cursor-pointer">
-                Placa de tampografía ($280 MXN)
-              </Label>
-            </div>
-          )}
-
-          {service === "bordado" && (
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="ponchado"
-                checked={includePonchado}
-                onChange={(e) => setIncludePonchado(e.target.checked)}
-                className="h-4 w-4"
-              />
-              <Label htmlFor="ponchado" className="font-normal cursor-pointer">
-                Ponchado de bordado ($280 MXN)
-              </Label>
-            </div>
-          )}
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="tratamiento"
-              checked={includeTratamiento}
-              onChange={(e) => setIncludeTratamiento(e.target.checked)}
-              className="h-4 w-4"
-            />
-            <Label htmlFor="tratamiento" className="font-normal cursor-pointer">
-              Tratamiento especial ($150 MXN estimado)
-            </Label>
-          </div>
-        </div>
-
-        <div className="flex gap-3 pt-4">
-          <Button onClick={handleGenerate} className="flex-1 bg-primary hover:bg-primary/90">
-            <DollarSign className="h-4 w-4 mr-2" />
-            Generar Cotización
-          </Button>
-          <Button onClick={onClose} variant="outline" className="flex-1">
-            Cancelar
-          </Button>
-        </div>
-
-        {/* Info Card */}
-        <Card className="bg-muted/30 border-dashed">
-          <CardContent className="pt-4 text-sm text-muted-foreground">
-            <p className="font-semibold text-foreground mb-2">📊 Márgenes de Utilidad:</p>
-            <ul className="space-y-1 ml-4">
-              <li>• 1-200 piezas: 30% utilidad</li>
-              <li>• 201-1,000 piezas: 25% utilidad</li>
-              <li>• 1,000-5,000+ piezas: 20% utilidad</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </CardContent>
-    </Card>
-  )
-}

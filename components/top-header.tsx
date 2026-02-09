@@ -4,6 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -15,13 +16,16 @@ import {
 } from "lucide-react"
 import { useCart } from "@/contexts/cart-context"
 import { useAuth } from "@/contexts/auth-context"
+import { UserMenu } from "@/components/auth/user-menu"
+import { LoginDialog } from "@/components/auth/login-dialog"
 
 export function TopHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { getItemCount } = useCart()
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, signOut } = useAuth()
+  const router = useRouter()
   const cartCount = getItemCount()
 
   const menuItems = [
@@ -82,21 +86,11 @@ export function TopHeader() {
               </Button>
             </Link>
             
-            <Link href="/perfil">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="relative text-gray-700 hover:text-[#DC2626] hover:bg-primary/10 transition-colors"
-                aria-label="Perfil de usuario"
-              >
-                <User className="h-4 w-4" />
-                {isAdmin && (
-                  <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#DC2626] text-white">
-                    A
-                  </Badge>
-                )}
-              </Button>
-            </Link>
+            {user ? (
+              <UserMenu />
+            ) : (
+              <LoginDialog />
+            )}
             
             <Link href="/carrito">
               <Button variant="ghost" size="sm" className="relative">
@@ -152,21 +146,23 @@ export function TopHeader() {
                     Asistente IA
                   </Button>
                 </Link>
-                <Link href="/perfil" onClick={() => setIsMenuOpen(false)} className="flex-1">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="relative w-full"
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    {user ? "Mi Perfil" : "Iniciar Sesión"}
-                    {isAdmin && (
-                      <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#DC2626] text-white">
-                        A
-                      </Badge>
-                    )}
-                  </Button>
-                </Link>
+                {user ? (
+                  <Link href="/perfil" onClick={() => setIsMenuOpen(false)} className="flex-1">
+                    <Button variant="ghost" size="sm" className="relative w-full">
+                      <User className="h-4 w-4 mr-2" />
+                      Mi Perfil
+                      {isAdmin && (
+                        <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px] bg-[#DC2626] text-white">
+                          A
+                        </Badge>
+                      )}
+                    </Button>
+                  </Link>
+                ) : (
+                  <div className="flex-1">
+                    <LoginDialog />
+                  </div>
+                )}
                 <Link href="/carrito" onClick={() => setIsMenuOpen(false)}>
                   <Button variant="ghost" size="sm" className="relative">
                     <ShoppingCart className="h-4 w-4" />
@@ -183,6 +179,22 @@ export function TopHeader() {
                   Cotizar
                 </Button>
               </Link>
+              {user && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-red-200 text-red-600 hover:bg-red-50 mt-2"
+                  onClick={async () => {
+                    setIsMenuOpen(false)
+                    await signOut()
+                    router.push("/")
+                    router.refresh()
+                  }}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Cerrar sesión
+                </Button>
+              )}
             </nav>
           </div>
         )}
