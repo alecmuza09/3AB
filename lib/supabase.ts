@@ -45,12 +45,16 @@ let supabaseClient: ReturnType<typeof createSupabaseClient> | null = null
 
 export function getSupabaseClient() {
   if (typeof window === 'undefined') {
-    // En el servidor, no usar el cliente del navegador
     return null
   }
 
   if (!supabaseClient) {
-    supabaseClient = createSupabaseClient()
+    try {
+      supabaseClient = createSupabaseClient()
+    } catch (e) {
+      console.warn('Supabase client no disponible:', (e as Error).message)
+      return null
+    }
   }
 
   return supabaseClient

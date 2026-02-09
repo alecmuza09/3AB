@@ -82,26 +82,22 @@ export default function ProductosPage() {
 
   // Cargar productos desde Supabase
   useEffect(() => {
-    async function fetchProducts() {
-      if (!supabase) return
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
 
+    const client = supabase
+    let cancelled = false
+
+    async function fetchProducts() {
       try {
-        // Primero obtener productos con imagen principal desde product_images si no tienen image_url
-        let query = supabase
+        // Query: productos + categoría (sin join a product_images para mayor compatibilidad)
+        let query = client
           .from("products")
-          .select(`
-            *,
-            category:categories(id, name, slug),
-            product_images!left(
-              id,
-              image_url,
-              is_primary,
-              order_index
-            )
-          `)
+          .select(`*, category:categories(id, name, slug)`)
           .eq("is_active", true)
 
-        // Filtrar por categoría si está seleccionada
         if (selectedCategoryId) {
           query = query.eq("category_id", selectedCategoryId)
         }
@@ -110,37 +106,27 @@ export default function ProductosPage() {
           .order("created_at", { ascending: false })
           .limit(200)
 
+        if (cancelled) return
+
         if (error) {
           console.error("Error fetching products:", error)
+          setProducts([])
           return
         }
 
-        // Procesar productos para obtener imagen principal
-        const processedProducts = (data || []).map((product: any) => {
-          // Si no tiene image_url, buscar en product_images
-          if (!product.image_url && product.product_images && product.product_images.length > 0) {
-            // Ordenar imágenes por is_primary y order_index
-            const sortedImages = product.product_images.sort((a: any, b: any) => {
-              if (a.is_primary && !b.is_primary) return -1
-              if (!a.is_primary && b.is_primary) return 1
-              return a.order_index - b.order_index
-            })
-            product.image_url = sortedImages[0]?.image_url || null
-          }
-          // Eliminar product_images del objeto para no enviarlo al frontend
-          delete product.product_images
-          return product
-        })
-
-        setProducts(processedProducts)
+        setProducts(data || [])
       } catch (error) {
-        console.error("Error:", error)
+        if (!cancelled) {
+          console.error("Error:", error)
+          setProducts([])
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchProducts()
+    return () => { cancelled = true }
   }, [supabase, selectedCategoryId])
 
   // Filtrar productos por búsqueda (sin hook para evitar desajustes de hooks en producción)

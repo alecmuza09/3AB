@@ -33,7 +33,7 @@ import {
 import { useSupabase } from "@/lib/supabase-client"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
-import { getProductByIdFromSupabase, SupabaseProduct } from "@/lib/all-products"
+import type { SupabaseProduct } from "@/lib/all-products"
 import type { CotizadorService } from "@/lib/cotizador"
 import { generateQuotation, getServiceName } from "@/lib/cotizador"
 import { getQuantityValidationError, normalizeQuantityToRules } from "@/lib/quantity"
@@ -61,27 +61,57 @@ export default function ProductDetailPage() {
   const [includeTratamiento, setIncludeTratamiento] = useState(false)
 
   useEffect(() => {
-    async function fetchProduct() {
-      if (!productId) {
-        setLoading(false)
-        return
-      }
+    if (!productId) {
+      setLoading(false)
+      return
+    }
+    if (!supabase) return
 
+    let cancelled = false
+
+    async function fetchProduct() {
       try {
-        const foundProduct = await getProductByIdFromSupabase(productId)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)
+        let query = supabase
+          .from("products")
+          .select(`*, category:categories(id, name, slug)`)
+          .eq("is_active", true)
+
+        if (isUuid) {
+          query = query.eq("id", productId)
+        } else {
+          query = query.eq("slug", productId)
+        }
+
+        const { data: foundProduct, error } = await query.single()
+
+        if (cancelled) return
+
+        if (error) {
+          console.error("Error fetching product:", error)
+          setProduct(null)
+          return
+        }
+
         if (foundProduct) {
-          setProduct(foundProduct)
-          setQuantity(foundProduct.min_quantity || 1)
+          setProduct(foundProduct as SupabaseProduct)
+          setQuantity(Number((foundProduct as any).min_quantity) || 1)
+        } else {
+          setProduct(null)
         }
       } catch (error) {
-        console.error("Error fetching product:", error)
+        if (!cancelled) {
+          console.error("Error fetching product:", error)
+          setProduct(null)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     fetchProduct()
-  }, [productId])
+    return () => { cancelled = true }
+  }, [productId, supabase])
 
   const allowedServices = useMemo(() => {
     const techniquesRaw = (product as any)?.attributes?.printing_technique
