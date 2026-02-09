@@ -91,26 +91,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Inicializar autenticación
+  // Inicializar autenticación (con timeout para no quedarse colgado)
   useEffect(() => {
     if (!supabase) {
       setLoading(false)
       return
     }
-    
-    // Obtener sesión actual
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        loadProfile(session.user.id)
-      }
-      setLoading(false)
-    })
 
-    // Escuchar cambios de autenticación
+    let cancelled = false
+    const AUTH_TIMEOUT_MS = 10000
+
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        setLoading(false)
+      }
+    }, AUTH_TIMEOUT_MS)
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return
+        clearTimeout(timeoutId)
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          loadProfile(session.user.id)
+        }
+        setLoading(false)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          clearTimeout(timeoutId)
+          console.error("Error obteniendo sesión:", err)
+          setLoading(false)
+        }
+      })
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return
       setUser(session?.user ?? null)
       if (session?.user) {
         await loadProfile(session.user.id)
@@ -120,7 +138,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [supabase])
 
   const signIn = async (email: string, password: string) => {

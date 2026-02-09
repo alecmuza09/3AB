@@ -125,14 +125,13 @@ export default function AdminPage() {
     try {
       setLoadingUsers(true)
       const supabase = getSupabaseClient()
-      
+
       if (!supabase) {
         console.error("Supabase no está disponible")
         setLoadingUsers(false)
         return
       }
 
-      // Obtener todos los perfiles
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("*")
@@ -140,6 +139,7 @@ export default function AdminPage() {
 
       if (profilesError) {
         console.error("Error loading profiles:", profilesError)
+        setLoadingUsers(false)
         return
       }
 
