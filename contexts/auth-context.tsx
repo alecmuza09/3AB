@@ -206,10 +206,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    if (!supabase) return
-    await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
+    if (!supabase) return
+    try {
+      await supabase.auth.signOut({ scope: "local" })
+    } catch (e) {
+      console.error("Error en signOut de Supabase:", e)
+    }
   }
 
   const updateProfile = async (data: { full_name?: string; phone?: string; company?: string; address?: string }) => {

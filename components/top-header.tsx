@@ -186,8 +186,7 @@ export function TopHeader() {
                   onClick={async () => {
                     setIsMenuOpen(false)
                     await signOut()
-                    router.push("/")
-                    router.refresh()
+                    window.location.href = "/"
                   }}
                 >
                   <LogOut className="h-4 w-4 mr-2" />

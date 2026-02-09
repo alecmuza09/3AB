@@ -35,12 +35,11 @@ export function UserMenu() {
     setOpen(false)
     try {
       await signOut()
-      router.push("/")
-      router.refresh()
+      window.location.href = "/"
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
-    } finally {
       setLoading(false)
+      window.location.href = "/"
     }
   }
 

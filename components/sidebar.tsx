@@ -40,12 +40,10 @@ export function Sidebar() {
     setSigningOut(true)
     try {
       await signOut()
-      router.push("/")
-      router.refresh()
+      window.location.href = "/"
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
-    } finally {
-      setSigningOut(false)
+      window.location.href = "/"
     }
   }
 
