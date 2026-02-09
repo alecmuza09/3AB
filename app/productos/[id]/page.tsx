@@ -29,8 +29,17 @@ import {
   MessageCircle,
   Share2,
   Star,
+  Search,
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { useSupabase } from "@/lib/supabase-client"
+import { fetchCatalogProducts } from "@/lib/all-products"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
 import type { SupabaseProduct } from "@/lib/all-products"
@@ -59,6 +68,12 @@ export default function ProductDetailPage() {
   const [includePlaca, setIncludePlaca] = useState(false)
   const [includePonchado, setIncludePonchado] = useState(false)
   const [includeTratamiento, setIncludeTratamiento] = useState(false)
+
+  // Diálogo "Seleccionar producto" en la calculadora
+  const [openSelectProduct, setOpenSelectProduct] = useState(false)
+  const [catalogProducts, setCatalogProducts] = useState<SupabaseProduct[]>([])
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+  const [searchProductTerm, setSearchProductTerm] = useState("")
 
   useEffect(() => {
     if (!productId) {
@@ -193,6 +208,21 @@ export default function ProductDetailPage() {
 
     fetchRelatedProducts()
   }, [supabase, product])
+
+  // Cargar catálogo cuando se abre el diálogo "Seleccionar producto"
+  useEffect(() => {
+    if (!openSelectProduct) return
+    let cancelled = false
+    setLoadingCatalog(true)
+    fetchCatalogProducts()
+      .then((data) => {
+        if (!cancelled) setCatalogProducts(data)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCatalog(false)
+      })
+    return () => { cancelled = true }
+  }, [openSelectProduct])
 
   // Hooks deben ejecutarse siempre en el mismo orden (antes de cualquier return)
   const minQuantity = product?.min_quantity || 1
@@ -619,10 +649,79 @@ export default function ProductDetailPage() {
                 {/* Calculadora de precios (producto + personalización) */}
                 <Card className="bg-muted/30 border-primary/20">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-xl flex items-center gap-2">
-                      <Package className="h-5 w-5 text-primary" />
-                      Calculadora de precios
-                    </CardTitle>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <Package className="h-5 w-5 text-primary" />
+                        Calculadora de precios
+                      </CardTitle>
+                      <Dialog open={openSelectProduct} onOpenChange={setOpenSelectProduct}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="shrink-0">
+                            <Search className="h-4 w-4 mr-2" />
+                            Seleccionar producto
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+                          <DialogHeader>
+                            <DialogTitle>Seleccionar producto</DialogTitle>
+                          </DialogHeader>
+                          <p className="text-sm text-muted-foreground">
+                            Elige un producto para cargar su precio y opciones en la calculadora.
+                          </p>
+                          <Input
+                            placeholder="Buscar por nombre..."
+                            value={searchProductTerm}
+                            onChange={(e) => setSearchProductTerm(e.target.value)}
+                            className="mb-2"
+                          />
+                          <div className="flex-1 min-h-0 overflow-y-auto border rounded-md p-2 space-y-2">
+                            {loadingCatalog && (
+                              <p className="text-sm text-muted-foreground py-4 text-center">Cargando productos...</p>
+                            )}
+                            {!loadingCatalog &&
+                              catalogProducts
+                                .filter(
+                                  (p) =>
+                                    !searchProductTerm ||
+                                    p.name.toLowerCase().includes(searchProductTerm.toLowerCase())
+                                )
+                                .map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setProduct(p)
+                                      setQuantity(Number(p.min_quantity) || 1)
+                                      setService("none")
+                                      setOpenSelectProduct(false)
+                                      setSearchProductTerm("")
+                                      router.replace(`/productos/${p.id}`)
+                                    }}
+                                    className="w-full flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 text-left transition"
+                                  >
+                                    <div className="relative w-14 h-14 shrink-0 rounded-md overflow-hidden bg-muted">
+                                      <Image
+                                        src={p.image_url || `/placeholder.svg?height=56&width=56&query=${p.name}`}
+                                        alt={p.name}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-medium text-sm line-clamp-2">{p.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        ${Number(p.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                            {!loadingCatalog && searchProductTerm && catalogProducts.filter((p) => p.name.toLowerCase().includes(searchProductTerm.toLowerCase())).length === 0 && (
+                              <p className="text-sm text-muted-foreground py-4 text-center">No hay productos que coincidan.</p>
+                            )}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                     <p className="text-sm text-muted-foreground font-normal">
                       Precio del producto como referencia; personalización y total se calculan aquí.
                     </p>

@@ -49,66 +49,45 @@ import {
   MessageSquare,
 } from "lucide-react"
 import Image from "next/image"
+import { EditableBlock } from "@/components/editable-block"
+
+const SERVICE_KEYS = [
+  { title: "service1_title", description: "service1_description", features: "service1_features" },
+  { title: "service2_title", description: "service2_description", features: "service2_features" },
+  { title: "service3_title", description: "service3_description", features: "service3_features" },
+  { title: "service4_title", description: "service4_description", features: "service4_features" },
+] as const
+
+const SERVICE_META = [
+  { icon: Palette, color: "from-primary to-red-600" },
+  { icon: Package, color: "from-gray-700 to-gray-900" },
+  { icon: Truck, color: "from-red-600 to-primary" },
+  { icon: HeadphonesIcon, color: "from-gray-600 to-gray-800" },
+] as const
+
+function parseFeatures(text: string): string[] {
+  return text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
 
 export default function ServiciosPage() {
   const [activeTab, setActiveTab] = useState("design")
-  const { content, loading } = useSiteContent("servicios")
+  const { content, loading, refetch } = useSiteContent("servicios")
   const t = (key: string, fallback: string) => content[key] ?? fallback
 
-  const mainServices = [
-    {
-      icon: Palette,
-      title: "Diseño y Personalización",
-      description: "Creamos diseños únicos que reflejan la esencia de tu marca con profesionalismo y creatividad.",
-      features: [
-        "Diseño gráfico profesional a medida",
-        "Mockups 3D realistas pre-producción",
-        "Múltiples técnicas de marcado",
-        "Asesoría creativa personalizada",
-        "Adaptación de logotipos y branding",
-      ],
-      color: "from-primary to-red-600",
-    },
-    {
-      icon: Package,
-      title: "Producción y Manufactura",
-      description: "Fabricamos productos de alta calidad con los mejores materiales y procesos certificados.",
-      features: [
-        "Control de calidad riguroso en cada etapa",
-        "Materiales premium certificados",
-        "Producción escalable de 1 a 100,000+ piezas",
-        "Certificaciones internacionales ISO",
-        "Tiempos de entrega garantizados",
-      ],
-      color: "from-gray-700 to-gray-900",
-    },
-    {
-      icon: Truck,
-      title: "Logística y Entrega",
-      description: "Manejamos toda la logística para que recibas tus productos en tiempo y forma, donde los necesites.",
-      features: [
-        "Envíos a nivel nacional e internacional",
-        "Tracking en tiempo real",
-        "Empaque personalizado premium",
-        "Entrega programada para eventos",
-        "Coordinación de entregas múltiples",
-      ],
-      color: "from-red-600 to-primary",
-    },
-    {
-      icon: HeadphonesIcon,
-      title: "Atención al Cliente",
-      description: "Soporte personalizado y especializado durante todo el proceso de tu proyecto.",
-      features: [
-        "Asesor dedicado a tu cuenta",
-        "Soporte continuo vía WhatsApp",
-        "Seguimiento detallado de pedidos",
-        "Garantía de satisfacción 100%",
-        "Atención post-venta profesional",
-      ],
-      color: "from-gray-600 to-gray-800",
-    },
-  ]
+  const mainServices = SERVICE_KEYS.map((keys, index) => {
+    const meta = SERVICE_META[index]
+    const featuresText = t(keys.features, "")
+    return {
+      ...meta,
+      keys,
+      title: t(keys.title, "Servicio"),
+      description: t(keys.description, ""),
+      features: featuresText ? parseFeatures(featuresText) : [],
+    }
+  })
 
   const customizationTechniques = [
     {
@@ -338,32 +317,40 @@ export default function ServiciosPage() {
 
               <div className="grid md:grid-cols-2 gap-6">
                 {mainServices.map((service, index) => (
-                  <Card
+                  <EditableBlock
                     key={index}
-                    className="hover:shadow-xl transition-all hover:-translate-y-1 border-2 hover:border-primary/50"
+                    pageSlug="servicios"
+                    keys={service.keys}
+                    title={service.title}
+                    description={service.description}
+                    features={service.features}
+                    onSaved={refetch}
+                    blockLabel={`Bloque ${index + 1}: ${service.title}`}
                   >
-                    <CardHeader>
-                      <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-xl bg-gradient-to-br ${service.color}`}>
-                          <service.icon className="h-7 w-7 text-white" />
+                    <Card className="hover:shadow-xl transition-all hover:-translate-y-1 border-2 hover:border-primary/50">
+                      <CardHeader>
+                        <div className="flex items-start gap-4">
+                          <div className={`p-3 rounded-xl bg-gradient-to-br ${service.color}`}>
+                            <service.icon className="h-7 w-7 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <CardTitle className="text-2xl mb-2">{service.title}</CardTitle>
+                            <CardDescription className="text-base">{service.description}</CardDescription>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <CardTitle className="text-2xl mb-2">{service.title}</CardTitle>
-                          <CardDescription className="text-base">{service.description}</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-3">
-                        {service.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-start gap-3">
-                            <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm">{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-3">
+                          {service.features.map((feature, idx) => (
+                            <li key={idx} className="flex items-start gap-3">
+                              <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                              <span className="text-sm">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </EditableBlock>
                 ))}
               </div>
             </section>
