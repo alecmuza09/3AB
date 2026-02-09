@@ -304,6 +304,133 @@ const STAGE_ACKNOWLEDGEMENTS: Record<StageKey, Record<string, string>> = {
 
 const normalize = (value: string) => value.trim().toLowerCase()
 
+// ============== INTERPRETACIÓN CONVERSACIONAL ==============
+// Extrae contexto y palabras clave del mensaje libre para recomendar productos
+
+const EVENT_PATTERNS: { pattern: RegExp | string; value: string }[] = [
+  { pattern: /feria|expo|exposición|stand/i, value: "Feria o expo" },
+  { pattern: /conferencia|foro|congreso|seminario/i, value: "Conferencia o foro" },
+  { pattern: /corporativo|empresa|oficina/i, value: "Evento corporativo" },
+  { pattern: /lanzamiento|nuevo producto/i, value: "Lanzamiento de producto" },
+  { pattern: /capacitación|curso|entrenamiento|taller/i, value: "Capacitación interna" },
+  { pattern: /deportivo|torneo|carrera|gym/i, value: "Evento deportivo" },
+  { pattern: /graduación|diploma|certificación/i, value: "Graduación o certificación" },
+]
+
+const AUDIENCE_PATTERNS: { pattern: RegExp | string; value: string }[] = [
+  { pattern: /equipo|empleados|colaboradores|internos|staff/i, value: "Equipo interno" },
+  { pattern: /clientes|clientes actuales/i, value: "Clientes actuales" },
+  { pattern: /prospectos|leads|nuevos clientes|visitantes/i, value: "Prospectos nuevos" },
+  { pattern: /proveedores|aliados|socios/i, value: "Aliados o proveedores" },
+  { pattern: /prensa|medios|comunidad/i, value: "Comunidad o prensa" },
+]
+
+const OBJECTIVE_PATTERNS: { pattern: RegExp | string; value: string }[] = [
+  { pattern: /leads|captar|contactos|registro/i, value: "Generar leads" },
+  { pattern: /relaciones|fidelizar|agradecer/i, value: "Fortalecer relaciones" },
+  { pattern: /motivar|equipo|incentivo/i, value: "Motivar al equipo" },
+  { pattern: /reconocer|premio|logros/i, value: "Reconocer logros" },
+  { pattern: /marca|posicionar|imagen/i, value: "Posicionar marca" },
+  { pattern: /educar|capacitar|informar/i, value: "Educar a la audiencia" },
+]
+
+// Palabras que indican tipo de producto (para búsqueda en catálogo)
+const PRODUCT_KEYWORDS_RAW = [
+  "termo", "termos", "taza", "tazas", "vaso", "botella", "botellas", "mochila", "mochilas",
+  "playera", "playeras", "camisa", "gorra", "gorras", "sudadera", "chaleco", "uniforme",
+  "libreta", "libretas", "agenda", "pluma", "plumas", "bolígrafo", "usb", "memoria",
+  "llavero", "llaveros", "carpeta", "carpetas", "bolsa", "bolsas", "maleta",
+  "reloj", "relojes", "audífono", "audífonos", "cargador", "power bank", "bocina",
+  "gafete", "lanyard", "pin", "pines", "reconocimiento", "trofeo", "placa",
+  "ecológico", "sustentable", "bambú", "reciclado", "premium", "ejecutivo",
+]
+
+function matchPatterns(text: string, patterns: { pattern: RegExp | string; value: string }[]): string | null {
+  const t = normalize(text)
+  for (const { pattern, value } of patterns) {
+    if (typeof pattern === "string" && t.includes(normalize(pattern))) return value
+    if (pattern instanceof RegExp && pattern.test(text)) return value
+  }
+  return null
+}
+
+function extractProductKeywordsFromText(text: string): string[] {
+  const t = normalize(text)
+  const found: string[] = []
+  for (const kw of PRODUCT_KEYWORDS_RAW) {
+    if (t.includes(normalize(kw))) found.push(kw)
+  }
+  return found
+}
+
+/** Extrae contexto (evento, audiencia, objetivo) y palabras de producto del mensaje libre */
+function extractContextFromMessage(text: string): { context: Partial<Responses>; productKeywords: string[] } {
+  const context: Partial<Responses> = {}
+  const eventType = matchPatterns(text, EVENT_PATTERNS)
+  if (eventType) context.eventType = eventType
+  const audience = matchPatterns(text, AUDIENCE_PATTERNS)
+  if (audience) context.audience = audience
+  const objective = matchPatterns(text, OBJECTIVE_PATTERNS)
+  if (objective) context.objective = objective
+
+  // Asistentes: números aproximados (50 personas, 100 asistentes, etc.)
+  const attendeesMatch = text.match(/(\d+)\s*(personas|asistentes|piezas|unidades|invitados|asistirán)/i)
+  if (attendeesMatch) {
+    const n = parseInt(attendeesMatch[1], 10)
+    if (n <= 25) context.attendees = "1 a 25 personas"
+    else if (n <= 75) context.attendees = "26 a 75 personas"
+    else if (n <= 150) context.attendees = "76 a 150 personas"
+    else if (n <= 300) context.attendees = "151 a 300 personas"
+    else if (n <= 500) context.attendees = "301 a 500 personas"
+    else context.attendees = "Más de 500 personas"
+  }
+
+  // Presupuesto: números con $ o "mil", "mxn"
+  const budgetMatch = text.match(/(\d+)\s*(mil|k|000|mxn|pesos)/i) ?? text.match(/\$\s*(\d+)/i)
+  if (budgetMatch) {
+    let num = parseInt(budgetMatch[1], 10)
+    const hasMil = /mil|k|000/i.test(budgetMatch[0] || text)
+    if (hasMil && num < 1000) num = num * 1000
+    if (num <= 8000) context.budget = "Hasta $8,000 MXN"
+    else if (num <= 20000) context.budget = "Entre $8,000 y $20,000 MXN"
+    else if (num <= 50000) context.budget = "Entre $20,000 y $50,000 MXN"
+    else if (num <= 100000) context.budget = "Entre $50,000 y $100,000 MXN"
+    else context.budget = "Más de $100,000 MXN"
+  }
+
+  const productKeywords = extractProductKeywordsFromText(text)
+  return { context, productKeywords }
+}
+
+/** Genera una respuesta natural según el contexto y si hay productos que mostrar */
+function buildNaturalReply(
+  userText: string,
+  context: Responses,
+  hasProducts: boolean,
+  productCount: number
+): string {
+  const t = normalize(userText)
+  const askingRecommendation = /recomienda|sugiere|ideas|qué me das|qué tienen|opciones|alternativas|busco|necesito|quiero ver|muestra|dame|ayuda/i.test(t)
+  const sayingThanks = /gracias|genial|perfecto|ok|vale/i.test(t) && t.length < 30
+
+  if (sayingThanks) {
+    return "De nada. Si quieres afinar por tipo de producto, cantidad o presupuesto, dime y te sigo recomendando."
+  }
+
+  if (hasProducts && productCount > 0) {
+    if (askingRecommendation) {
+      return "Con lo que me comentas te recomiendo estos productos de nuestro catálogo. Puedes hacer clic en cualquiera para ver detalles. Si me dices algo más (por ejemplo cantidad o presupuesto), afino mejor."
+    }
+    return "Te dejo estas opciones que encajan con lo que platicamos. ¿Quieres que afinemos por tipo de producto o que te ayude a cotizar?"
+  }
+
+  if (Object.keys(context).length > 0) {
+    return "Tomo nota de eso. ¿Me dices un poco más? Por ejemplo qué tipo de producto te gustaría (termos, playeras, libretas…) o para cuántas personas, y te paso recomendaciones concretas del catálogo."
+  }
+
+  return "Cuéntame un poco más: ¿es para un evento, para clientes o para tu equipo? También puedes decirme el tipo de producto que buscas (termos, playeras, gorras…) y te recomiendo opciones de nuestro catálogo."
+}
+
 const getAcknowledgement = (key: StageKey, value: string) => {
   const acknowledgementMap = STAGE_ACKNOWLEDGEMENTS[key]
   const match =
@@ -457,15 +584,15 @@ export default function AsistentePage() {
   const [messages, setMessages] = useState<Message[]>(() => [
     {
       id: 1,
-      text: `¡Hola! Soy parte del equipo de 3A Branding 😊 Estoy aquí para ayudarte a elegir los promocionales ideales.\n\n${conversationStages[0].prompt}`,
+      text: "¡Hola! Soy el asistente de 3A Branding 😊 Cuéntame en qué andas: ¿un evento, regalos para clientes, algo para el equipo? Escribe con libertad y te recomiendo productos de nuestro catálogo según lo que me platiques.",
       sender: "bot",
       timestamp: new Date().toISOString(),
-      suggestions: conversationStages[0].chips,
+      suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "💰 Cotizar personalización"],
     },
   ])
   const [inputMessage, setInputMessage] = useState("")
   const [userResponses, setUserResponses] = useState<Responses>({})
-  const [hasCompletedFlow, setHasCompletedFlow] = useState(false)
+  const [hasCompletedFlow, setHasCompletedFlow] = useState(true)
   const [isTyping, setIsTyping] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const [showQuotationForm, setShowQuotationForm] = useState(false)
@@ -561,8 +688,8 @@ export default function AsistentePage() {
     return scored.length > 0 ? scored : catalog.slice(0, limit)
   }
 
-  const buildKeywordsFromResponses = (responses: Responses) => {
-    const keywords: string[] = []
+  const buildKeywordsFromResponses = (responses: Responses, extraKeywords: string[] = []) => {
+    const keywords: string[] = [...extraKeywords]
     const eventType = responses.eventType || ""
     const audience = responses.audience || ""
     const objective = responses.objective || ""
@@ -608,14 +735,14 @@ export default function AsistentePage() {
 
   const resetConversation = () => {
     setUserResponses({})
-    setHasCompletedFlow(false)
+    setHasCompletedFlow(true)
     setMessages([
       {
         id: 1,
-        text: `Perfecto, retomemos desde el inicio.\n\n${conversationStages[0].prompt}`,
+        text: "Perfecto, retomemos. Cuéntame en qué andas: ¿evento, regalos para clientes, algo para el equipo? Escribe con libertad y te recomiendo productos.",
         sender: "bot",
         timestamp: new Date().toISOString(),
-        suggestions: conversationStages[0].chips,
+        suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "💰 Cotizar personalización"],
       },
     ])
   }
@@ -712,34 +839,54 @@ export default function AsistentePage() {
     const text = rawText.trim()
     if (!text) return
 
-    // Check if user wants to calculate another quotation
-    if (normalize(text).includes("calcular otra") || normalize(text).includes("otra cotización")) {
-      setShowQuotationForm(true)
-      setMessages((prev) => [
-        ...prev,
+    // Intents especiales
+    const normalized = normalize(text)
+    if (normalized.includes("reiniciar") || normalized.includes("empezar de nuevo")) {
+      setUserResponses({})
+      setHasCompletedFlow(true)
+      setMessages([
+        { id: 1, text, sender: "user", timestamp: new Date().toISOString() },
         {
-          id: prev.length + 1,
-          text,
-          sender: "user",
-          timestamp: new Date().toISOString(),
-        },
-        {
-          id: prev.length + 2,
-          text: "¡Perfecto! He activado nuevamente la calculadora de precios.",
+          id: 2,
+          text: "Perfecto, retomemos. Cuéntame en qué andas: ¿evento, regalos para clientes, algo para el equipo? Escribe con libertad y te recomiendo productos.",
           sender: "bot",
           timestamp: new Date().toISOString(),
+          suggestions: ["Necesito ideas para una feria", "Quiero regalos para clientes", "Busco productos para el equipo", "💰 Cotizar personalización"],
+        },
+      ])
+      setInputMessage("")
+      return
+    }
+    if (
+      normalized.includes("calcular otra") ||
+      normalized.includes("otra cotización") ||
+      normalized.includes("calculadora") ||
+      normalized.includes("💰") ||
+      (normalized.includes("catálogo") && normalized.length < 25) ||
+      (normalized.includes("especialista") && normalized.length < 25) ||
+      (normalized.includes("whatsapp") && normalized.length < 20)
+    ) {
+      const finalResult = handleFinalInteractions(text, userResponses)
+      setMessages((prev) => [
+        ...prev,
+        { id: prev.length + 1, text, sender: "user", timestamp: new Date().toISOString() },
+        {
+          id: prev.length + 2,
+          text: finalResult.text,
+          sender: "bot",
+          timestamp: new Date().toISOString(),
+          suggestions: finalResult.suggestions?.length ? finalResult.suggestions : undefined,
+          products: undefined,
         },
       ])
       setInputMessage("")
       return
     }
 
-    const activeStage = hasCompletedFlow ? undefined : getActiveStage(userResponses)
-    const updatedResponses: Responses = activeStage ? { ...userResponses, [activeStage.key]: text } : { ...userResponses }
-
-    if (activeStage) {
-      setUserResponses(updatedResponses)
-    }
+    // Flujo conversacional: interpretar mensaje y recomendar productos
+    const { context: extracted, productKeywords } = extractContextFromMessage(text)
+    const updatedResponses: Responses = { ...userResponses, ...extracted }
+    setUserResponses(updatedResponses)
 
     setMessages((prev) => [
       ...prev,
@@ -754,38 +901,17 @@ export default function AsistentePage() {
     setIsTyping(true)
 
     setTimeout(() => {
-      let botText = ""
-      let suggestions: string[] | undefined
-        let productsToShow: RecommendedProduct[] | undefined
+      const keywords = buildKeywordsFromResponses(updatedResponses, productKeywords)
+      const productsToShow = catalog.length > 0 ? recommendFromCatalog(keywords, 6) : []
+      const hasProducts = productsToShow.length > 0
+      const botText = buildNaturalReply(text, updatedResponses, catalog.length > 0, productsToShow.length)
 
-      if (activeStage) {
-        const acknowledgement = activeStage.onAnswer ? activeStage.onAnswer(text, updatedResponses) : getAcknowledgement(activeStage.key, text)
-        const nextStage = getActiveStage(updatedResponses)
-
-        if (nextStage) {
-          botText = `${acknowledgement}\n\n${nextStage.prompt}`
-          suggestions = nextStage.chips
-        } else {
-          setHasCompletedFlow(true)
-          botText = `${acknowledgement}\n\n${buildSummary(updatedResponses)}`
-          suggestions = FINAL_OPTIONS
-            // Al completar el flujo, agregar recomendaciones basadas en respuestas
-            if (catalog.length > 0) {
-              productsToShow = recommendFromCatalog(buildKeywordsFromResponses(updatedResponses), 6)
-            }
-        }
-      } else {
-        const finalInteraction = handleFinalInteractions(text, updatedResponses)
-        botText = finalInteraction.text
-        suggestions = finalInteraction.suggestions.length ? finalInteraction.suggestions : undefined
-
-          // Si el usuario pide ideas, adjuntar recomendaciones
-          if (normalize(text).includes("idea") || normalize(text) === normalize(FINAL_OPTIONS[0])) {
-            if (catalog.length > 0) {
-              productsToShow = recommendFromCatalog(buildKeywordsFromResponses(updatedResponses), 6)
-            }
-          }
-      }
+      const suggestions: string[] = [
+        "Ver más opciones",
+        "💰 Usar calculadora de precios",
+        "Hablar con un especialista",
+      ]
+      if (hasProducts) suggestions.unshift("Necesito algo más específico")
 
       setMessages((prev) => [
         ...prev,
@@ -795,7 +921,7 @@ export default function AsistentePage() {
           sender: "bot",
           timestamp: new Date().toISOString(),
           suggestions,
-            products: productsToShow,
+          products: productsToShow.length > 0 ? productsToShow : undefined,
         },
       ])
       setIsTyping(false)
@@ -806,16 +932,8 @@ export default function AsistentePage() {
     handleSendMessage(suggestion)
   }
 
-  const completedStages = conversationStages.filter((stage) => userResponses[stage.key]).length
-  const activeStageIndex = conversationStages.findIndex((stage) => !userResponses[stage.key])
-  const currentStepNumber = activeStageIndex === -1 ? conversationStages.length : activeStageIndex + 1
-  const progressPercentage = hasCompletedFlow
-    ? 100
-    : conversationStages.length === 0
-      ? 0
-      : Math.round((completedStages / conversationStages.length) * 100)
-
-  const stepLabel = hasCompletedFlow ? "Resumen listo" : `Paso ${currentStepNumber} de ${conversationStages.length}`
+  const stepLabel = "Conversación"
+  const progressPercentage = 100
 
   return (
     <div className="min-h-screen bg-background">
@@ -840,28 +958,28 @@ export default function AsistentePage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
               <Card
                 className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
-                onClick={() => pushRecommendationsMessage("Eventos", userResponses)}
+                onClick={() => handleSendMessage("Necesito ideas para un evento o feria")}
               >
                 <Calendar className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Eventos</p>
               </Card>
               <Card
                 className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
-                onClick={() => pushRecommendationsMessage("Corporativo", userResponses)}
+                onClick={() => handleSendMessage("Busco productos corporativos para el equipo")}
               >
                 <Users className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Corporativo</p>
               </Card>
               <Card
                 className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
-                onClick={() => pushRecommendationsMessage("Promocionales", userResponses)}
+                onClick={() => handleSendMessage("Quiero ver promocionales y regalos")}
               >
                 <Gift className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Promocionales</p>
               </Card>
               <Card
                 className="p-4 text-center border-primary/20 cursor-pointer hover:border-primary hover:shadow-sm transition"
-                onClick={() => pushRecommendationsMessage("Empresarial", userResponses)}
+                onClick={() => handleSendMessage("Necesito productos empresariales o uniformes")}
               >
                 <Briefcase className="h-6 w-6 text-primary mx-auto mb-2" />
                 <p className="text-sm font-medium">Empresarial</p>
@@ -1007,22 +1125,22 @@ export default function AsistentePage() {
             </div>
           </Card>
 
-          {completedStages > 0 && (
+          {Object.keys(userResponses).length > 0 && (
             <Card className="mt-6 bg-muted/40 border-dashed border-primary/30">
               <CardHeader>
-                <CardTitle className="text-base font-semibold text-foreground">Resumen en construcción</CardTitle>
+                <CardTitle className="text-base font-semibold text-foreground">Contexto de la conversación</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Ajusta cualquier punto cuando quieras; solo dime qué te gustaría modificar.
+                  Esto es lo que he entendido; puedes seguir escribiendo para afinar las recomendaciones.
                 </p>
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  {conversationStages
-                    .filter((stage) => userResponses[stage.key])
-                    .map((stage) => (
-                      <li key={stage.key} className="flex justify-between gap-4">
-                        <span className="font-medium text-foreground">{SUMMARY_LABELS[stage.key]}:</span>
-                        <span className="text-right">{userResponses[stage.key]}</span>
+                  {(Object.keys(SUMMARY_LABELS) as StageKey[])
+                    .filter((key) => userResponses[key])
+                    .map((key) => (
+                      <li key={key} className="flex justify-between gap-4">
+                        <span className="font-medium text-foreground">{SUMMARY_LABELS[key]}:</span>
+                        <span className="text-right">{userResponses[key]}</span>
                       </li>
                     ))}
                 </ul>

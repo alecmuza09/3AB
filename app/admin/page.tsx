@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { AdminGuard } from "@/components/auth/admin-guard"
-import { useSupabase } from "@/lib/supabase-client"
+import { getSupabaseClient } from "@/lib/supabase"
 import { useAuth } from "@/contexts/auth-context"
 import type { Database } from "@/lib/supabase-types"
 import { Button } from "@/components/ui/button"
@@ -67,10 +67,16 @@ import { getIntegrationsStatus } from "@/lib/integrations-config"
 
 interface Product {
   id: string
+  sku: string | null
   name: string
   category: string
+  categoryId: string | null
   price: number
   stock: number
+  isActive: boolean
+  minQuantity: number
+  multipleOf: number
+  attributes: any | null
   status: "active" | "inactive" | "low-stock"
   lastUpdated: string
 }
@@ -117,7 +123,7 @@ export default function AdminPage() {
   const loadUsers = async () => {
     try {
       setLoadingUsers(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       
       if (!supabase) {
         console.error("Supabase no está disponible")
@@ -230,7 +236,7 @@ export default function AdminPage() {
   // Actualizar rol de usuario
   const handleUpdateUserRole = async (userId: string, newRole: "customer" | "admin" | "staff") => {
     try {
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         alert("Supabase no está disponible")
         return
@@ -288,7 +294,7 @@ export default function AdminPage() {
     if (!editingUser) return
 
     try {
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         alert("Supabase no está disponible")
         return
@@ -328,7 +334,7 @@ export default function AdminPage() {
   const loadProducts = async () => {
     try {
       setLoadingProducts(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         console.error("Supabase no está disponible")
         return
@@ -338,7 +344,7 @@ export default function AdminPage() {
         .from("products")
         .select(`
           *,
-          category:categories(name)
+          category:categories(id, name)
         `)
         .order("created_at", { ascending: false })
 
@@ -350,10 +356,16 @@ export default function AdminPage() {
       // Transformar datos para el formato esperado
       const formattedProducts = (productsData || []).map((product: any) => ({
         id: product.id,
+        sku: product.sku || null,
         name: product.name,
         category: (product.category as any)?.name || "Sin categoría",
+        categoryId: (product.category as any)?.id || product.category_id || null,
         price: Number(product.price || 0),
         stock: product.stock_quantity || 0,
+        isActive: Boolean(product.is_active),
+        minQuantity: Number(product.min_quantity || 1),
+        multipleOf: Number(product.multiple_of || 1),
+        attributes: product.attributes || null,
         status: !product.is_active 
           ? "inactive" 
           : (product.stock_quantity || 0) < 10 
@@ -374,7 +386,7 @@ export default function AdminPage() {
   const loadMovements = async () => {
     try {
       setLoadingMovements(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         console.error("Supabase no está disponible")
         return
@@ -440,6 +452,7 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [syncResult, setSyncResult] = useState<any>(null)
+  const [syncingPromocion, setSyncingPromocion] = useState(false)
 
   // Función para sincronizar productos desde la API de inventario
   const handleSyncProducts = async () => {
@@ -476,7 +489,58 @@ export default function AdminPage() {
       setSyncingProducts(false)
     }
   }
+
+  // Sincronizar productos desde 3A Promoción (Promocionales en Línea)
+  const handleSyncPromocion = async () => {
+    if (!confirm('¿Sincronizar productos desde 3A Promoción (promocionalesenlinea.net)? Esto puede tardar unos minutos.')) {
+      return
+    }
+    setSyncingPromocion(true)
+    try {
+      const response = await fetch('/api/sync-promocion', { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Error al sincronizar')
+      if (data.success) {
+        alert(`Sincronización 3A Promoción completada.\n\nCategorías creadas: ${data.data.categoriesCreated}\nCategorías actualizadas: ${data.data.categoriesUpdated}\nProductos creados: ${data.data.productsCreated}\nProductos actualizados: ${data.data.productsUpdated}\nImágenes creadas: ${data.data.imagesCreated}`)
+      } else {
+        alert('Sincronización completada con errores. Revisa la consola.')
+      }
+    } catch (error: any) {
+      alert(`Error: ${error.message}`)
+    } finally {
+      setSyncingPromocion(false)
+    }
+  }
+
   const [selectedCategory, setSelectedCategory] = useState("all")
+
+  // =========================
+  // Edición masiva de productos (tipo WooCommerce)
+  // =========================
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
+  const [productDrafts, setProductDrafts] = useState<
+    Record<
+      string,
+      Partial<{
+        price: number
+        minQuantity: number
+        multipleOf: number
+        isActive: boolean
+      }>
+    >
+  >({})
+  const [bulkPriceMode, setBulkPriceMode] = useState<"set" | "increasePercent" | "decreasePercent">("set")
+  const [bulkPriceValue, setBulkPriceValue] = useState<string>("")
+  const [bulkMinQuantity, setBulkMinQuantity] = useState<string>("")
+  const [bulkMultipleOf, setBulkMultipleOf] = useState<string>("")
+  const [savingBulkProducts, setSavingBulkProducts] = useState(false)
+
+  const [relationsDialogOpen, setRelationsDialogOpen] = useState(false)
+  const [relationsTab, setRelationsTab] = useState<"related" | "crossSell">("related")
+  const [relationsSearch, setRelationsSearch] = useState("")
+  const [relationsProduct, setRelationsProduct] = useState<Product | null>(null)
+  const [relatedIdsDraft, setRelatedIdsDraft] = useState<string[]>([])
+  const [crossSellIdsDraft, setCrossSellIdsDraft] = useState<string[]>([])
 
   const categories = [
     "Antiestrés",
@@ -513,15 +577,200 @@ export default function AdminPage() {
     return matchesSearch && matchesCategory
   })
 
+  const categoryOptions = Array.from(new Set([...(categories || []), ...products.map((p) => p.category).filter(Boolean)])).sort()
+
+  const getDraft = (id: string) => productDrafts[id] || {}
+
+  const setDraft = (id: string, patch: Partial<{ price: number; minQuantity: number; multipleOf: number; isActive: boolean }>) => {
+    setProductDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...patch } }))
+  }
+
+  const isSelected = (id: string) => selectedProductIds.includes(id)
+
+  const toggleSelect = (id: string, checked: boolean) => {
+    setSelectedProductIds((prev) => (checked ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id)))
+  }
+
+  const toggleSelectAllFiltered = (checked: boolean) => {
+    if (!checked) {
+      setSelectedProductIds((prev) => prev.filter((id) => !filteredProducts.some((p) => p.id === id)))
+      return
+    }
+    setSelectedProductIds((prev) => Array.from(new Set([...prev, ...filteredProducts.map((p) => p.id)])))
+  }
+
+  const applyBulkEditsToSelection = () => {
+    const selected = selectedProductIds
+    if (selected.length === 0) return
+
+    const priceValue = bulkPriceValue.trim() ? Number(bulkPriceValue) : null
+    const minQ = bulkMinQuantity.trim() ? Number(bulkMinQuantity) : null
+    const mult = bulkMultipleOf.trim() ? Number(bulkMultipleOf) : null
+
+    setProductDrafts((prev) => {
+      const next = { ...prev }
+      for (const id of selected) {
+        const product = products.find((p) => p.id === id)
+        if (!product) continue
+        const current = next[id] || {}
+
+        if (priceValue !== null && Number.isFinite(priceValue)) {
+          const base = typeof current.price === "number" ? current.price : product.price
+          let computed = base
+          if (bulkPriceMode === "set") computed = priceValue
+          if (bulkPriceMode === "increasePercent") computed = base * (1 + priceValue / 100)
+          if (bulkPriceMode === "decreasePercent") computed = base * (1 - priceValue / 100)
+          next[id] = { ...current, price: Math.max(0, Number(computed.toFixed(2))) }
+        }
+
+        if (minQ !== null && Number.isFinite(minQ)) {
+          next[id] = { ...(next[id] || current), minQuantity: Math.max(1, Math.floor(minQ)) }
+        }
+
+        if (mult !== null && Number.isFinite(mult)) {
+          next[id] = { ...(next[id] || current), multipleOf: Math.max(1, Math.floor(mult)) }
+        }
+      }
+      return next
+    })
+  }
+
+  const setActiveForSelection = (isActive: boolean) => {
+    const selected = selectedProductIds
+    if (selected.length === 0) return
+    setProductDrafts((prev) => {
+      const next = { ...prev }
+      for (const id of selected) {
+        next[id] = { ...(next[id] || {}), isActive }
+      }
+      return next
+    })
+  }
+
+  const saveProductEdits = async (productId: string) => {
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      alert("Supabase no está disponible")
+      return
+    }
+
+    const draft = productDrafts[productId]
+    if (!draft || Object.keys(draft).length === 0) return
+
+    const update: any = {}
+    if (typeof draft.price === "number") update.price = Math.max(0, Number(draft.price.toFixed(2)))
+    if (typeof draft.minQuantity === "number") update.min_quantity = Math.max(1, Math.floor(draft.minQuantity))
+    if (typeof draft.multipleOf === "number") update.multiple_of = Math.max(1, Math.floor(draft.multipleOf))
+    if (typeof draft.isActive === "boolean") update.is_active = draft.isActive
+
+    const { error } = await supabase.from("products").update(update).eq("id", productId)
+    if (error) {
+      alert(`Error al guardar producto: ${error.message}`)
+      return
+    }
+
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== productId) return p
+        const next: Product = {
+          ...p,
+          price: typeof draft.price === "number" ? Math.max(0, Number(draft.price.toFixed(2))) : p.price,
+          minQuantity: typeof draft.minQuantity === "number" ? Math.max(1, Math.floor(draft.minQuantity)) : p.minQuantity,
+          multipleOf: typeof draft.multipleOf === "number" ? Math.max(1, Math.floor(draft.multipleOf)) : p.multipleOf,
+          isActive: typeof draft.isActive === "boolean" ? draft.isActive : p.isActive,
+        }
+        const stockQty = next.stock || 0
+        next.status = !next.isActive ? "inactive" : stockQty < 10 ? "low-stock" : "active"
+        return next
+      })
+    )
+
+    setProductDrafts((prev) => {
+      const next = { ...prev }
+      delete next[productId]
+      return next
+    })
+  }
+
+  const saveSelectedEdits = async () => {
+    if (selectedProductIds.length === 0) return
+    setSavingBulkProducts(true)
+    try {
+      for (const id of selectedProductIds) {
+        if (productDrafts[id]) {
+          // eslint-disable-next-line no-await-in-loop
+          await saveProductEdits(id)
+        }
+      }
+      alert("Cambios guardados para productos seleccionados")
+    } finally {
+      setSavingBulkProducts(false)
+    }
+  }
+
+  const openRelationsEditor = (product: Product) => {
+    const attrs = product.attributes || {}
+    const related = Array.isArray(attrs.related_product_ids) ? attrs.related_product_ids.filter(Boolean) : []
+    const crossSell = Array.isArray(attrs.cross_sell_product_ids) ? attrs.cross_sell_product_ids.filter(Boolean) : []
+    setRelationsProduct(product)
+    setRelatedIdsDraft(related)
+    setCrossSellIdsDraft(crossSell)
+    setRelationsSearch("")
+    setRelationsTab("related")
+    setRelationsDialogOpen(true)
+  }
+
+  const toggleIdInList = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+
+  const saveRelations = async () => {
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      alert("Supabase no está disponible")
+      return
+    }
+    if (!relationsProduct) return
+
+    const current = relationsProduct.attributes || {}
+    const nextAttributes = {
+      ...current,
+      related_product_ids: relatedIdsDraft,
+      cross_sell_product_ids: crossSellIdsDraft,
+    }
+
+    const { error } = await supabase
+      .from("products")
+      .update({ attributes: nextAttributes })
+      .eq("id", relationsProduct.id)
+
+    if (error) {
+      alert(`Error al guardar venta cruzada/relacionados: ${error.message}`)
+      return
+    }
+
+    setProducts((prev) =>
+      prev.map((p) => (p.id === relationsProduct.id ? { ...p, attributes: nextAttributes } : p))
+    )
+    setRelationsDialogOpen(false)
+    setRelationsProduct(null)
+  }
+
   const handleAddProduct = () => {
     if (newProduct.name && newProduct.category && newProduct.price && newProduct.stock) {
+      const stock = Number.parseInt(newProduct.stock)
       const product: Product = {
         id: Date.now().toString(),
+        sku: null,
         name: newProduct.name,
         category: newProduct.category,
+        categoryId: null,
         price: Number.parseFloat(newProduct.price),
-        stock: Number.parseInt(newProduct.stock),
-        status: Number.parseInt(newProduct.stock) > 10 ? "active" : "low-stock",
+        stock,
+        isActive: true,
+        minQuantity: 1,
+        multipleOf: 1,
+        attributes: null,
+        status: stock > 10 ? "active" : "low-stock",
         lastUpdated: new Date().toISOString().split("T")[0],
       }
       setProducts([...products, product])
@@ -565,7 +814,7 @@ export default function AdminPage() {
   const loadOrders = async () => {
     try {
       setLoadingOrders(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         console.error("Supabase no está disponible")
         return
@@ -619,7 +868,7 @@ export default function AdminPage() {
   const loadCustomers = async () => {
     try {
       setLoadingCustomers(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         console.error("Supabase no está disponible")
         return
@@ -679,7 +928,7 @@ export default function AdminPage() {
   const loadCoupons = async () => {
     try {
       setLoadingCoupons(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         console.error("Supabase no está disponible")
         return
@@ -714,7 +963,7 @@ export default function AdminPage() {
   const loadDashboardStats = async () => {
     try {
       setLoadingStats(true)
-      const supabase = useSupabase()
+      const supabase = getSupabaseClient()
       if (!supabase) {
         console.error("Supabase no está disponible")
         return
@@ -1217,11 +1466,11 @@ export default function AdminPage() {
                       <CardTitle>Gestión de Productos</CardTitle>
                       <CardDescription>Administra el catálogo completo de productos</CardDescription>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button 
                         variant="outline" 
                         onClick={handleSyncProducts}
-                        disabled={syncingProducts}
+                        disabled={syncingProducts || syncingPromocion}
                       >
                         {syncingProducts ? (
                           <>
@@ -1231,7 +1480,24 @@ export default function AdminPage() {
                         ) : (
                           <>
                             <Upload className="h-4 w-4 mr-2" />
-                            Sincronizar desde API
+                            Sincronizar desde 4Promotional
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleSyncPromocion}
+                        disabled={syncingProducts || syncingPromocion}
+                      >
+                        {syncingPromocion ? (
+                          <>
+                            <Package className="h-4 w-4 mr-2 animate-spin" />
+                            Sincronizando 3A Promoción...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Sincronizar desde 3A Promoción
                           </>
                         )}
                       </Button>
@@ -1279,7 +1545,7 @@ export default function AdminPage() {
                                       <SelectValue placeholder="Selecciona" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {categories.map((category) => (
+                                      {categoryOptions.map((category) => (
                                         <SelectItem key={category} value={category}>
                                           {category}
                                         </SelectItem>
@@ -1423,7 +1689,7 @@ export default function AdminPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todas</SelectItem>
-                        {categories.map((category) => (
+                        {categoryOptions.map((category) => (
                           <SelectItem key={category} value={category}>
                             {category}
                           </SelectItem>
@@ -1436,28 +1702,106 @@ export default function AdminPage() {
                     </Button>
                   </div>
 
+                  {/* Bulk actions (WooCommerce-like) */}
+                  {selectedProductIds.length > 0 && (
+                    <Card className="mb-6 bg-muted/30 border-primary/20">
+                      <CardContent className="py-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                          <div className="text-sm font-medium">
+                            {selectedProductIds.length} seleccionado{selectedProductIds.length !== 1 ? "s" : ""}
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row gap-2 flex-1">
+                            <Select value={bulkPriceMode} onValueChange={(v) => setBulkPriceMode(v as any)}>
+                              <SelectTrigger className="w-full sm:w-56">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="set">Fijar precio</SelectItem>
+                                <SelectItem value="increasePercent">Aumentar %</SelectItem>
+                                <SelectItem value="decreasePercent">Disminuir %</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="number"
+                              placeholder={bulkPriceMode === "set" ? "Precio (MXN)" : "Porcentaje (%)"}
+                              value={bulkPriceValue}
+                              onChange={(e) => setBulkPriceValue(e.target.value)}
+                              className="w-full sm:w-44"
+                            />
+                            <Input
+                              type="number"
+                              placeholder="Mínimo"
+                              value={bulkMinQuantity}
+                              onChange={(e) => setBulkMinQuantity(e.target.value)}
+                              className="w-full sm:w-32"
+                            />
+                            <Input
+                              type="number"
+                              placeholder="Múltiplo"
+                              value={bulkMultipleOf}
+                              onChange={(e) => setBulkMultipleOf(e.target.value)}
+                              className="w-full sm:w-32"
+                            />
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button variant="outline" onClick={applyBulkEditsToSelection}>
+                              Aplicar
+                            </Button>
+                            <Button variant="outline" onClick={() => setActiveForSelection(true)}>
+                              Activar
+                            </Button>
+                            <Button variant="outline" onClick={() => setActiveForSelection(false)}>
+                              Desactivar
+                            </Button>
+                            <Button onClick={saveSelectedEdits} disabled={savingBulkProducts}>
+                              {savingBulkProducts ? "Guardando..." : "Guardar seleccionados"}
+                            </Button>
+                            <Button variant="ghost" onClick={() => setSelectedProductIds([])}>
+                              Limpiar
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Tip: Usa “Aplicar” para preparar cambios (drafts) y luego “Guardar seleccionados”.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* Products Table */}
                   <div className="rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-12">
-                            <input type="checkbox" className="rounded" />
+                            <input
+                              type="checkbox"
+                              className="rounded"
+                              checked={
+                                filteredProducts.length > 0 &&
+                                filteredProducts.every((p) => selectedProductIds.includes(p.id))
+                              }
+                              onChange={(e) => toggleSelectAllFiltered(e.target.checked)}
+                            />
                           </TableHead>
                           <TableHead>Producto</TableHead>
                           <TableHead>SKU</TableHead>
                           <TableHead>Categoría</TableHead>
                           <TableHead>Precio</TableHead>
+                          <TableHead>Mínimo</TableHead>
+                          <TableHead>Múltiplo</TableHead>
                           <TableHead>Stock</TableHead>
                           <TableHead>Estado</TableHead>
-                          <TableHead>Ventas</TableHead>
+                          <TableHead>Rel./Cruzada</TableHead>
                           <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {loadingProducts ? (
                           <TableRow>
-                            <TableCell colSpan={9} className="text-center py-8">
+                            <TableCell colSpan={11} className="text-center py-8">
                               <div className="flex flex-col items-center gap-2">
                                 <Package className="h-8 w-8 text-muted-foreground animate-pulse" />
                                 <p className="text-sm text-muted-foreground">Cargando productos...</p>
@@ -1466,7 +1810,7 @@ export default function AdminPage() {
                           </TableRow>
                         ) : filteredProducts.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={9} className="text-center py-8">
+                            <TableCell colSpan={11} className="text-center py-8">
                               <div className="flex flex-col items-center gap-2">
                                 <Package className="h-8 w-8 text-muted-foreground" />
                                 <p className="text-sm text-muted-foreground">No hay productos disponibles</p>
@@ -1475,10 +1819,28 @@ export default function AdminPage() {
                           </TableRow>
                         ) : (
                           filteredProducts.map((product) => {
+                            const draft = getDraft(product.id)
+                            const priceValue = typeof draft.price === "number" ? draft.price : product.price
+                            const minQtyValue =
+                              typeof draft.minQuantity === "number" ? draft.minQuantity : product.minQuantity
+                            const multipleValue =
+                              typeof draft.multipleOf === "number" ? draft.multipleOf : product.multipleOf
+                            const activeValue =
+                              typeof draft.isActive === "boolean" ? draft.isActive : product.isActive
+
+                            const attrs = product.attributes || {}
+                            const relatedCount = Array.isArray(attrs.related_product_ids) ? attrs.related_product_ids.length : 0
+                            const crossSellCount = Array.isArray(attrs.cross_sell_product_ids) ? attrs.cross_sell_product_ids.length : 0
+
                             return (
                               <TableRow key={product.id}>
                                 <TableCell>
-                                  <input type="checkbox" className="rounded" />
+                                  <input
+                                    type="checkbox"
+                                    className="rounded"
+                                    checked={isSelected(product.id)}
+                                    onChange={(e) => toggleSelect(product.id, e.target.checked)}
+                                  />
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-3">
@@ -1492,22 +1854,80 @@ export default function AdminPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <code className="text-xs bg-muted px-2 py-1 rounded">SKU-{product.id}</code>
+                                  <code className="text-xs bg-muted px-2 py-1 rounded">
+                                    {product.sku || `SKU-${product.id.slice(0, 8)}`}
+                                  </code>
                                 </TableCell>
                                 <TableCell>{product.category}</TableCell>
-                                <TableCell>${product.price.toLocaleString()}</TableCell>
+                                <TableCell className="w-40">
+                                  <Input
+                                    type="number"
+                                    value={Number.isFinite(priceValue) ? String(priceValue) : ""}
+                                    onChange={(e) => setDraft(product.id, { price: Number(e.target.value || 0) })}
+                                    className="h-8"
+                                  />
+                                </TableCell>
+                                <TableCell className="w-28">
+                                  <Input
+                                    type="number"
+                                    value={String(minQtyValue || 1)}
+                                    onChange={(e) => setDraft(product.id, { minQuantity: Number(e.target.value || 1) })}
+                                    className="h-8"
+                                  />
+                                </TableCell>
+                                <TableCell className="w-28">
+                                  <Input
+                                    type="number"
+                                    value={String(multipleValue || 1)}
+                                    onChange={(e) => setDraft(product.id, { multipleOf: Number(e.target.value || 1) })}
+                                    className="h-8"
+                                  />
+                                </TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
                                     <span>{product.stock}</span>
                                     {product.stock < 10 && <AlertTriangle className="h-4 w-4 text-yellow-600" />}
                                   </div>
                                 </TableCell>
-                                <TableCell>{getStatusBadge(product.status)}</TableCell>
                                 <TableCell>
-                                  <span className="text-sm text-muted-foreground">-</span>
+                                  <div className="flex items-center gap-2">
+                                    {getStatusBadge(activeValue ? product.status : "inactive")}
+                                    <Switch
+                                      checked={activeValue}
+                                      onCheckedChange={(checked) => setDraft(product.id, { isActive: checked })}
+                                    />
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {multipleValue > 1 ? `Múltiplos de ${multipleValue}` : "Sin múltiplos"} ·{" "}
+                                    {minQtyValue > 1 ? `Min ${minQtyValue}` : "Min 1"}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="text-xs text-muted-foreground">
+                                      Rel: <span className="font-semibold text-foreground">{relatedCount}</span> · Cruzada:{" "}
+                                      <span className="font-semibold text-foreground">{crossSellCount}</span>
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openRelationsEditor(product)}
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-2" />
+                                      Editar
+                                    </Button>
+                                  </div>
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Guardar cambios"
+                                      onClick={() => saveProductEdits(product.id)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
                                     <Button variant="ghost" size="sm" title="Ver">
                                       <Eye className="h-4 w-4" />
                                     </Button>
@@ -1550,6 +1970,120 @@ export default function AdminPage() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Editor de relacionados / venta cruzada */}
+                  <Dialog
+                    open={relationsDialogOpen}
+                    onOpenChange={(open) => {
+                      setRelationsDialogOpen(open)
+                      if (!open) {
+                        setRelationsProduct(null)
+                        setRelatedIdsDraft([])
+                        setCrossSellIdsDraft([])
+                        setRelationsSearch("")
+                      }
+                    }}
+                  >
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Relacionados y venta cruzada</DialogTitle>
+                        <DialogDescription>
+                          Define productos relacionados y venta cruzada para{" "}
+                          <span className="font-medium">{relationsProduct?.name || "el producto"}</span>.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <Tabs value={relationsTab} onValueChange={(v) => setRelationsTab(v as any)} className="space-y-4">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="related">Relacionados</TabsTrigger>
+                          <TabsTrigger value="crossSell">Venta cruzada</TabsTrigger>
+                        </TabsList>
+
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            placeholder="Buscar productos..."
+                            value={relationsSearch}
+                            onChange={(e) => setRelationsSearch(e.target.value)}
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              if (relationsTab === "related") setRelatedIdsDraft([])
+                              if (relationsTab === "crossSell") setCrossSellIdsDraft([])
+                            }}
+                          >
+                            Limpiar selección
+                          </Button>
+                        </div>
+
+                        <div className="text-xs text-muted-foreground">
+                          Seleccionados:{" "}
+                          {relationsTab === "related" ? relatedIdsDraft.length : crossSellIdsDraft.length}
+                        </div>
+
+                        <div className="rounded-md border max-h-[50vh] overflow-y-auto">
+                          <div className="p-2 space-y-1">
+                            {products
+                              .filter((p) => p.id !== relationsProduct?.id)
+                              .filter((p) => {
+                                if (!relationsSearch.trim()) return true
+                                const term = relationsSearch.toLowerCase()
+                                return (
+                                  p.name.toLowerCase().includes(term) ||
+                                  (p.sku || "").toLowerCase().includes(term) ||
+                                  p.category.toLowerCase().includes(term)
+                                )
+                              })
+                              .slice(0, 200)
+                              .map((p) => {
+                                const checked =
+                                  relationsTab === "related"
+                                    ? relatedIdsDraft.includes(p.id)
+                                    : crossSellIdsDraft.includes(p.id)
+                                return (
+                                  <label
+                                    key={p.id}
+                                    className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-muted cursor-pointer"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4"
+                                      checked={checked}
+                                      onChange={() => {
+                                        if (relationsTab === "related") {
+                                          setRelatedIdsDraft((prev) => toggleIdInList(prev, p.id))
+                                        } else {
+                                          setCrossSellIdsDraft((prev) => toggleIdInList(prev, p.id))
+                                        }
+                                      }}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium line-clamp-1">{p.name}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {p.category}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {p.sku ? `SKU: ${p.sku}` : `ID: ${p.id.slice(0, 8)}`} · $
+                                        {Number(p.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                      </div>
+                                    </div>
+                                  </label>
+                                )
+                              })}
+                          </div>
+                        </div>
+                      </Tabs>
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setRelationsDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={saveRelations}>Guardar</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -2961,6 +3495,38 @@ export default function AdminPage() {
                       <Input placeholder="ventas@3abranding.com" />
                     </div>
                     <Button className="w-full">Guardar Configuración</Button>
+                  </CardContent>
+                </Card>
+
+                {/* 3A Promoción - Promocionales en Línea */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Gift className="h-5 w-5 text-primary" />
+                          3A Promoción
+                        </CardTitle>
+                        <CardDescription>Productos desde Promocionales en Línea (GraphQL)</CardDescription>
+                      </div>
+                      <Button variant="outline" size="sm" asChild>
+                        <a href="https://www.promocionalesenlinea.net/" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Configura en <code className="bg-muted px-1 rounded">.env.local</code>: PROMOCION_GRAPHQL_URL, PROMOCION_EMAIL, PROMOCION_PASSWORD. Luego en Productos usa &quot;Sincronizar desde 3A Promoción&quot;.
+                    </p>
+                    <div>
+                      <Label>Endpoint GraphQL</Label>
+                      <Input placeholder="https://www.promocionalesenlinea.net/graphql" disabled className="bg-muted" />
+                    </div>
+                    <Button className="w-full" variant="secondary" asChild>
+                      <a href="/admin?section=products">Ir a Productos y sincronizar</a>
+                    </Button>
                   </CardContent>
                 </Card>
               </div>

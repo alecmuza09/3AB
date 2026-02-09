@@ -134,6 +134,16 @@ export const inventarioApiConfig = {
 }
 
 // ============================================
+// 3A PROMOCIÓN - Promocionales en Línea (GraphQL)
+// ============================================
+export const promocionConfig = {
+  graphqlUrl: process.env.PROMOCION_GRAPHQL_URL || 'https://www.promocionalesenlinea.net/graphql',
+  email: process.env.PROMOCION_EMAIL || '',
+  password: process.env.PROMOCION_PASSWORD || '',
+  isEnabled: () => !!(promocionConfig.graphqlUrl && promocionConfig.email && promocionConfig.password),
+}
+
+// ============================================
 // CONFIGURACIÓN GENERAL
 // ============================================
 export const appConfig = {
@@ -159,6 +169,7 @@ export function validateIntegrations() {
     cloudinary: cloudinaryConfig.isEnabled(),
     facturacion: facturacionConfig.isEnabled(),
     inventarioApi: inventarioApiConfig.isEnabled(),
+    promocion: promocionConfig.isEnabled(),
   }
 
   return integrations
@@ -251,6 +262,13 @@ export function getIntegrationsStatus() {
       category: 'Productos',
       status: inventarioApiConfig.isEnabled(),
       description: 'Sincronización de inventario desde 4Promotional',
+      required: false,
+    },
+    {
+      name: '3A Promoción',
+      category: 'Productos',
+      status: promocionConfig.isEnabled(),
+      description: 'Productos desde Promocionales en Línea (GraphQL)',
       required: false,
     },
   ]
