@@ -907,7 +907,6 @@ export default function ProductDetailPage() {
                         <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="font-semibold">{getServiceName(personalizationQuote.service)}</span>
-                            <Badge variant="secondary">Margen {personalizationQuote.margin}</Badge>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-muted-foreground">Personalización (por pieza)</span>

@@ -448,6 +448,8 @@ export default function AdminPage() {
     price: "",
     stock: "",
     description: "",
+    minQuantity: "1",
+    multipleOf: "1",
   })
 
   const [searchTerm, setSearchTerm] = useState("")
@@ -534,6 +536,7 @@ export default function AdminPage() {
   const [bulkPriceValue, setBulkPriceValue] = useState<string>("")
   const [bulkMinQuantity, setBulkMinQuantity] = useState<string>("")
   const [bulkMultipleOf, setBulkMultipleOf] = useState<string>("")
+  const [bulkCategoryForSelect, setBulkCategoryForSelect] = useState<string>("")
   const [savingBulkProducts, setSavingBulkProducts] = useState(false)
 
   const [relationsDialogOpen, setRelationsDialogOpen] = useState(false)
@@ -768,14 +771,14 @@ export default function AdminPage() {
         price: Number.parseFloat(newProduct.price),
         stock,
         isActive: true,
-        minQuantity: 1,
-        multipleOf: 1,
+        minQuantity: Math.max(1, Math.floor(Number(newProduct.minQuantity) || 1)),
+        multipleOf: Math.max(1, Math.floor(Number(newProduct.multipleOf) || 1)),
         attributes: null,
         status: stock > 10 ? "active" : "low-stock",
         lastUpdated: new Date().toISOString().split("T")[0],
       }
       setProducts([...products, product])
-      setNewProduct({ name: "", category: "", price: "", stock: "", description: "" })
+      setNewProduct({ name: "", category: "", price: "", stock: "", description: "", minQuantity: "1", multipleOf: "1" })
     }
   }
 
@@ -1606,7 +1609,7 @@ export default function AdminPage() {
 
                             {/* Inventory */}
                             <div className="space-y-4">
-                              <h3 className="font-semibold">Inventario</h3>
+                              <h3 className="font-semibold">Inventario y cantidades</h3>
                               <div className="grid grid-cols-3 gap-4">
                                 <div>
                                   <Label htmlFor="stock">Stock Actual *</Label>
@@ -1619,7 +1622,33 @@ export default function AdminPage() {
                                   />
                                 </div>
                                 <div>
-                                  <Label htmlFor="minStock">Stock Mínimo</Label>
+                                  <Label htmlFor="minQuantity">Cantidad mínima de piezas *</Label>
+                                  <Input
+                                    id="minQuantity"
+                                    type="number"
+                                    min={1}
+                                    value={newProduct.minQuantity}
+                                    onChange={(e) => setNewProduct({ ...newProduct, minQuantity: e.target.value || "1" })}
+                                    placeholder="1"
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">Mínimo por pedido para este producto</p>
+                                </div>
+                                <div>
+                                  <Label htmlFor="multipleOf">Múltiplo de</Label>
+                                  <Input
+                                    id="multipleOf"
+                                    type="number"
+                                    min={1}
+                                    value={newProduct.multipleOf}
+                                    onChange={(e) => setNewProduct({ ...newProduct, multipleOf: e.target.value || "1" })}
+                                    placeholder="1"
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">Ej: 6 para cajas por 6</p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label htmlFor="minStock">Stock Mínimo (alerta)</Label>
                                   <Input id="minStock" type="number" placeholder="10" />
                                 </div>
                                 <div>
@@ -1768,8 +1797,33 @@ export default function AdminPage() {
                             </Button>
                           </div>
                         </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
+                          <span className="text-xs font-medium text-muted-foreground">Por categoría:</span>
+                          <Select value={bulkCategoryForSelect} onValueChange={setBulkCategoryForSelect}>
+                            <SelectTrigger className="w-[200px] h-8">
+                              <SelectValue placeholder="Elegir categoría" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categoryOptions.map((cat) => (
+                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (!bulkCategoryForSelect) return
+                              const idsInCategory = products.filter((p) => p.category === bulkCategoryForSelect).map((p) => p.id)
+                              setSelectedProductIds(idsInCategory)
+                            }}
+                          >
+                            Seleccionar todos de esta categoría
+                          </Button>
+                        </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                          Tip: Usa “Aplicar” para preparar cambios (drafts) y luego “Guardar seleccionados”.
+                          Tip: Usa “Aplicar” para preparar cambios (drafts) y luego "Guardar seleccionados". Cantidad mínima y múltiplo definen la lógica del cálculo en la calculadora de precios.
                         </p>
                       </CardContent>
                     </Card>
