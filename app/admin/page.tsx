@@ -3234,7 +3234,16 @@ export default function AdminPage() {
 
               {/* Dialog para editar usuario */}
               {editingUser && (
-                <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
+                <Dialog
+                  open={!!editingUser}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setEditingUser(null)
+                      setEditUserPassword("")
+                      setEditUserPasswordConfirm("")
+                    }
+                  }}
+                >
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Editar Usuario</DialogTitle>
@@ -3286,6 +3295,46 @@ export default function AdminPage() {
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+                      <Separator />
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Cambiar contraseña</p>
+                        <p className="text-xs text-muted-foreground">
+                          Deja en blanco si no quieres cambiar la contraseña. Mínimo 6 caracteres.
+                        </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Nueva contraseña</Label>
+                            <Input
+                              type="password"
+                              placeholder="••••••••"
+                              value={editUserPassword}
+                              onChange={(e) => setEditUserPassword(e.target.value)}
+                              autoComplete="new-password"
+                            />
+                          </div>
+                          <div>
+                            <Label>Confirmar contraseña</Label>
+                            <Input
+                              type="password"
+                              placeholder="••••••••"
+                              value={editUserPasswordConfirm}
+                              onChange={(e) => setEditUserPasswordConfirm(e.target.value)}
+                              autoComplete="new-password"
+                            />
+                          </div>
+                        </div>
+                        {(editUserPassword || editUserPasswordConfirm) && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={updatingPassword || editUserPassword.length < 6 || editUserPassword !== editUserPasswordConfirm}
+                            onClick={handleUpdateUserPassword}
+                          >
+                            {updatingPassword ? "Actualizando…" : "Cambiar contraseña"}
+                          </Button>
+                        )}
                       </div>
                       <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setEditingUser(null)}>

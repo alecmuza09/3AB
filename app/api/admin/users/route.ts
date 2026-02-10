@@ -92,6 +92,43 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json()
+    const { userId, password } = body
+
+    if (!userId || !password || typeof password !== "string") {
+      return NextResponse.json(
+        { error: "userId y password son requeridos" },
+        { status: 400 }
+      )
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "La contraseña debe tener al menos 6 caracteres" },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createSupabaseServerClient()
+    const { data, error } = await supabase.auth.admin.updateUserById(userId, { password })
+
+    if (error) {
+      console.error("Error updating user password:", error)
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    return NextResponse.json({ success: true, user: data?.user })
+  } catch (error: any) {
+    console.error("Error in PATCH /api/admin/users:", error)
+    return NextResponse.json(
+      { error: error.message || "Error al actualizar contraseña" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
