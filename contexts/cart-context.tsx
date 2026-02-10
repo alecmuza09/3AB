@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react"
 import type { ProductVariation } from "@/lib/woocommerce-products"
 import type { CotizadorConfig, CotizadorService, IncludeExtras, QuotationData } from "@/lib/cotizador"
-import { defaultCotizadorConfig, generateQuotation } from "@/lib/cotizador"
+import { generateQuotation } from "@/lib/cotizador"
+import { useCotizadorConfig } from "@/contexts/cotizador-config-context"
 import { getQuantityValidationError, normalizeQuantityToRules } from "@/lib/quantity"
 
 export interface CartProduct {
@@ -70,6 +71,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined)
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
   const [isMounted, setIsMounted] = useState(false)
+  const { config: cotizadorConfig } = useCotizadorConfig()
 
   const quoteKeyFromConfig = (quoteConfig?: CartQuoteConfig) => {
     if (!quoteConfig) return "none"
@@ -115,7 +117,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       qc.colors,
       qc.size,
       qc.includeExtras,
-      qc.config || defaultCotizadorConfig
+      qc.config || cotizadorConfig
     )
     const personalizationUnitPrice = quotation.pricePerUnitWithMargin
     const unitPrice = baseUnitPrice + personalizationUnitPrice

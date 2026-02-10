@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -272,6 +272,15 @@ export default function CotizadorPage() {
       tratamiento: 150,
     },
   })
+
+  useEffect(() => {
+    fetch("/api/cotizador-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.margins && data?.extras) setConfig(data)
+      })
+      .catch(() => {})
+  }, [])
 
   const handleGenerate = () => {
     const qty = parseInt(quantity)

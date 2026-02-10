@@ -44,12 +44,14 @@ import { toast } from "sonner"
 import type { SupabaseProduct } from "@/lib/all-products"
 import type { CotizadorService } from "@/lib/cotizador"
 import { generateQuotation, getServiceName } from "@/lib/cotizador"
+import { useCotizadorConfig } from "@/contexts/cotizador-config-context"
 import { getQuantityValidationError, normalizeQuantityToRules } from "@/lib/quantity"
 
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { addToCart } = useCart()
+  const { config: cotizadorConfig } = useCotizadorConfig()
   const productId = params.id as string
 
   const [product, setProduct] = useState<SupabaseProduct | null>(null)
@@ -214,9 +216,10 @@ export default function ProductDetailPage() {
         placa: includePlaca,
         ponchado: includePonchado,
         tratamiento: includeTratamiento,
-      }
+      },
+      cotizadorConfig
     )
-  }, [service, allowedServices, quantity, colors, size, includePlaca, includePonchado, includeTratamiento])
+  }, [service, allowedServices, quantity, colors, size, includePlaca, includePonchado, includeTratamiento, cotizadorConfig])
 
   if (loading) {
     return (

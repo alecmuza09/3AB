@@ -62,8 +62,11 @@ import {
   XCircle,
   AlertCircle,
   ExternalLink,
+  Calculator,
 } from "lucide-react"
 import { getIntegrationsStatus } from "@/lib/integrations-config"
+import type { CotizadorConfig } from "@/lib/cotizador"
+import { defaultCotizadorConfig } from "@/lib/cotizador"
 import { AdminSiteContentEditor } from "@/components/admin-site-content-editor"
 
 interface Product {
@@ -423,6 +426,49 @@ export default function AdminPage() {
       loadMovements()
     }
   }, [activeSection])
+
+  // Estado y carga del configurador de la calculadora de precios
+  const [cotizadorConfig, setCotizadorConfig] = useState<CotizadorConfig>(defaultCotizadorConfig)
+  const [loadingCotizadorConfig, setLoadingCotizadorConfig] = useState(false)
+  const [savingCotizadorConfig, setSavingCotizadorConfig] = useState(false)
+  useEffect(() => {
+    if (activeSection !== "settings") return
+    let cancelled = false
+    setLoadingCotizadorConfig(true)
+    fetch("/api/cotizador-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.margins && data?.extras) setCotizadorConfig(data)
+      })
+      .finally(() => { if (!cancelled) setLoadingCotizadorConfig(false) })
+    return () => { cancelled = true }
+  }, [activeSection])
+  const handleSaveCotizadorConfig = async () => {
+    const supabase = getSupabaseClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      alert("Inicia sesión para guardar la configuración.")
+      return
+    }
+    setSavingCotizadorConfig(true)
+    try {
+      const res = await fetch("/api/cotizador-config", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(cotizadorConfig),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Error al guardar")
+      alert("Configuración de la calculadora guardada correctamente.")
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al guardar la configuración.")
+    } finally {
+      setSavingCotizadorConfig(false)
+    }
+  }
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -3802,6 +3848,193 @@ export default function AdminPage() {
                       <Input placeholder="ventas@3abranding.com" />
                     </div>
                     <Button className="w-full">Guardar Configuración</Button>
+                  </CardContent>
+                </Card>
+
+                {/* Configurador de la calculadora de precios */}
+                <Card className="lg:col-span-2">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Calculator className="h-5 w-5 text-primary" />
+                          Calculadora de precios
+                        </CardTitle>
+                        <CardDescription>
+                          Márgenes por tramo de cantidad y costos de extras (placa, ponchado, tratamiento). Se aplican en el cotizador y en la ficha de producto.
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {loadingCotizadorConfig ? (
+                      <p className="text-sm text-muted-foreground">Cargando configuración…</p>
+                    ) : (
+                      <>
+                        <div className="space-y-4">
+                          <h3 className="font-semibold text-sm">Márgenes por cantidad</h3>
+                          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                            <div className="space-y-2">
+                              <Label>Bajo: hasta (uds)</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.margins.low.threshold}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    margins: {
+                                      ...cotizadorConfig.margins,
+                                      low: { ...cotizadorConfig.margins.low, threshold: parseInt(e.target.value) || 0 },
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Bajo: margen (%)</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.margins.low.percentage}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    margins: {
+                                      ...cotizadorConfig.margins,
+                                      low: { ...cotizadorConfig.margins.low, percentage: parseInt(e.target.value) || 0 },
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Medio: hasta (uds)</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.margins.medium.threshold}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    margins: {
+                                      ...cotizadorConfig.margins,
+                                      medium: { ...cotizadorConfig.margins.medium, threshold: parseInt(e.target.value) || 0 },
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Medio: margen (%)</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.margins.medium.percentage}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    margins: {
+                                      ...cotizadorConfig.margins,
+                                      medium: { ...cotizadorConfig.margins.medium, percentage: parseInt(e.target.value) || 0 },
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Alto: desde (uds)</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.margins.high.threshold}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    margins: {
+                                      ...cotizadorConfig.margins,
+                                      high: { ...cotizadorConfig.margins.high, threshold: parseInt(e.target.value) || 0 },
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Alto: margen (%)</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.margins.high.percentage}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    margins: {
+                                      ...cotizadorConfig.margins,
+                                      high: { ...cotizadorConfig.margins.high, percentage: parseInt(e.target.value) || 0 },
+                                    },
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <Separator />
+                        <div className="space-y-4">
+                          <h3 className="font-semibold text-sm">Costos adicionales (MXN)</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label>Placa de tampografía</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.extras.placa}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    extras: { ...cotizadorConfig.extras, placa: parseFloat(e.target.value) || 0 },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Ponchado de bordado</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.extras.ponchado}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    extras: { ...cotizadorConfig.extras, ponchado: parseFloat(e.target.value) || 0 },
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Tratamiento especial</Label>
+                              <Input
+                                type="number"
+                                value={cotizadorConfig.extras.tratamiento}
+                                onChange={(e) =>
+                                  setCotizadorConfig({
+                                    ...cotizadorConfig,
+                                    extras: { ...cotizadorConfig.extras, tratamiento: parseFloat(e.target.value) || 0 },
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCotizadorConfig(defaultCotizadorConfig)}
+                          >
+                            Restaurar valores por defecto
+                          </Button>
+                          <Button
+                            onClick={handleSaveCotizadorConfig}
+                            disabled={savingCotizadorConfig}
+                          >
+                            {savingCotizadorConfig ? "Guardando…" : "Guardar configuración"}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
