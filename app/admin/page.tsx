@@ -432,9 +432,9 @@ export default function AdminPage() {
     }
   }
 
-  // Cargar productos cuando se abre la sección
+  // Cargar productos cuando se abre la sección (incl. settings para ver resumen de productos)
   useEffect(() => {
-    if (activeSection === "products" || activeSection === "inventory") {
+    if (activeSection === "products" || activeSection === "inventory" || activeSection === "settings") {
       loadProducts()
     }
     if (activeSection === "inventory") {
@@ -549,6 +549,8 @@ export default function AdminPage() {
   const [bulkMinQuantity, setBulkMinQuantity] = useState<string>("")
   const [bulkMultipleOf, setBulkMultipleOf] = useState<string>("")
   const [bulkCategoryForSelect, setBulkCategoryForSelect] = useState<string>("")
+  const [bulkMarginPercent, setBulkMarginPercent] = useState<string>("")
+  const [bulkMarginApplyToCategory, setBulkMarginApplyToCategory] = useState<string>("")
   const [savingBulkProducts, setSavingBulkProducts] = useState(false)
 
   const [relationsDialogOpen, setRelationsDialogOpen] = useState(false)
@@ -613,6 +615,33 @@ export default function AdminPage() {
       return
     }
     setSelectedProductIds((prev) => Array.from(new Set([...prev, ...filteredProducts.map((p) => p.id)])))
+  }
+
+  const applyBulkMargin = () => {
+    const margin = Number(bulkMarginPercent) || 0
+    if (margin <= 0) {
+      alert("Indica un margen de ganancia (%) mayor a 0.")
+      return
+    }
+    const idsToApply = bulkMarginApplyToCategory
+      ? products.filter((p) => p.category === bulkMarginApplyToCategory).map((p) => p.id)
+      : selectedProductIds
+    if (idsToApply.length === 0) {
+      alert("Selecciona productos en la tabla o elige una categoría para aplicar el margen.")
+      return
+    }
+    if (bulkMarginApplyToCategory) setSelectedProductIds(idsToApply)
+    setProductDrafts((prev) => {
+      const next = { ...prev }
+      for (const id of idsToApply) {
+        const product = products.find((p) => p.id === id)
+        if (!product) continue
+        const current = next[id] || {}
+        const base = typeof current.price === "number" ? current.price : product.price
+        next[id] = { ...current, price: Math.max(0, Number((base * (1 + margin / 100)).toFixed(2))) }
+      }
+      return next
+    })
   }
 
   const applyBulkEditsToSelection = () => {
@@ -1479,6 +1508,51 @@ export default function AdminPage() {
 
             {/* Products Management - Enhanced */}
             <TabsContent value="products" className="space-y-6">
+              {/* Configuración masiva de precios con margen de ganancia */}
+              <Card className="border-primary/20 bg-muted/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-primary" />
+                    Configuración masiva de precios
+                  </CardTitle>
+                  <CardDescription>
+                    Aumenta los precios aplicando un margen de ganancia (%) a la selección actual o a todos los productos de una categoría. Luego usa &quot;Guardar seleccionados&quot; para aplicar los cambios.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-end gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bulkMarginPercent">Margen de ganancia (%)</Label>
+                    <Input
+                      id="bulkMarginPercent"
+                      type="number"
+                      min={1}
+                      step={0.5}
+                      placeholder="Ej: 25"
+                      value={bulkMarginPercent}
+                      onChange={(e) => setBulkMarginPercent(e.target.value)}
+                      className="w-32"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Aplicar a</Label>
+                    <Select value={bulkMarginApplyToCategory} onValueChange={setBulkMarginApplyToCategory}>
+                      <SelectTrigger className="w-56">
+                        <SelectValue placeholder="Selección actual" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Selección actual ({selectedProductIds.length} productos)</SelectItem>
+                        {categoryOptions.map((cat) => (
+                          <SelectItem key={cat} value={cat}>Todos de: {cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={applyBulkMargin}>
+                    Aplicar margen a precios
+                  </Button>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <div className="flex justify-between items-center">
@@ -3745,6 +3819,28 @@ EMAIL_FROM=ventas@3abranding.com`}
 
             {/* Settings */}
             <TabsContent value="settings" className="space-y-6">
+              {/* Configuración de precios y productos: acceso rápido y resumen */}
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Configuración de precios y productos
+                  </CardTitle>
+                  <CardDescription>
+                    Gestiona el catálogo, precios y aplica márgenes de ganancia de forma masiva.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-center gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    {loadingProducts ? "Cargando..." : `${products.length} productos en el catálogo`}
+                  </p>
+                  <Button onClick={() => setActiveSection("products")} className="bg-primary hover:bg-primary/90">
+                    <Package className="h-4 w-4 mr-2" />
+                    Ver productos y configuración masiva de precios
+                  </Button>
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>

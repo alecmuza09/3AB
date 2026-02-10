@@ -57,49 +57,42 @@ export default function ProductosPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Cargar categorías desde Supabase (mismo cliente que productos para consistencia)
+  // Cargar categorías y productos en paralelo para mayor velocidad
   useEffect(() => {
     const supabase = getSupabaseClient()
-    if (!supabase) return
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
 
     let cancelled = false
-    supabase
+    setLoading(true)
+
+    const loadCategories = supabase
       .from("categories")
-      .select("*")
+      .select("id, name, slug, is_active")
       .eq("is_active", true)
       .order("name", { ascending: true })
       .then(({ data, error }) => {
         if (cancelled) return
-        if (error) {
-          console.error("Error fetching categories:", error)
-          return
-        }
-        setCategories(data || [])
+        if (!error) setCategories(data || [])
       })
-    return () => { cancelled = true }
-  }, [])
 
-  // Cargar productos desde Supabase (misma lógica que admin: lib/all-products fetchCatalogProducts)
-  useEffect(() => {
-    let cancelled = false
+    const loadProducts = fetchCatalogProducts(selectedCategoryId).then((data) => {
+      if (!cancelled) setProducts(data as Product[])
+    })
 
-    async function load() {
-      try {
-        const data = await fetchCatalogProducts(selectedCategoryId)
-        if (cancelled) return
-        setProducts(data as Product[])
-      } catch (error) {
+    Promise.all([loadCategories, loadProducts])
+      .catch((err) => {
         if (!cancelled) {
-          console.error("Error loading products:", error)
+          console.error("Error loading catalog:", err)
           setProducts([])
         }
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false)
-      }
-    }
+      })
 
-    setLoading(true)
-    load()
     return () => { cancelled = true }
   }, [selectedCategoryId])
 

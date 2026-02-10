@@ -134,19 +134,28 @@ export async function getProductsByCategoryFromSupabase(categoryId: string): Pro
   }
 }
 
+// Cache en memoria para catálogo (TTL 60 s) y carga más rápida
+const catalogCache: { key: string; data: SupabaseProduct[]; ts: number } = { key: "", data: [], ts: 0 }
+const CATALOG_CACHE_TTL_MS = 60 * 1000
+
 /**
  * Catálogo público: productos activos desde el cliente (navegador).
- * Usa getSupabaseClient() para no depender del hook useSupabase() y cargar siempre.
- * Punto único de consulta para la página /productos y consistencia con el admin.
+ * Usa getSupabaseClient() y cache de 60 s para cargas más rápidas.
  */
 export async function fetchCatalogProducts(categoryId?: string | null): Promise<SupabaseProduct[]> {
+  const cacheKey = `catalog_${categoryId ?? "all"}`
+  const now = Date.now()
+  if (catalogCache.key === cacheKey && now - catalogCache.ts < CATALOG_CACHE_TTL_MS) {
+    return catalogCache.data
+  }
+
   try {
     const supabase = getSupabaseClient()
     if (!supabase) return []
 
     let query = supabase
       .from("products")
-      .select(`*, category:categories(id, name, slug)`)
+      .select(`id,name,slug,description,price,image_url,category_id,min_quantity,multiple_of,is_featured,stock_quantity,rating,review_count,attributes,created_at, category:categories(id, name, slug)`)
       .eq("is_active", true)
 
     if (categoryId) {
@@ -161,7 +170,11 @@ export async function fetchCatalogProducts(categoryId?: string | null): Promise<
       console.error("Error fetching catalog products:", error)
       return []
     }
-    return data || []
+    const result = (data || []) as SupabaseProduct[]
+    catalogCache.key = cacheKey
+    catalogCache.data = result
+    catalogCache.ts = now
+    return result
   } catch (error) {
     console.error("Error fetchCatalogProducts:", error)
     return []
