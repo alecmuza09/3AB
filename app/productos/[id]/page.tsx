@@ -463,18 +463,22 @@ export default function ProductDetailPage() {
 
                 {/* Pestañas: Descripción e Información del producto (medidas, peso, proveedor) */}
                 {(() => {
+                  const NA = "--"
                   const attrs = (product as any).attributes || {}
                   const dims = (product as any).dimensions
                   const weight = (product as any).weight
-                  const medidas = attrs.medidas || (dims && typeof dims === "object" && [dims.length, dims.width, dims.height].filter(Boolean).length
+                  const medidasFromAttrs = attrs.medidas
+                  const medidasFromDims = dims && typeof dims === "object" && [dims.length, dims.width, dims.height].filter(Boolean).length
                     ? `${[dims.length, dims.width, dims.height].filter(Boolean).join(" × ")} cm`
-                    : null)
-                  const material = attrs.material || null
-                  const areaImpresion = attrs.area_impresion || attrs.areaImpresion || null
-                  const capacidad = attrs.capacidad || null
+                    : null
+                  const medidas = medidasFromAttrs || medidasFromDims
+                  const material = attrs.material
+                  const areaImpresion = attrs.area_impresion || attrs.areaImpresion
+                  const capacidad = attrs.capacidad
                   const techniquesRaw = attrs.printing_technique
                   const techniques = Array.isArray(techniquesRaw) ? techniquesRaw : techniquesRaw ? [techniquesRaw] : []
-                  const hasAnySpec = weight != null || medidas || material || areaImpresion || (capacidad && capacidad !== "Dato no disponible") || techniques.length > 0
+                  const spec = (val: string | number | null | undefined, noData = "Dato no disponible") =>
+                    val != null && String(val).trim() !== "" && String(val) !== noData ? String(val) : NA
                   return (
                     <Tabs defaultValue="descripcion" className="w-full">
                       <TabsList className="grid w-full grid-cols-2">
@@ -489,97 +493,72 @@ export default function ProductDetailPage() {
                         )}
                       </TabsContent>
                       <TabsContent value="especificaciones" className="mt-3">
-                        {hasAnySpec ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {weight != null && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Package className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Peso</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium">{Number(weight)} kg</p>
-                                </CardContent>
-                              </Card>
-                            )}
-                            {medidas && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Ruler className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Medidas</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium">{String(medidas)}</p>
-                                </CardContent>
-                              </Card>
-                            )}
-                            {dims && typeof dims === "object" && (dims.length != null || dims.width != null || dims.height != null) && !medidas && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Ruler className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Dimensiones</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium">
-                                    {[dims.length, dims.width, dims.height].filter(Boolean).join(" × ")} cm
-                                  </p>
-                                </CardContent>
-                              </Card>
-                            )}
-                            {material && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Box className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Material</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium">{String(material)}</p>
-                                </CardContent>
-                              </Card>
-                            )}
-                            {areaImpresion && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Printer className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Área de impresión</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium">{String(areaImpresion)}</p>
-                                </CardContent>
-                              </Card>
-                            )}
-                            {capacidad && capacidad !== "Dato no disponible" && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Package className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Capacidad</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium">{String(capacidad)}</p>
-                                </CardContent>
-                              </Card>
-                            )}
-                            {techniques.length > 0 && (
-                              <Card className="border-l-4 border-l-primary md:col-span-2">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Printer className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Técnicas de personalización</Label>
-                                  </div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {techniques.map((tech: string, index: number) => (
-                                      <Badge key={index} variant="secondary" className="text-xs">
-                                        {tech}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No hay datos de especificaciones cargados para este producto (medidas, peso, material, etc.).</p>
-                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Card className="border-l-4 border-l-primary">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Package className="h-5 w-5 text-primary" />
+                                <Label className="text-sm font-semibold">Peso</Label>
+                              </div>
+                              <p className="text-sm text-foreground font-medium">
+                                {weight != null ? `${Number(weight)} kg` : NA}
+                              </p>
+                            </CardContent>
+                          </Card>
+                          <Card className="border-l-4 border-l-primary">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Ruler className="h-5 w-5 text-primary" />
+                                <Label className="text-sm font-semibold">Medidas</Label>
+                              </div>
+                              <p className="text-sm text-foreground font-medium">{spec(medidas)}</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="border-l-4 border-l-primary">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Box className="h-5 w-5 text-primary" />
+                                <Label className="text-sm font-semibold">Material</Label>
+                              </div>
+                              <p className="text-sm text-foreground font-medium">{spec(material)}</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="border-l-4 border-l-primary">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Printer className="h-5 w-5 text-primary" />
+                                <Label className="text-sm font-semibold">Área de impresión</Label>
+                              </div>
+                              <p className="text-sm text-foreground font-medium">{spec(areaImpresion)}</p>
+                            </CardContent>
+                          </Card>
+                          <Card className="border-l-4 border-l-primary">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Package className="h-5 w-5 text-primary" />
+                                <Label className="text-sm font-semibold">Capacidad</Label>
+                              </div>
+                              <p className="text-sm text-foreground font-medium">{spec(capacidad)}</p>
+                            </CardContent>
+                          </Card>
+                          {techniques.length > 0 && (
+                            <Card className="border-l-4 border-l-primary md:col-span-2">
+                              <CardContent className="p-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Printer className="h-5 w-5 text-primary" />
+                                  <Label className="text-sm font-semibold">Técnicas de personalización</Label>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {techniques.map((tech: string, index: number) => (
+                                    <Badge key={index} variant="secondary" className="text-xs">
+                                      {tech}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </div>
                       </TabsContent>
                     </Tabs>
                   )
