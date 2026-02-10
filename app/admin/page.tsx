@@ -509,7 +509,8 @@ export default function AdminPage() {
   const [bulkMultipleOf, setBulkMultipleOf] = useState<string>("")
   const [bulkCategoryForSelect, setBulkCategoryForSelect] = useState<string>("")
   const [bulkMarginPercent, setBulkMarginPercent] = useState<string>("")
-  const [bulkMarginApplyToCategory, setBulkMarginApplyToCategory] = useState<string>("")
+  // "selection" = aplicar margen a la selección actual; cualquier otro valor = categoría concreta
+  const [bulkMarginApplyToCategory, setBulkMarginApplyToCategory] = useState<string>("selection")
   const [savingBulkProducts, setSavingBulkProducts] = useState(false)
 
   const [relationsDialogOpen, setRelationsDialogOpen] = useState(false)
@@ -582,14 +583,25 @@ export default function AdminPage() {
       alert("Indica un margen de ganancia (%) mayor a 0.")
       return
     }
-    const idsToApply = bulkMarginApplyToCategory
-      ? products.filter((p) => p.category === bulkMarginApplyToCategory).map((p) => p.id)
+
+    const applyToCategory =
+      bulkMarginApplyToCategory && bulkMarginApplyToCategory !== "selection"
+        ? bulkMarginApplyToCategory
+        : ""
+
+    const idsToApply = applyToCategory
+      ? products.filter((p) => p.category === applyToCategory).map((p) => p.id)
       : selectedProductIds
+
     if (idsToApply.length === 0) {
       alert("Selecciona productos en la tabla o elige una categoría para aplicar el margen.")
       return
     }
-    if (bulkMarginApplyToCategory) setSelectedProductIds(idsToApply)
+
+    if (applyToCategory) {
+      setSelectedProductIds(idsToApply)
+    }
+
     setProductDrafts((prev) => {
       const next = { ...prev }
       for (const id of idsToApply) {
@@ -1500,9 +1512,11 @@ export default function AdminPage() {
                         <SelectValue placeholder="Selección actual" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Selección actual ({selectedProductIds.length} productos)</SelectItem>
+                        <SelectItem value="selection">Selección actual ({selectedProductIds.length} productos)</SelectItem>
                         {categoryOptions.map((cat) => (
-                          <SelectItem key={cat} value={cat}>Todos de: {cat}</SelectItem>
+                          <SelectItem key={cat} value={cat}>
+                            Todos de: {cat}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
