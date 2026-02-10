@@ -285,36 +285,57 @@ export default function AdminPage() {
     }
   }
 
+  const handleUpdateUserPassword = async () => {
+    if (!editingUser) return
+    if (!editUserPassword.trim() || !editUserPasswordConfirm.trim()) {
+      alert("Completa ambos campos de contraseña")
+      return
+    }
+    if (editUserPassword !== editUserPasswordConfirm) {
+      alert("Las contraseñas no coinciden")
+      return
+    }
+    if (editUserPassword.length < 6) {
+      alert("La contraseña debe tener al menos 6 caracteres")
+      return
+    }
+    try {
+      setUpdatingPassword(true)
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: editingUser.id, password: editUserPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || "Error al cambiar la contraseña")
+        return
+      }
+      setEditUserPassword("")
+      setEditUserPasswordConfirm("")
+      alert("Contraseña actualizada correctamente")
+    } catch (error: any) {
+      console.error("Error updating password:", error)
+      alert(error?.message || "Error al cambiar la contraseña")
+    } finally {
+      setUpdatingPassword(false)
+    }
+  }
+
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [movements, setMovements] = useState<InventoryMovement[]>([])
   const [loadingMovements, setLoadingMovements] = useState(false)
 
-  // Cargar productos desde Supabase (catálogo público usa fetchCatalogProducts en lib/all-products)
+  // Cargar productos desde API (servidor con service role, evita problemas de cliente/RLS)
   const loadProducts = async () => {
     try {
       setLoadingProducts(true)
-      const supabase = getSupabaseClient()
-      if (!supabase) {
-        console.error("Supabase no está disponible")
-        return
-      }
+      const res = await fetch("/api/products?activeOnly=false")
+      const json = await res.json().catch(() => ({ products: [] }))
+      const productsData = json.products || []
 
-      const { data: productsData, error } = await supabase
-        .from("products")
-        .select(`
-          *,
-          category:categories(id, name)
-        `)
-        .order("created_at", { ascending: false })
-
-      if (error) {
-        console.error("Error loading products:", error)
-        return
-      }
-
-      // Transformar datos para el formato esperado
-      const formattedProducts = (productsData || []).map((product: any) => ({
+      const formattedProducts = productsData.map((product: any) => ({
         id: product.id,
         sku: product.sku || null,
         name: product.name,
@@ -326,17 +347,19 @@ export default function AdminPage() {
         minQuantity: Number(product.min_quantity || 1),
         multipleOf: Number(product.multiple_of || 1),
         attributes: product.attributes || null,
-        status: !product.is_active 
-          ? "inactive" 
-          : (product.stock_quantity || 0) < 10 
-            ? "low-stock" 
+        status: !product.is_active
+          ? "inactive"
+          : (product.stock_quantity || 0) < 10
+            ? "low-stock"
             : "active",
         lastUpdated: product.updated_at ? new Date(product.updated_at).toISOString().split("T")[0] : "",
       }))
 
       setProducts(formattedProducts)
+      if (json.error) console.warn("API products warning:", json.error)
     } catch (error) {
       console.error("Error loading products:", error)
+      setProducts([])
     } finally {
       setLoadingProducts(false)
     }
@@ -1118,6 +1141,9 @@ export default function AdminPage() {
   const [usersError, setUsersError] = useState<string | null>(null)
   const [creatingUser, setCreatingUser] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithStats | null>(null)
+  const [editUserPassword, setEditUserPassword] = useState("")
+  const [editUserPasswordConfirm, setEditUserPasswordConfirm] = useState("")
+  const [updatingPassword, setUpdatingPassword] = useState(false)
   const { user: currentUser } = useAuth()
 
   // Estado para el formulario de nuevo usuario

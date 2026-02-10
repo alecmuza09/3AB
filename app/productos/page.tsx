@@ -13,8 +13,6 @@ import { Separator } from "@/components/ui/separator"
 import { Search, Star, ShoppingCart } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { getSupabaseClient } from "@/lib/supabase"
-import { fetchCatalogProducts } from "@/lib/all-products"
 import { useState, useEffect } from "react"
 
 interface Product {
@@ -57,32 +55,24 @@ export default function ProductosPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Cargar categorías y productos en paralelo para mayor velocidad
+  // Cargar categorías y productos desde API (servidor) para evitar problemas de cliente/RLS
   useEffect(() => {
-    const supabase = getSupabaseClient()
-    if (!supabase) {
-      setLoading(false)
-      return
-    }
-
     let cancelled = false
     setLoading(true)
 
-    const loadCategories = supabase
-      .from("categories")
-      .select("id, name, slug, is_active")
-      .eq("is_active", true)
-      .order("name", { ascending: true })
-      .then(({ data, error }) => {
+    const params = new URLSearchParams()
+    params.set("activeOnly", "true")
+    if (selectedCategoryId) params.set("categoryId", selectedCategoryId)
+
+    Promise.all([
+      fetch("/api/categories").then((r) => r.json()),
+      fetch(`/api/products?${params}`).then((r) => r.json()),
+    ])
+      .then(([catRes, prodRes]) => {
         if (cancelled) return
-        if (!error) setCategories(data || [])
+        setCategories((catRes.categories || []) as Category[])
+        setProducts((prodRes.products || []) as Product[])
       })
-
-    const loadProducts = fetchCatalogProducts(selectedCategoryId).then((data) => {
-      if (!cancelled) setProducts(data as Product[])
-    })
-
-    Promise.all([loadCategories, loadProducts])
       .catch((err) => {
         if (!cancelled) {
           console.error("Error loading catalog:", err)

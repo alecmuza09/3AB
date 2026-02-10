@@ -39,7 +39,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useSupabase } from "@/lib/supabase-client"
-import { fetchCatalogProducts } from "@/lib/all-products"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
 import type { SupabaseProduct } from "@/lib/all-products"
@@ -209,14 +208,15 @@ export default function ProductDetailPage() {
     fetchRelatedProducts()
   }, [supabase, product])
 
-  // Cargar catálogo cuando se abre el diálogo "Seleccionar producto"
+  // Cargar catálogo cuando se abre el diálogo "Seleccionar producto" (desde API)
   useEffect(() => {
     if (!openSelectProduct) return
     let cancelled = false
     setLoadingCatalog(true)
-    fetchCatalogProducts()
-      .then((data) => {
-        if (!cancelled) setCatalogProducts(data)
+    fetch("/api/products?activeOnly=true")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!cancelled) setCatalogProducts((j.products || []) as SupabaseProduct[])
       })
       .finally(() => {
         if (!cancelled) setLoadingCatalog(false)
