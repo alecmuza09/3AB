@@ -2076,13 +2076,37 @@ export default function AdminPage() {
                                     >
                                       <CheckCircle className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" title="Ver">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Ver ficha pública"
+                                      onClick={() => window.open(`/productos/${product.id}`, "_blank")}
+                                    >
                                       <Eye className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" title="Editar">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Editar ficha pública"
+                                      onClick={() => window.open(`/productos/${product.id}`, "_self")}
+                                    >
                                       <Edit className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" title="Duplicar">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Duplicar (borrador local)"
+                                      onClick={() => {
+                                        const copy: Product = {
+                                          ...product,
+                                          id: `${product.id}-draft-${Date.now()}`,
+                                          name: `${product.name} (copia)`,
+                                          sku: null,
+                                          lastUpdated: new Date().toISOString().split("T")[0],
+                                        }
+                                        setProducts((prev) => [copy, ...prev])
+                                      }}
+                                    >
                                       <Copy className="h-4 w-4" />
                                     </Button>
                                     <Button

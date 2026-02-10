@@ -38,7 +38,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { useSupabase } from "@/lib/supabase-client"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
 import type { SupabaseProduct } from "@/lib/all-products"
@@ -49,7 +48,6 @@ import { getQuantityValidationError, normalizeQuantityToRules } from "@/lib/quan
 export default function ProductDetailPage() {
   const params = useParams()
   const router = useRouter()
-  const supabase = useSupabase()
   const { addToCart } = useCart()
   const productId = params.id as string
 
@@ -79,53 +77,66 @@ export default function ProductDetailPage() {
       setLoading(false)
       return
     }
-    if (!supabase) return
 
     let cancelled = false
+    setLoading(true)
 
-    async function fetchProduct() {
+    async function loadFromApi() {
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)
-        let query = supabase
-          .from("products")
-          .select(`*, category:categories(id, name, slug)`)
-          .eq("is_active", true)
-
-        if (isUuid) {
-          query = query.eq("id", productId)
-        } else {
-          query = query.eq("slug", productId)
-        }
-
-        const { data: foundProduct, error } = await query.single()
+        const res = await fetch("/api/products?activeOnly=true")
+        const json = await res.json().catch(() => ({ products: [] }))
+        const all = (json.products || []) as SupabaseProduct[]
 
         if (cancelled) return
 
-        if (error) {
-          console.error("Error fetching product:", error)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)
+        const current = isUuid
+          ? all.find((p) => p.id === productId)
+          : all.find((p) => p.slug === productId)
+
+        if (!current) {
           setProduct(null)
           return
         }
 
-        if (foundProduct) {
-          setProduct(foundProduct as SupabaseProduct)
-          setQuantity(Number((foundProduct as any).min_quantity) || 1)
-        } else {
-          setProduct(null)
+        setProduct(current)
+        setQuantity(Number((current as any).min_quantity) || 1)
+
+        // Calcular relacionados usando el mismo listado
+        const attrs = (current as any).attributes || {}
+        const relatedIds: string[] = Array.isArray(attrs.related_product_ids)
+          ? attrs.related_product_ids.filter(Boolean)
+          : []
+
+        let related: SupabaseProduct[] = []
+        if (relatedIds.length > 0) {
+          const byId = new Map(all.map((p) => [p.id, p]))
+          related = relatedIds.map((id) => byId.get(id)).filter(Boolean) as SupabaseProduct[]
         }
+
+        if (related.length === 0) {
+          related = all
+            .filter((p) => p.id !== current.id && p.category_id === current.category_id)
+            .slice(0, 4)
+        }
+
+        setRelatedProducts(related)
       } catch (error) {
         if (!cancelled) {
-          console.error("Error fetching product:", error)
+          console.error("Error fetching product from API:", error)
           setProduct(null)
+          setRelatedProducts([])
         }
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
-    fetchProduct()
-    return () => { cancelled = true }
-  }, [productId, supabase])
+    loadFromApi()
+    return () => {
+      cancelled = true
+    }
+  }, [productId])
 
   const allowedServices = useMemo(() => {
     const techniquesRaw = (product as any)?.attributes?.printing_technique
@@ -160,53 +171,11 @@ export default function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedServices])
 
+  // loadingRelated se controla ahora con el mismo fetch del producto (API)
   useEffect(() => {
-    async function fetchRelatedProducts() {
-      if (!supabase || !product) return
-      setLoadingRelated(true)
-
-      try {
-        const relatedIdsRaw = (product as any)?.attributes?.related_product_ids
-        const relatedIds = Array.isArray(relatedIdsRaw) ? (relatedIdsRaw as string[]).filter(Boolean) : []
-
-        if (relatedIds.length > 0) {
-          const { data, error } = await supabase
-            .from("products")
-            .select(`*, category:categories(id, name, slug)`)
-            .in("id", relatedIds)
-            .eq("is_active", true)
-
-          if (!error && data) {
-            // Mantener el orden definido en related_product_ids
-            const byId = new Map(data.map((p: any) => [p.id, p]))
-            const ordered = relatedIds.map((id) => byId.get(id)).filter(Boolean)
-            setRelatedProducts(ordered as any)
-            return
-          }
-        }
-
-        // Fallback: misma categoría (cuando el catálogo ya está validado)
-        let query = supabase
-          .from("products")
-          .select(`*, category:categories(id, name, slug)`)
-          .eq("is_active", true)
-          .neq("id", product.id)
-
-        if (product.category_id) {
-          query = query.eq("category_id", product.category_id)
-        }
-
-        const { data } = await query.order("created_at", { ascending: false }).limit(4)
-        setRelatedProducts((data || []) as any)
-      } catch (e) {
-        console.error("Error loading related products:", e)
-      } finally {
-        setLoadingRelated(false)
-      }
-    }
-
-    fetchRelatedProducts()
-  }, [supabase, product])
+    // ya no hacemos llamadas separadas; mantener efecto vacío para no romper orden de hooks si se añadiera lógica futura
+    setLoadingRelated(false)
+  }, [product])
 
   // Cargar catálogo cuando se abre el diálogo "Seleccionar producto" (desde API)
   useEffect(() => {
