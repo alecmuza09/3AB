@@ -124,57 +124,17 @@ export default function AdminPage() {
   const loadUsers = async () => {
     try {
       setLoadingUsers(true)
-      const supabase = getSupabaseClient()
-
-      if (!supabase) {
-        console.error("Supabase no está disponible")
-        setLoadingUsers(false)
-        return
+      setUsersError(null)
+      const res = await fetch("/api/admin/users")
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Error al cargar usuarios")
       }
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (profilesError) {
-        console.error("Error loading profiles:", profilesError)
-        setLoadingUsers(false)
-        return
-      }
-
-      // Obtener estadísticas de pedidos para cada usuario
-      const usersWithStats = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          // Obtener pedidos del usuario
-          const { data: orders, error: ordersError } = await supabase
-            .from("orders")
-            .select("id, total, created_at")
-            .eq("user_id", profile.id)
-
-          if (ordersError) {
-            console.error("Error loading orders:", ordersError)
-          }
-
-          const ordersCount = orders?.length || 0
-          const totalSpent = orders?.reduce((sum, order) => sum + Number(order.total || 0), 0) || 0
-
-          // Obtener último acceso desde auth.users (necesitarías una función server action para esto)
-          // Por ahora usamos created_at del perfil
-          const lastLogin = profile.updated_at || profile.created_at
-
-          return {
-            ...profile,
-            orders: ordersCount,
-            totalSpent,
-            lastLogin,
-          }
-        })
-      )
-
-      setUsers(usersWithStats)
-    } catch (error) {
+      setUsers(Array.isArray(data) ? data : [])
+    } catch (error: any) {
       console.error("Error loading users:", error)
+      setUsersError(error?.message || "No se pudieron cargar los usuarios")
+      setUsers([])
     } finally {
       setLoadingUsers(false)
     }
@@ -207,8 +167,7 @@ export default function AdminPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        alert(`Error: ${data.error}`)
-        setCreatingUser(false)
+        alert(`Error: ${data.error || "No se pudo crear el usuario"}`)
         return
       }
 
@@ -1144,6 +1103,7 @@ export default function AdminPage() {
 
   const [users, setUsers] = useState<UserWithStats[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
+  const [usersError, setUsersError] = useState<string | null>(null)
   const [creatingUser, setCreatingUser] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithStats | null>(null)
   const { user: currentUser } = useAuth()
@@ -3117,6 +3077,13 @@ export default function AdminPage() {
                   {loadingUsers ? (
                     <div className="flex items-center justify-center py-8">
                       <div className="text-muted-foreground">Cargando usuarios...</div>
+                    </div>
+                  ) : usersError ? (
+                    <div className="flex flex-col items-center justify-center py-8 gap-3">
+                      <p className="text-destructive text-sm">{usersError}</p>
+                      <Button variant="outline" size="sm" onClick={() => loadUsers()}>
+                        Reintentar
+                      </Button>
                     </div>
                   ) : (
                     <>

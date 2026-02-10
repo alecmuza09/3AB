@@ -1,6 +1,46 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase"
 
+export async function GET() {
+  try {
+    const supabase = createSupabaseServerClient()
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (profilesError) {
+      console.error("Error loading profiles:", profilesError)
+      return NextResponse.json({ error: profilesError.message }, { status: 500 })
+    }
+
+    const orderIdsByUser: Record<string, { count: number; total: number; lastLogin: string | null }> = {}
+    for (const p of profiles || []) {
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("id, total, created_at")
+        .eq("user_id", p.id)
+        .order("created_at", { ascending: false })
+      const count = orders?.length || 0
+      const total = orders?.reduce((sum, o) => sum + Number(o?.total || 0), 0) || 0
+      const lastLogin = p.updated_at || p.created_at || null
+      orderIdsByUser[p.id] = { count, total, lastLogin }
+    }
+
+    const users = (profiles || []).map((profile) => ({
+      ...profile,
+      orders: orderIdsByUser[profile.id]?.count ?? 0,
+      totalSpent: orderIdsByUser[profile.id]?.total ?? 0,
+      lastLogin: orderIdsByUser[profile.id]?.lastLogin ?? null,
+    }))
+
+    return NextResponse.json(users)
+  } catch (error: any) {
+    console.error("Error in GET /api/admin/users:", error)
+    return NextResponse.json({ error: error.message || "Error al cargar usuarios" }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
