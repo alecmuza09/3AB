@@ -1870,35 +1870,62 @@ export default function AdminPage() {
                 </CardHeader>
                 <CardContent>
                   {/* Filters */}
-                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                    <div className="flex-1">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          placeholder="Buscar por nombre, SKU o descripción..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10"
-                        />
+                  <div className="space-y-4 mb-6">
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-5 w-5 text-primary" />
+                          <span className="text-sm font-medium">
+                            Mostrando {filteredProducts.length} de {products.length} productos
+                          </span>
+                        </div>
+                        {selectedProductIds.length > 0 && (
+                          <Badge variant="secondary" className="ml-2">
+                            {selectedProductIds.length} seleccionado(s)
+                          </Badge>
+                        )}
                       </div>
+                      {searchTerm && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setSearchTerm("")}
+                        >
+                          Limpiar búsqueda
+                        </Button>
+                      )}
                     </div>
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                      <SelectTrigger className="w-full sm:w-48">
-                        <SelectValue placeholder="Categoría" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        {categoryOptions.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="outline">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Más Filtros
-                    </Button>
+                    
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                          <Input
+                            placeholder="Buscar por nombre, SKU o descripción..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 h-10"
+                          />
+                        </div>
+                      </div>
+                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                        <SelectTrigger className="w-full sm:w-48 h-10">
+                          <SelectValue placeholder="Categoría" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas las categorías</SelectItem>
+                          {categoryOptions.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button variant="outline" className="h-10">
+                        <Filter className="h-4 w-4 mr-2" />
+                        Más Filtros
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Bulk actions (WooCommerce-like) */}
@@ -1994,12 +2021,53 @@ export default function AdminPage() {
                     </Card>
                   )}
 
+                  {/* Aviso de cambios pendientes */}
+                  {Object.keys(productDrafts).length > 0 && (
+                    <Card className="border-yellow-500 bg-yellow-50">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-yellow-500 flex items-center justify-center">
+                              <AlertCircle className="h-6 w-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-yellow-900">
+                                ⚠️ Tienes {Object.keys(productDrafts).length} producto(s) con cambios sin guardar
+                              </p>
+                              <p className="text-sm text-yellow-800">
+                                Los productos marcados con fondo amarillo tienen cambios pendientes. Haz clic en &quot;Guardar cambios&quot; para aplicarlos permanentemente.
+                              </p>
+                            </div>
+                          </div>
+                          <Button 
+                            onClick={saveSelectedEdits} 
+                            disabled={savingBulkProducts}
+                            size="lg"
+                            className="bg-green-600 hover:bg-green-700 whitespace-nowrap shrink-0"
+                          >
+                            {savingBulkProducts ? (
+                              <>
+                                <Package className="h-5 w-5 mr-2 animate-spin" />
+                                Guardando...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="h-5 w-5 mr-2" />
+                                Guardar cambios ({Object.keys(productDrafts).length})
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   {/* Products Table */}
-                  <div className="rounded-md border">
+                  <div className="rounded-md border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12">
+                          <TableHead className="w-12 sticky left-0 bg-background z-10">
                             <input
                               type="checkbox"
                               className="rounded"
@@ -2010,16 +2078,21 @@ export default function AdminPage() {
                               onChange={(e) => toggleSelectAllFiltered(e.target.checked)}
                             />
                           </TableHead>
-                          <TableHead>Producto</TableHead>
-                          <TableHead>SKU</TableHead>
-                          <TableHead>Categoría</TableHead>
-                          <TableHead>Precio</TableHead>
-                          <TableHead>Mínimo</TableHead>
-                          <TableHead>Múltiplo</TableHead>
-                          <TableHead>Stock</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Rel./Cruzada</TableHead>
-                          <TableHead className="text-right">Acciones</TableHead>
+                          <TableHead className="min-w-[200px] sticky left-12 bg-background z-10">Producto</TableHead>
+                          <TableHead className="min-w-[120px]">SKU</TableHead>
+                          <TableHead className="min-w-[140px]">Categoría</TableHead>
+                          <TableHead className="min-w-[140px] bg-primary/5 font-bold">
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4 text-primary" />
+                              Precio (MXN)
+                            </div>
+                          </TableHead>
+                          <TableHead className="min-w-[100px]">Mínimo</TableHead>
+                          <TableHead className="min-w-[100px]">Múltiplo</TableHead>
+                          <TableHead className="min-w-[100px]">Stock</TableHead>
+                          <TableHead className="min-w-[100px]">Estado</TableHead>
+                          <TableHead className="min-w-[120px]">Rel./Cruzada</TableHead>
+                          <TableHead className="text-right min-w-[150px] sticky right-0 bg-background z-10">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2063,7 +2136,7 @@ export default function AdminPage() {
                                 key={product.id}
                                 className={hasPendingChanges ? "bg-yellow-50 border-l-4 border-l-yellow-500" : ""}
                               >
-                                <TableCell>
+                                <TableCell className="sticky left-0 bg-background z-10">
                                   <input
                                     type="checkbox"
                                     className="rounded"
@@ -2071,34 +2144,55 @@ export default function AdminPage() {
                                     onChange={(e) => toggleSelect(product.id, e.target.checked)}
                                   />
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="sticky left-12 bg-background z-10">
                                   <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                                    <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
                                       <Package className="h-5 w-5 text-muted-foreground" />
                                     </div>
-                                    <div>
-                                      <p className="font-medium">{product.name}</p>
-                                      <p className="text-xs text-muted-foreground">ID: {product.id}</p>
+                                    <div className="min-w-0">
+                                      <p className="font-medium truncate">{product.name}</p>
+                                      <p className="text-xs text-muted-foreground truncate">ID: {product.id.slice(0, 8)}</p>
                                     </div>
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <code className="text-xs bg-muted px-2 py-1 rounded">
+                                  <code className="text-xs bg-muted px-2 py-1 rounded whitespace-nowrap">
                                     {product.sku || `SKU-${product.id.slice(0, 8)}`}
                                   </code>
                                 </TableCell>
-                                <TableCell>{product.category}</TableCell>
-                                <TableCell className="w-40">
+                                <TableCell>
+                                  <Badge variant="outline" className="whitespace-nowrap">
+                                    {product.category}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="bg-primary/5">
                                   <div className="space-y-1">
-                                    <Input
-                                      type="number"
-                                      value={Number.isFinite(priceValue) ? String(priceValue) : ""}
-                                      onChange={(e) => setDraft(product.id, { price: Number(e.target.value || 0) })}
-                                      className={`h-8 ${hasPendingChanges ? "border-yellow-500 font-semibold" : ""}`}
-                                    />
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">$</span>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={Number.isFinite(priceValue) ? priceValue.toFixed(2) : ""}
+                                        onChange={(e) => setDraft(product.id, { price: Number(e.target.value || 0) })}
+                                        className={`h-9 text-base font-semibold ${hasPendingChanges && productDrafts[product.id]?.price !== product.price ? "border-yellow-500 border-2" : ""}`}
+                                      />
+                                      <span className="text-xs text-muted-foreground whitespace-nowrap">MXN</span>
+                                    </div>
                                     {hasPendingChanges && productDrafts[product.id]?.price !== product.price && (
-                                      <p className="text-xs text-muted-foreground">
-                                        Antes: ${product.price.toFixed(2)}
+                                      <div className="flex items-center gap-1 text-xs">
+                                        <span className="text-muted-foreground">Antes:</span>
+                                        <span className="font-medium text-red-600 line-through">
+                                          ${product.price.toFixed(2)}
+                                        </span>
+                                        <span className="text-green-600 font-semibold">
+                                          → ${priceValue.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {!hasPendingChanges && (
+                                      <p className="text-xs text-primary font-medium">
+                                        ${priceValue.toFixed(2)} MXN
                                       </p>
                                     )}
                                   </div>
