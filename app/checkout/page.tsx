@@ -9,6 +9,13 @@ import { WhatsappButton } from "@/components/whatsapp-button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -70,6 +77,8 @@ function CheckoutContent() {
   const [shippingMethod, setShippingMethod] = useState("standard")
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPaymentInfo, setShowPaymentInfo] = useState(false)
+  const [confirmedOrderId, setConfirmedOrderId] = useState("")
 
   const [contactData, setContactData] = useState({
     company: "",
@@ -210,17 +219,9 @@ function CheckoutContent() {
       clearCart()
       setIsSubmitting(false)
       
-      // Mensaje diferente según si está autenticado o no
-      if (!user) {
-        toast.success("¡Gracias! Tu pedido ha sido registrado.", {
-          description: "Crea una cuenta con este email para ver el estado de tu pedido.",
-          duration: 6000,
-        })
-      } else {
-        toast.success("¡Gracias! Tu pedido ha sido registrado. En breve te contactamos.")
-      }
-      
-      router.push("/pedidos")
+      // Guardar el ID del pedido y mostrar información de pago
+      setConfirmedOrderId(orderId)
+      setShowPaymentInfo(true)
     } catch (error) {
       console.error('❌ Error creating order:', error)
       setIsSubmitting(false)
@@ -644,6 +645,104 @@ function CheckoutContent() {
             </div>
           </div>
         </div>
+
+        {/* Dialog: Información de Pago */}
+        <Dialog open={showPaymentInfo} onOpenChange={setShowPaymentInfo}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-2xl">¡Pedido Registrado Exitosamente!</DialogTitle>
+              <DialogDescription>
+                Tu pedido ha sido recibido. A continuación encontrarás la información para realizar tu pago.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              {/* Número de Referencia */}
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <p className="text-sm text-muted-foreground mb-1">Número de Referencia:</p>
+                <p className="text-2xl font-bold text-primary">{confirmedOrderId}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Por favor menciona este número en tu transferencia o depósito
+                </p>
+              </div>
+
+              {/* Datos Bancarios */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Datos para Transferencia
+                </h3>
+
+                <div className="grid gap-3">
+                  <div className="flex flex-col p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Beneficiario</span>
+                    <span className="font-medium">3A BRANDING GROUP S.A. DE C.V.</span>
+                  </div>
+
+                  <div className="flex flex-col p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm text-muted-foreground">RFC</span>
+                    <span className="font-medium">ABG150227SA1</span>
+                  </div>
+
+                  <div className="flex flex-col p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Banco</span>
+                    <span className="font-medium">SANTANDER</span>
+                  </div>
+
+                  <div className="flex flex-col p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Número de Cuenta</span>
+                    <span className="font-medium text-lg">65-50500620-5</span>
+                  </div>
+
+                  <div className="flex flex-col p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm text-muted-foreground">Clabe Interbancaria</span>
+                    <span className="font-medium text-lg">014180655050062058</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instrucciones de Pago */}
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Envío de Comprobante
+                </h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Agradecemos nos hagas llegar tu comprobante de pago a la siguiente dirección de correo:
+                </p>
+                <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded border">
+                  <Mail className="h-4 w-4 text-primary" />
+                  <a 
+                    href="mailto:factura@3abranding.com" 
+                    className="font-medium text-primary hover:underline"
+                  >
+                    factura@3abranding.com
+                  </a>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  No olvides incluir tu número de referencia: <strong>{confirmedOrderId}</strong>
+                </p>
+              </div>
+
+              {/* Botón de Acción */}
+              <div className="flex flex-col gap-2">
+                <Button 
+                  size="lg" 
+                  onClick={() => {
+                    setShowPaymentInfo(false)
+                    router.push("/pedidos")
+                  }}
+                  className="w-full"
+                >
+                  Ver Estado de mi Pedido
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  También te hemos enviado esta información por correo electrónico
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
       <Footer />
     </div>
