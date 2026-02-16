@@ -5,25 +5,40 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Sparkles, ArrowRight, Zap, Target, MessageCircle } from "lucide-react"
 import Link from "next/link"
+import { useSiteContent } from "@/hooks/use-site-content"
+import { EditableText } from "@/components/editable-text"
 
 export function AIAssistantSection() {
+  const { content, loading, refetch } = useSiteContent("home")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
+
   const features = [
     {
       icon: Target,
-      title: "Análisis de necesidades",
-      description: "Comprende tu evento o proyecto para recomendarte los productos ideales.",
+      title: t("ai_feature1_title", "Análisis de necesidades"),
+      description: t("ai_feature1_desc", "Comprende tu evento o proyecto para recomendarte los productos ideales."),
     },
     {
       icon: MessageCircle,
-      title: "Respuestas instantáneas",
-      description: "Obtén recomendaciones personalizadas en segundos, 24/7.",
+      title: t("ai_feature2_title", "Respuestas instantáneas"),
+      description: t("ai_feature2_desc", "Obtén recomendaciones personalizadas en segundos, 24/7."),
     },
     {
       icon: Zap,
-      title: "Decisiones más rápidas",
-      description: "Reduce el tiempo de selección con sugerencias inteligentes.",
+      title: t("ai_feature3_title", "Decisiones más rápidas"),
+      description: t("ai_feature3_desc", "Reduce el tiempo de selección con sugerencias inteligentes."),
     },
   ]
+
+  if (loading) {
+    return (
+      <section className="py-20 lg:py-24 bg-gray-800">
+        <div className="container mx-auto px-4">
+          <div className="h-64 animate-pulse bg-gray-700 rounded-xl" />
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="py-20 lg:py-24 bg-gray-800">
@@ -33,22 +48,58 @@ export function AIAssistantSection() {
           <div className="space-y-8">
             {/* Badge */}
             <div>
-              <Badge className="bg-[#DC2626] text-white border-0 px-3 py-1.5 text-xs font-medium">
-                <Zap className="h-3 w-3 mr-1" />
-                Inteligencia Artificial
-              </Badge>
+              <EditableText
+                pageSlug="home"
+                contentKey="ai_badge"
+                value={t("ai_badge", "Inteligencia Artificial")}
+                onSaved={refetch}
+                label="Badge IA"
+                type="input"
+              >
+                <Badge className="bg-[#DC2626] text-white border-0 px-3 py-1.5 text-xs font-medium">
+                  <Zap className="h-3 w-3 mr-1" />
+                  {t("ai_badge", "Inteligencia Artificial")}
+                </Badge>
+              </EditableText>
             </div>
 
             {/* Headline */}
-            <h2 className="text-4xl lg:text-5xl font-bold text-white">
-              ¿No sabes qué productos elegir?{" "}
-              <span className="text-[#DC2626]">Te ayudamos</span>
-            </h2>
+            <EditableText
+              pageSlug="home"
+              contentKey="ai_title_line1"
+              value={t("ai_title_line1", "¿No sabes qué productos elegir?")}
+              onSaved={refetch}
+              label="Título IA - Línea 1"
+              type="input"
+            >
+              <h2 className="text-4xl lg:text-5xl font-bold text-white">
+                {t("ai_title_line1", "¿No sabes qué productos elegir?")}{" "}
+                <EditableText
+                  pageSlug="home"
+                  contentKey="ai_title_line2"
+                  value={t("ai_title_line2", "Te ayudamos")}
+                  onSaved={refetch}
+                  label="Título IA - Línea 2"
+                  type="input"
+                >
+                  <span className="text-[#DC2626]">{t("ai_title_line2", "Te ayudamos")}</span>
+                </EditableText>
+              </h2>
+            </EditableText>
 
             {/* Description */}
-            <p className="text-lg text-gray-300 leading-relaxed">
-              Nuestro asistente de inteligencia artificial te acompaña paso a paso para identificar los productos promocionales más adecuados, comprendiendo tus necesidades específicas.
-            </p>
+            <EditableText
+              pageSlug="home"
+              contentKey="ai_subtitle"
+              value={t("ai_subtitle", "Nuestro asistente de inteligencia artificial te acompaña paso a paso para identificar los productos promocionales más adecuados, comprendiendo tus necesidades específicas.")}
+              onSaved={refetch}
+              label="Subtítulo IA"
+              type="textarea"
+            >
+              <p className="text-lg text-gray-300 leading-relaxed">
+                {t("ai_subtitle", "Nuestro asistente de inteligencia artificial te acompaña paso a paso para identificar los productos promocionales más adecuados, comprendiendo tus necesidades específicas.")}
+              </p>
+            </EditableText>
 
             {/* Features */}
             <div className="grid gap-6 pt-4">
@@ -74,13 +125,22 @@ export function AIAssistantSection() {
 
             {/* CTA Button */}
             <div className="pt-4">
-              <Link href="/asistente">
-                <Button size="lg" className="bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg px-8">
-                  <Sparkles className="h-5 w-5 mr-2" />
-                  Probar Asistente IA
-                  <ArrowRight className="h-5 w-5 ml-2" />
-                </Button>
-              </Link>
+              <EditableText
+                pageSlug="home"
+                contentKey="ai_cta_text"
+                value={t("ai_cta_text", "Probar Asistente IA")}
+                onSaved={refetch}
+                label="Texto botón IA"
+                type="input"
+              >
+                <Link href="/asistente">
+                  <Button size="lg" className="bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-lg px-8">
+                    <Sparkles className="h-5 w-5 mr-2" />
+                    {t("ai_cta_text", "Probar Asistente IA")}
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                  </Button>
+                </Link>
+              </EditableText>
             </div>
           </div>
 

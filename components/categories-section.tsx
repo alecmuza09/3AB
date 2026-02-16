@@ -1,8 +1,12 @@
+"use client"
+
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { useSiteContent } from "@/hooks/use-site-content"
+import { EditableText } from "@/components/editable-text"
 import {
   Coffee,
   Shirt,
@@ -315,24 +319,64 @@ const featuredCategories = [
 ]
 
 export function CategoriesSection() {
+  const { content, loading, refetch } = useSiteContent("home")
+  const t = (key: string, fallback: string) => content[key] ?? fallback
+
+  if (loading) {
+    return (
+      <section id="categorias" className="py-20 lg:py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="h-64 animate-pulse bg-gray-100 rounded-xl" />
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section id="categorias" className="py-20 lg:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-12">
           <div>
-            <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-3 py-1 text-xs mb-3">
-              Catálogo
-            </Badge>
-            <h2 className="text-3xl lg:text-4xl font-bold text-black">
-              Explora nuestras categorías
-            </h2>
+            <EditableText
+              pageSlug="home"
+              contentKey="categories_badge"
+              value={t("categories_badge", "Catálogo")}
+              onSaved={refetch}
+              label="Badge Categorías"
+              type="input"
+            >
+              <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-3 py-1 text-xs mb-3">
+                {t("categories_badge", "Catálogo")}
+              </Badge>
+            </EditableText>
+            <EditableText
+              pageSlug="home"
+              contentKey="categories_title"
+              value={t("categories_title", "Explora nuestras categorías")}
+              onSaved={refetch}
+              label="Título Categorías"
+              type="input"
+            >
+              <h2 className="text-3xl lg:text-4xl font-bold text-black">
+                {t("categories_title", "Explora nuestras categorías")}
+              </h2>
+            </EditableText>
           </div>
-          <Link href="/catalogos">
-            <Button variant="link" className="text-[#DC2626] hover:text-[#B91C1C] p-0 h-auto">
-              Ver catálogo completo
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          </Link>
+          <EditableText
+            pageSlug="home"
+            contentKey="categories_link_text"
+            value={t("categories_link_text", "Ver catálogo completo")}
+            onSaved={refetch}
+            label="Texto enlace catálogo"
+            type="input"
+          >
+            <Link href="/catalogos">
+              <Button variant="link" className="text-[#DC2626] hover:text-[#B91C1C] p-0 h-auto">
+                {t("categories_link_text", "Ver catálogo completo")}
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </EditableText>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
