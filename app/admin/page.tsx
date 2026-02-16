@@ -116,6 +116,12 @@ export default function AdminPage() {
   })
   const [loadingStats, setLoadingStats] = useState(false)
   
+  // Estados para dialogs de pedidos
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null)
+  const [viewOrderDialogOpen, setViewOrderDialogOpen] = useState(false)
+  const [editOrderDialogOpen, setEditOrderDialogOpen] = useState(false)
+  const [editingOrderStatus, setEditingOrderStatus] = useState("")
+  
   // Leer sección desde URL si existe
   useEffect(() => {
     const section = searchParams.get("section")
@@ -284,6 +290,50 @@ export default function AdminPage() {
       alert("Usuario actualizado exitosamente")
     } catch (error: any) {
       console.error("Error updating user:", error)
+      alert(`Error: ${error.message}`)
+    }
+  }
+
+  // Funciones para manejo de pedidos
+  const handleViewOrder = (order: any) => {
+    setSelectedOrder(order)
+    setViewOrderDialogOpen(true)
+  }
+
+  const handleEditOrder = (order: any) => {
+    setSelectedOrder(order)
+    setEditingOrderStatus(order.status)
+    setEditOrderDialogOpen(true)
+  }
+
+  const handleUpdateOrderStatus = async () => {
+    if (!selectedOrder) return
+
+    try {
+      const response = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: selectedOrder.orderId, // Usar orderId en lugar de originalId
+          status: editingOrderStatus,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al actualizar el pedido')
+      }
+
+      // Recargar pedidos
+      await loadOrders()
+      
+      setEditOrderDialogOpen(false)
+      setSelectedOrder(null)
+      alert('Estado del pedido actualizado exitosamente')
+    } catch (error: any) {
+      console.error('Error updating order:', error)
       alert(`Error: ${error.message}`)
     }
   }
@@ -931,6 +981,18 @@ export default function AdminPage() {
         // Contar items del pedido
         const itemsCount = Array.isArray(order.order_items) ? order.order_items.length : 0
 
+        // Mapear productos
+        const productsList = Array.isArray(order.order_items) 
+          ? order.order_items.map((item: any) => ({
+              name: item.product_name,
+              quantity: item.quantity,
+              unitPrice: Number(item.unit_price || 0),
+              subtotal: Number(item.subtotal || 0),
+              variation: item.variation_label || null,
+              image: item.image_url || null,
+            }))
+          : []
+
         return {
           id: order.order_number || order.id,
           orderId: order.id, // ID real de la base de datos
@@ -940,11 +1002,15 @@ export default function AdminPage() {
           company: order.contact_info?.company || "",
           total: Number(order.total || 0),
           subtotal: Number(order.subtotal || 0),
-          tax: Number(order.tax || 0),
+          taxes: Number(order.tax || 0),
           shippingCost: Number(order.shipping_cost || 0),
           status: order.status || "pending",
           date: order.created_at ? new Date(order.created_at).toISOString().split("T")[0] : "",
           items: itemsCount,
+          productsList: productsList,
+          shippingAddress: order.shipping_info || null,
+          billingInfo: order.billing_info || null,
+          paymentMethod: order.payment_method || "",
           orderData: order,
         }
       })
@@ -2749,10 +2815,20 @@ export default function AdminPage() {
                             <TableCell>{getOrderStatusBadge(order.status)}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm" title="Ver detalles">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  title="Ver detalles"
+                                  onClick={() => handleViewOrder(order)}
+                                >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" title="Editar">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  title="Editar"
+                                  onClick={() => handleEditOrder(order)}
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -2763,6 +2839,242 @@ export default function AdminPage() {
                       </TableBody>
                     </Table>
                   </div>
+
+                  {/* Dialog Ver Detalles del Pedido */}
+                  <Dialog open={viewOrderDialogOpen} onOpenChange={setViewOrderDialogOpen}>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Detalles del Pedido</DialogTitle>
+                        <DialogDescription>
+                          Información completa del pedido {selectedOrder?.id}
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {selectedOrder && (
+                        <div className="space-y-6">
+                          {/* Información General */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Número de Pedido</Label>
+                              <p className="font-medium">{selectedOrder.id}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Fecha</Label>
+                              <p className="font-medium">{selectedOrder.date}</p>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Estado</Label>
+                              <div className="mt-1">{getOrderStatusBadge(selectedOrder.status)}</div>
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Total</Label>
+                              <p className="font-bold text-lg">${selectedOrder.total.toLocaleString()}</p>
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Información del Cliente */}
+                          <div>
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              Información del Cliente
+                            </h3>
+                            <div className="grid grid-cols-2 gap-4 bg-muted/50 p-4 rounded-lg">
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Nombre</Label>
+                                <p className="font-medium">{selectedOrder.customer}</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Email</Label>
+                                <p className="font-medium">{selectedOrder.email}</p>
+                              </div>
+                              {selectedOrder.phone && (
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Teléfono</Label>
+                                  <p className="font-medium">{selectedOrder.phone}</p>
+                                </div>
+                              )}
+                              {selectedOrder.company && (
+                                <div>
+                                  <Label className="text-xs text-muted-foreground">Empresa</Label>
+                                  <p className="font-medium">{selectedOrder.company}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Información de Envío */}
+                          {selectedOrder.shippingAddress && (
+                            <>
+                              <div>
+                                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                  <Truck className="h-4 w-4" />
+                                  Información de Envío
+                                </h3>
+                                <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                                  <p className="font-medium">{selectedOrder.shippingAddress.addressLine}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {selectedOrder.shippingAddress.neighborhood && `${selectedOrder.shippingAddress.neighborhood}, `}
+                                    {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    C.P. {selectedOrder.shippingAddress.postalCode}
+                                  </p>
+                                  {selectedOrder.shippingAddress.notes && (
+                                    <div className="mt-2 pt-2 border-t">
+                                      <Label className="text-xs text-muted-foreground">Notas de envío</Label>
+                                      <p className="text-sm mt-1">{selectedOrder.shippingAddress.notes}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <Separator />
+                            </>
+                          )}
+
+                          {/* Productos */}
+                          <div>
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <Package className="h-4 w-4" />
+                              Productos ({selectedOrder.items})
+                            </h3>
+                            <div className="border rounded-lg overflow-hidden">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Producto</TableHead>
+                                    <TableHead className="text-center">Cantidad</TableHead>
+                                    <TableHead className="text-right">Precio Unit.</TableHead>
+                                    <TableHead className="text-right">Subtotal</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {selectedOrder.productsList?.map((item: any, index: number) => (
+                                    <TableRow key={index}>
+                                      <TableCell>
+                                        <div>
+                                          <p className="font-medium">{item.name}</p>
+                                          {item.variation && (
+                                            <p className="text-xs text-muted-foreground">{item.variation}</p>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-center">{item.quantity}</TableCell>
+                                      <TableCell className="text-right">${item.unitPrice?.toLocaleString()}</TableCell>
+                                      <TableCell className="text-right font-medium">
+                                        ${item.subtotal?.toLocaleString()}
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Resumen de Pago */}
+                          <div>
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                              <DollarSign className="h-4 w-4" />
+                              Resumen de Pago
+                            </h3>
+                            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Subtotal:</span>
+                                <span className="font-medium">${selectedOrder.subtotal?.toLocaleString() || '0'}</span>
+                              </div>
+                              {selectedOrder.taxes > 0 && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Impuestos:</span>
+                                  <span className="font-medium">${selectedOrder.taxes?.toLocaleString()}</span>
+                                </div>
+                              )}
+                              {selectedOrder.shippingCost > 0 && (
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Envío:</span>
+                                  <span className="font-medium">${selectedOrder.shippingCost?.toLocaleString()}</span>
+                                </div>
+                              )}
+                              <Separator />
+                              <div className="flex justify-between text-lg">
+                                <span className="font-semibold">Total:</span>
+                                <span className="font-bold">${selectedOrder.total.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+
+                  {/* Dialog Editar Pedido */}
+                  <Dialog open={editOrderDialogOpen} onOpenChange={setEditOrderDialogOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Editar Pedido</DialogTitle>
+                        <DialogDescription>
+                          Actualiza el estado del pedido {selectedOrder?.id}
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {selectedOrder && (
+                        <div className="space-y-4">
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-2 block">Estado Actual</Label>
+                            {getOrderStatusBadge(selectedOrder.status)}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="order-status">Nuevo Estado</Label>
+                            <Select value={editingOrderStatus} onValueChange={setEditingOrderStatus}>
+                              <SelectTrigger id="order-status">
+                                <SelectValue placeholder="Selecciona un estado" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pendiente</SelectItem>
+                                <SelectItem value="En revisión">En revisión</SelectItem>
+                                <SelectItem value="Cotización">Cotización</SelectItem>
+                                <SelectItem value="En producción">En producción</SelectItem>
+                                <SelectItem value="Listo para enviar">Listo para enviar</SelectItem>
+                                <SelectItem value="Enviado">Enviado</SelectItem>
+                                <SelectItem value="Entregado">Entregado</SelectItem>
+                                <SelectItem value="Cancelado">Cancelado</SelectItem>
+                                <SelectItem value="Desconocido">Desconocido</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                            <p className="text-sm font-medium">Información del pedido:</p>
+                            <div className="text-sm space-y-1">
+                              <p><span className="text-muted-foreground">Cliente:</span> {selectedOrder.customer}</p>
+                              <p><span className="text-muted-foreground">Total:</span> ${selectedOrder.total.toLocaleString()}</p>
+                              <p><span className="text-muted-foreground">Fecha:</span> {selectedOrder.date}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-4">
+                            <Button 
+                              onClick={handleUpdateOrderStatus}
+                              className="flex-1"
+                            >
+                              Guardar Cambios
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => setEditOrderDialogOpen(false)}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
                 </CardContent>
               </Card>
             </TabsContent>

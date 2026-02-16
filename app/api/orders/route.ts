@@ -210,3 +210,79 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    // Verificar configuración
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Variables de entorno faltantes en PATCH /api/orders')
+      return NextResponse.json(
+        { 
+          error: 'Configuración de Supabase incompleta',
+          details: 'Verifica NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en .env.local'
+        },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+
+    const body = await request.json()
+    const { orderId, status } = body
+
+    if (!orderId) {
+      return NextResponse.json(
+        { error: 'orderId es requerido' },
+        { status: 400 }
+      )
+    }
+
+    if (!status) {
+      return NextResponse.json(
+        { error: 'status es requerido' },
+        { status: 400 }
+      )
+    }
+
+    console.log('📝 Actualizando pedido:', orderId, 'a estado:', status)
+
+    // Actualizar el estado del pedido
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('id', orderId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error updating order:', error)
+      return NextResponse.json(
+        { 
+          error: 'Error al actualizar el pedido', 
+          details: error.message
+        },
+        { status: 500 }
+      )
+    }
+
+    console.log('✅ Pedido actualizado:', data.order_number)
+
+    return NextResponse.json({
+      success: true,
+      order: data,
+      message: 'Pedido actualizado exitosamente'
+    })
+
+  } catch (error) {
+    console.error('Error in PATCH /api/orders:', error)
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
