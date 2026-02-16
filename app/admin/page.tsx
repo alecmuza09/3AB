@@ -3023,13 +3023,33 @@ export default function AdminPage() {
                       
                       {selectedOrder && (
                         <div className="space-y-4">
-                          <div>
-                            <Label className="text-xs text-muted-foreground mb-2 block">Estado Actual</Label>
-                            {getOrderStatusBadge(selectedOrder.status)}
+                          {/* Comparación de Estados */}
+                          <div className="bg-muted/30 p-4 rounded-lg">
+                            <Label className="text-xs text-muted-foreground mb-3 block">Cambio de Estado</Label>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex-1">
+                                <p className="text-xs text-muted-foreground mb-2">Estado Actual</p>
+                                {getOrderStatusBadge(selectedOrder.status)}
+                              </div>
+                              <div className="flex-shrink-0">
+                                <svg 
+                                  className="h-6 w-6 text-muted-foreground" 
+                                  fill="none" 
+                                  viewBox="0 0 24 24" 
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                </svg>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-xs text-muted-foreground mb-2">Nuevo Estado</p>
+                                {getOrderStatusBadge(editingOrderStatus)}
+                              </div>
+                            </div>
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="order-status">Nuevo Estado</Label>
+                            <Label htmlFor="order-status">Seleccionar Nuevo Estado</Label>
                             <Select value={editingOrderStatus} onValueChange={setEditingOrderStatus}>
                               <SelectTrigger id="order-status">
                                 <SelectValue placeholder="Selecciona un estado" />
@@ -3046,23 +3066,35 @@ export default function AdminPage() {
                                 <SelectItem value="Desconocido">Desconocido</SelectItem>
                               </SelectContent>
                             </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Pedido: {selectedOrder.id} • Cliente: {selectedOrder.customer} • Total: ${selectedOrder.total.toLocaleString()}
+                            </p>
                           </div>
 
-                          <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                            <p className="text-sm font-medium">Información del pedido:</p>
-                            <div className="text-sm space-y-1">
-                              <p><span className="text-muted-foreground">Cliente:</span> {selectedOrder.customer}</p>
-                              <p><span className="text-muted-foreground">Total:</span> ${selectedOrder.total.toLocaleString()}</p>
-                              <p><span className="text-muted-foreground">Fecha:</span> {selectedOrder.date}</p>
+                          {/* Indicador de cambio */}
+                          {editingOrderStatus !== selectedOrder.status ? (
+                            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
+                              <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4" />
+                                El estado cambiará al hacer clic en "Guardar Cambios"
+                              </p>
                             </div>
-                          </div>
+                          ) : (
+                            <div className="bg-muted/50 p-3 rounded-lg">
+                              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4" />
+                                Sin cambios - Selecciona un estado diferente
+                              </p>
+                            </div>
+                          )}
 
                           <div className="flex gap-2 pt-4">
                             <Button 
                               onClick={handleUpdateOrderStatus}
                               className="flex-1"
+                              disabled={editingOrderStatus === selectedOrder.status}
                             >
-                              Guardar Cambios
+                              {editingOrderStatus === selectedOrder.status ? 'Sin Cambios' : 'Guardar Cambios'}
                             </Button>
                             <Button 
                               variant="outline" 
