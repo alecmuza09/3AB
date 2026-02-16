@@ -13,9 +13,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Phone, Mail, Send, CheckCircle, Linkedin, Instagram } from "lucide-react"
+import { EditableText } from "@/components/editable-text"
 
 export default function ContactoPage() {
-  const { content } = useSiteContent("contacto")
+  const { content, refetch } = useSiteContent("contacto")
   const t = (key: string, fallback: string) => content[key] ?? fallback
   const [formData, setFormData] = useState({
     nombre: "",
@@ -109,10 +110,28 @@ export default function ContactoPage() {
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Contacto")}</h1>
-            <p className="text-lg text-muted-foreground">
-              {t("subtitle", "Estamos aquí para ayudarte. Contáctanos y descubre cómo podemos impulsar tu marca.")}
-            </p>
+            <EditableText
+              pageSlug="contacto"
+              contentKey="title"
+              value={t("title", "Contacto")}
+              onSaved={refetch}
+              label="Título"
+              type="input"
+            >
+              <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Contacto")}</h1>
+            </EditableText>
+            <EditableText
+              pageSlug="contacto"
+              contentKey="subtitle"
+              value={t("subtitle", "Estamos aquí para ayudarte. Contáctanos y descubre cómo podemos impulsar tu marca.")}
+              onSaved={refetch}
+              label="Subtítulo"
+              type="textarea"
+            >
+              <p className="text-lg text-muted-foreground">
+                {t("subtitle", "Estamos aquí para ayudarte. Contáctanos y descubre cómo podemos impulsar tu marca.")}
+              </p>
+            </EditableText>
           </div>
 
           <div className="grid lg:grid-cols-3 gap-8">

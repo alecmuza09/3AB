@@ -4,9 +4,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Heart, Tag } from "lucide-react"
 import { useSiteContent } from "@/hooks/use-site-content"
+import { EditableText } from "@/components/editable-text"
 
 export function AboutUsSection() {
-  const { content, loading } = useSiteContent("home")
+  const { content, loading, refetch } = useSiteContent("home")
   const t = (key: string, fallback: string) => content[key] ?? fallback
 
   const stats = [
@@ -36,15 +37,42 @@ export function AboutUsSection() {
     <section className="py-20 lg:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-3 py-1 text-xs">
-            {t("about_badge", "Nosotros")}
-          </Badge>
-          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-black">
-            {t("about_title", "Tu aliado en marketing promocional")}
-          </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            {t("about_subtitle", "Somos una empresa 100% mexicana con más de 10 años conectando marcas con personas a través de artículos promocionales de calidad.")}
-          </p>
+          <EditableText
+            pageSlug="home"
+            contentKey="about_badge"
+            value={t("about_badge", "Nosotros")}
+            onSaved={refetch}
+            label="Badge Nosotros"
+            type="input"
+          >
+            <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-3 py-1 text-xs">
+              {t("about_badge", "Nosotros")}
+            </Badge>
+          </EditableText>
+          <EditableText
+            pageSlug="home"
+            contentKey="about_title"
+            value={t("about_title", "Tu aliado en marketing promocional")}
+            onSaved={refetch}
+            label="Título Nosotros"
+            type="input"
+          >
+            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-black">
+              {t("about_title", "Tu aliado en marketing promocional")}
+            </h2>
+          </EditableText>
+          <EditableText
+            pageSlug="home"
+            contentKey="about_subtitle"
+            value={t("about_subtitle", "Somos una empresa 100% mexicana con más de 10 años conectando marcas con personas a través de artículos promocionales de calidad.")}
+            onSaved={refetch}
+            label="Subtítulo Nosotros"
+            type="textarea"
+          >
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              {t("about_subtitle", "Somos una empresa 100% mexicana con más de 10 años conectando marcas con personas a través de artículos promocionales de calidad.")}
+            </p>
+          </EditableText>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">

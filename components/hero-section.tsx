@@ -6,9 +6,11 @@ import { ArrowRight, ShoppingBag, Settings, Sparkles, Flag, Star, Diamond } from
 import Link from "next/link"
 import Image from "next/image"
 import { useSiteContent } from "@/hooks/use-site-content"
+import { EditableImage } from "@/components/editable-image"
+import { EditableText } from "@/components/editable-text"
 
 export function HeroSection() {
-  const { content, loading } = useSiteContent("home")
+  const { content, loading, refetch } = useSiteContent("home")
 
   if (loading) {
     return (
@@ -28,21 +30,57 @@ export function HeroSection() {
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           <div className="space-y-6 text-center lg:text-left">
             <div className="flex justify-center lg:justify-start">
-              <Badge className="bg-[#DC2626] text-white border-0 px-3 py-1 text-xs font-medium">
-                <Sparkles className="h-3 w-3 mr-1" />
-                {t("hero_badge", "Artículos Promocionales con IA")}
-              </Badge>
+              <EditableText
+                pageSlug="home"
+                contentKey="hero_badge"
+                value={t("hero_badge", "Artículos Promocionales con IA")}
+                onSaved={refetch}
+                label="Badge del Hero"
+                type="input"
+              >
+                <Badge className="bg-[#DC2626] text-white border-0 px-3 py-1 text-xs font-medium">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  {t("hero_badge", "Artículos Promocionales con IA")}
+                </Badge>
+              </EditableText>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight">
-              <span className="text-black">{t("hero_title_line1", "La forma más fácil de comprar")}</span>
-              <br />
-              <span className="text-[#DC2626]">{t("hero_title_line2", "promocionales")}</span>
-            </h1>
+            <EditableText
+              pageSlug="home"
+              contentKey="hero_title_line1"
+              value={t("hero_title_line1", "La forma más fácil de comprar")}
+              onSaved={refetch}
+              label="Título Hero - Línea 1"
+              type="input"
+            >
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight">
+                <span className="text-black">{t("hero_title_line1", "La forma más fácil de comprar")}</span>
+                <br />
+                <EditableText
+                  pageSlug="home"
+                  contentKey="hero_title_line2"
+                  value={t("hero_title_line2", "promocionales")}
+                  onSaved={refetch}
+                  label="Título Hero - Línea 2"
+                  type="input"
+                >
+                  <span className="text-[#DC2626]">{t("hero_title_line2", "promocionales")}</span>
+                </EditableText>
+              </h1>
+            </EditableText>
 
-            <p className="text-lg text-gray-600 max-w-xl mx-auto lg:mx-0">
-              {t("hero_subtitle", "Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas.")}
-            </p>
+            <EditableText
+              pageSlug="home"
+              contentKey="hero_subtitle"
+              value={t("hero_subtitle", "Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas.")}
+              onSaved={refetch}
+              label="Subtítulo Hero"
+              type="textarea"
+            >
+              <p className="text-lg text-gray-600 max-w-xl mx-auto lg:mx-0">
+                {t("hero_subtitle", "Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas.")}
+              </p>
+            </EditableText>
 
             <div className="flex flex-wrap justify-center lg:justify-start gap-3 pt-2">
               <Badge variant="outline" className="rounded-full px-4 py-1.5 border-gray-300 bg-white">
@@ -91,15 +129,24 @@ export function HeroSection() {
 
           <div className="relative hidden lg:block">
             <div className="relative bg-gray-100 rounded-2xl p-8">
-              <div className="relative w-full h-[500px] bg-gray-200 rounded-lg overflow-hidden">
-                <Image
-                  src={t("hero_image", "/placeholder.svg?height=500&width=600")}
-                  alt="Productos promocionales"
-                  fill
-                  className="object-cover"
-                  unoptimized={t("hero_image", "").startsWith("http")}
-                />
-              </div>
+              <EditableImage
+                pageSlug="home"
+                imageKey="hero_image"
+                currentImageUrl={t("hero_image", "/placeholder.svg?height=500&width=600")}
+                onSaved={refetch}
+                imageLabel="Imagen Hero"
+                altText="Productos promocionales"
+              >
+                <div className="relative w-full h-[500px] bg-gray-200 rounded-lg overflow-hidden">
+                  <Image
+                    src={t("hero_image", "/placeholder.svg?height=500&width=600")}
+                    alt="Productos promocionales"
+                    fill
+                    className="object-cover"
+                    unoptimized={t("hero_image", "").startsWith("http")}
+                  />
+                </div>
+              </EditableImage>
               <div className="absolute top-4 right-4 bg-white border-2 border-[#DC2626] rounded-lg px-4 py-2 shadow-lg">
                 <p className="text-sm font-bold text-[#DC2626]">{t("hero_badge_250", "250+ Productos")}</p>
               </div>

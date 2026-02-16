@@ -29,9 +29,11 @@ import {
   Shield,
 } from "lucide-react"
 import Image from "next/image"
+import { EditableImage } from "@/components/editable-image"
+import { EditableText } from "@/components/editable-text"
 
 export default function NosotrosPage() {
-  const { content } = useSiteContent("nosotros")
+  const { content, refetch } = useSiteContent("nosotros")
   const t = (key: string, fallback: string) => content[key] ?? fallback
 
   return (
@@ -40,29 +42,56 @@ export default function NosotrosPage() {
       <WhatsappButton />
 
       <main>
-        <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
-          {t("banner_image", "") ? (
-            <Image
-              src={t("banner_image", "")}
-              alt="Quiénes Somos - 3A Branding"
-              fill
-              className="object-cover object-center"
-              priority
-              unoptimized={t("banner_image", "").startsWith("http")}
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gray-200" />
-          )}
-        </div>
+        <EditableImage
+          pageSlug="nosotros"
+          imageKey="banner_image"
+          currentImageUrl={t("banner_image", "")}
+          onSaved={refetch}
+          imageLabel="Banner de Nosotros"
+          altText="Quiénes Somos - 3A Branding"
+        >
+          <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
+            {t("banner_image", "") ? (
+              <Image
+                src={t("banner_image", "")}
+                alt="Quiénes Somos - 3A Branding"
+                fill
+                className="object-cover object-center"
+                priority
+                unoptimized={t("banner_image", "").startsWith("http")}
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gray-200" />
+            )}
+          </div>
+        </EditableImage>
 
         <div className="p-6">
           <div className="max-w-5xl mx-auto">
             {/* Header */}
             <div className="mb-8 text-center">
-              <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Nosotros")}</h1>
-              <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                {t("subtitle", "Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran.")}
-              </p>
+              <EditableText
+                pageSlug="nosotros"
+                contentKey="title"
+                value={t("title", "Nosotros")}
+                onSaved={refetch}
+                label="Título"
+                type="input"
+              >
+                <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Nosotros")}</h1>
+              </EditableText>
+              <EditableText
+                pageSlug="nosotros"
+                contentKey="subtitle"
+                value={t("subtitle", "Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran.")}
+                onSaved={refetch}
+                label="Subtítulo"
+                type="textarea"
+              >
+                <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+                  {t("subtitle", "Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran.")}
+                </p>
+              </EditableText>
             </div>
 
             {/* Introducción Principal */}

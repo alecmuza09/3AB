@@ -22,9 +22,11 @@ import {
   Sofa,
   Gift,
 } from "lucide-react"
+import { EditableImage } from "@/components/editable-image"
+import { EditableText } from "@/components/editable-text"
 
 export default function CatalogosPage() {
-  const { content } = useSiteContent("catalogos")
+  const { content, refetch } = useSiteContent("catalogos")
   const t = (key: string, fallback: string) => content[key] ?? fallback
   const catalogs = [
     {
@@ -153,29 +155,56 @@ export default function CatalogosPage() {
       <WhatsappButton />
 
       <main>
-        <div className="relative w-full h-32 md:h-48 lg:h-64 overflow-hidden">
-          {t("banner_image", "") ? (
-            <Image
-              src={t("banner_image", "")}
-              alt="Catálogos 3A Branding"
-              fill
-              className="object-cover"
-              priority
-              unoptimized={t("banner_image", "").startsWith("http")}
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gray-200" />
-          )}
-        </div>
+        <EditableImage
+          pageSlug="catalogos"
+          imageKey="banner_image"
+          currentImageUrl={t("banner_image", "")}
+          onSaved={refetch}
+          imageLabel="Banner de Catálogos"
+          altText="Catálogos 3A Branding"
+        >
+          <div className="relative w-full h-32 md:h-48 lg:h-64 overflow-hidden">
+            {t("banner_image", "") ? (
+              <Image
+                src={t("banner_image", "")}
+                alt="Catálogos 3A Branding"
+                fill
+                className="object-cover"
+                priority
+                unoptimized={t("banner_image", "").startsWith("http")}
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gray-200" />
+            )}
+          </div>
+        </EditableImage>
 
         <div className="p-6">
           <div className="max-w-6xl mx-auto">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Catálogos")}</h1>
-              <p className="text-lg text-muted-foreground">
-                {t("subtitle", "Explora nuestros catálogos y encuentra los productos perfectos para tu marca.")}
-              </p>
+              <EditableText
+                pageSlug="catalogos"
+                contentKey="title"
+                value={t("title", "Catálogos")}
+                onSaved={refetch}
+                label="Título"
+                type="input"
+              >
+                <h1 className="text-4xl font-bold text-foreground mb-4">{t("title", "Catálogos")}</h1>
+              </EditableText>
+              <EditableText
+                pageSlug="catalogos"
+                contentKey="subtitle"
+                value={t("subtitle", "Explora nuestros catálogos y encuentra los productos perfectos para tu marca.")}
+                onSaved={refetch}
+                label="Subtítulo"
+                type="textarea"
+              >
+                <p className="text-lg text-muted-foreground">
+                  {t("subtitle", "Explora nuestros catálogos y encuentra los productos perfectos para tu marca.")}
+                </p>
+              </EditableText>
             </div>
 
             {/* Catalogs Grid */}

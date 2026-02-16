@@ -50,6 +50,8 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { EditableBlock } from "@/components/editable-block"
+import { EditableImage } from "@/components/editable-image"
+import { EditableText } from "@/components/editable-text"
 
 const SERVICE_KEYS = [
   { title: "service1_title", description: "service1_description", features: "service1_features" },
@@ -247,29 +249,67 @@ export default function ServiciosPage() {
 
       <main>
         {/* Hero Banner */}
-        <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
-          {t("banner_image", "") ? (
-            <Image
-              src={t("banner_image", "")}
-              alt="Nuestros Servicios - 3A Branding"
-              fill
-              className="object-cover"
-              priority
-              unoptimized={t("banner_image", "").startsWith("http")}
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gray-200" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30 flex items-center">
+        <EditableImage
+          pageSlug="servicios"
+          imageKey="banner_image"
+          currentImageUrl={t("banner_image", "")}
+          onSaved={refetch}
+          imageLabel="Banner de Servicios"
+          altText="Nuestros Servicios - 3A Branding"
+        >
+          <div className="relative w-full h-[300px] md:h-[400px] lg:h-[500px] overflow-hidden">
+            {t("banner_image", "") ? (
+              <Image
+                src={t("banner_image", "")}
+                alt="Nuestros Servicios - 3A Branding"
+                fill
+                className="object-cover"
+                priority
+                unoptimized={t("banner_image", "").startsWith("http")}
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gray-200" />
+            )}
+          </div>
+        </EditableImage>
+        <div className="relative w-full">
+          <div className="absolute inset-0 h-[300px] md:h-[400px] lg:h-[500px] bg-gradient-to-r from-black/70 to-black/30 flex items-center pointer-events-none">
             <div className="container mx-auto px-6">
               <div className="max-w-3xl text-white">
-                <Badge className="mb-4 bg-primary">{t("hero_badge", "Soluciones Integrales")}</Badge>
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
-                  {loading ? "..." : t("hero_title", "Servicios que Transforman tu Marca")}
-                </h1>
-                <p className="text-lg md:text-xl mb-6 text-gray-200">
-                  {t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
-                </p>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="hero_badge"
+                  value={t("hero_badge", "Soluciones Integrales")}
+                  onSaved={refetch}
+                  label="Badge del Hero"
+                  type="input"
+                >
+                  <Badge className="mb-4 bg-primary">{t("hero_badge", "Soluciones Integrales")}</Badge>
+                </EditableText>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="hero_title"
+                  value={t("hero_title", "Servicios que Transforman tu Marca")}
+                  onSaved={refetch}
+                  label="Título del Hero"
+                  type="input"
+                >
+                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
+                    {loading ? "..." : t("hero_title", "Servicios que Transforman tu Marca")}
+                  </h1>
+                </EditableText>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="hero_subtitle"
+                  value={t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
+                  onSaved={refetch}
+                  label="Subtítulo del Hero"
+                  type="textarea"
+                >
+                  <p className="text-lg md:text-xl mb-6 text-gray-200">
+                    {t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
+                  </p>
+                </EditableText>
                 <div className="flex flex-wrap gap-4">
                   <Button size="lg" className="bg-primary hover:bg-primary/90">
                     <Sparkles className="h-5 w-5 mr-2" />
@@ -284,7 +324,7 @@ export default function ServiciosPage() {
             </div>
           </div>
         </div>
-
+        
         <div className="p-6">
           <div className="max-w-7xl mx-auto space-y-16">
             {/* Stats Section */}

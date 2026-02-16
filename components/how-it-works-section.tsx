@@ -4,9 +4,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Package, Palette, Truck } from "lucide-react"
 import { useSiteContent } from "@/hooks/use-site-content"
+import { EditableText } from "@/components/editable-text"
 
 export function HowItWorksSection() {
-  const { content, loading } = useSiteContent("home")
+  const { content, loading, refetch } = useSiteContent("home")
   const t = (key: string, fallback: string) => content[key] ?? fallback
 
   const steps = [
@@ -29,15 +30,42 @@ export function HowItWorksSection() {
     <section className="py-20 lg:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center space-y-4 mb-16">
-          <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-4 py-1.5 text-sm">
-            {t("how_badge", "Proceso Simple")}
-          </Badge>
-          <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-black">
-            {t("how_title", "Elige, diseña y ordena promocionales de forma simple")}
-          </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            {t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados listos para entregar")}
-          </p>
+          <EditableText
+            pageSlug="home"
+            contentKey="how_badge"
+            value={t("how_badge", "Proceso Simple")}
+            onSaved={refetch}
+            label="Badge Cómo Funciona"
+            type="input"
+          >
+            <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-4 py-1.5 text-sm">
+              {t("how_badge", "Proceso Simple")}
+            </Badge>
+          </EditableText>
+          <EditableText
+            pageSlug="home"
+            contentKey="how_title"
+            value={t("how_title", "Elige, diseña y ordena promocionales de forma simple")}
+            onSaved={refetch}
+            label="Título Cómo Funciona"
+            type="input"
+          >
+            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-black">
+              {t("how_title", "Elige, diseña y ordena promocionales de forma simple")}
+            </h2>
+          </EditableText>
+          <EditableText
+            pageSlug="home"
+            contentKey="how_subtitle"
+            value={t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados listos para entregar")}
+            onSaved={refetch}
+            label="Subtítulo Cómo Funciona"
+            type="textarea"
+          >
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              {t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados listos para entregar")}
+            </p>
+          </EditableText>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
