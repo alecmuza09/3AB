@@ -127,10 +127,10 @@ function CheckoutContent() {
     if (step !== 3) return
 
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 1200))
 
     const orderId = `ORD-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`
-    addOrder({
+    
+    const orderData = {
       id: orderId,
       createdAt: new Date().toISOString(),
       status: methodParam === "quote" ? "Cotización" : "En revisión",
@@ -166,12 +166,36 @@ function CheckoutContent() {
         variationLabel: item.variation?.color || item.variation?.name,
         image: item.product.image,
       })),
-    })
+    }
 
-    clearCart()
-    setIsSubmitting(false)
-    toast.success("¡Gracias! Tu pedido ha sido registrado. En breve te contactamos.")
-    router.push("/pedidos")
+    try {
+      // Guardar en la base de datos (Supabase)
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al crear el pedido')
+      }
+
+      // También guardar en localStorage para que el usuario lo vea en /pedidos
+      addOrder(orderData)
+
+      clearCart()
+      setIsSubmitting(false)
+      toast.success("¡Gracias! Tu pedido ha sido registrado. En breve te contactamos.")
+      router.push("/pedidos")
+    } catch (error) {
+      console.error('Error creating order:', error)
+      setIsSubmitting(false)
+      toast.error("Hubo un problema al procesar tu pedido. Por favor intenta de nuevo o contáctanos.")
+    }
   }
 
   const contactCompleted = step > 1
