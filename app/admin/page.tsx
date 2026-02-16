@@ -27,6 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Package,
   Plus,
@@ -137,6 +138,12 @@ export default function AdminPage() {
   const [cotizadorConfig, setCotizadorConfig] = useState<CotizadorConfig>(defaultCotizadorConfig)
   const [loadingCotizadorConfig, setLoadingCotizadorConfig] = useState(false)
   const [savingCotizadorConfig, setSavingCotizadorConfig] = useState(false)
+
+  // Estados para gestión de usuarios
+  const [users, setUsers] = useState<any[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [editingUser, setEditingUser] = useState<any>(null)
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false)
   
   // Leer sección desde URL si existe
   useEffect(() => {
@@ -525,6 +532,64 @@ export default function AdminPage() {
     }))
   }
 
+  // Funciones para gestión de usuarios
+  const loadUsers = async () => {
+    try {
+      setLoadingUsers(true)
+      const supabase = getSupabaseClient()
+      if (!supabase) return
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error loading users:', error)
+        return
+      }
+
+      setUsers(data || [])
+    } catch (error) {
+      console.error('Error loading users:', error)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const handleEditUser = (user: any) => {
+    setEditingUser(user)
+    setEditUserDialogOpen(true)
+  }
+
+  const handleUpdateUserRole = async (userId: string, newRole: 'customer' | 'admin' | 'staff') => {
+    try {
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        alert('Supabase no está disponible')
+        return
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .eq('id', userId)
+
+      if (error) {
+        console.error('Error updating user role:', error)
+        alert('Error al actualizar rol del usuario')
+        return
+      }
+
+      alert('✅ Rol de usuario actualizado exitosamente')
+      setEditUserDialogOpen(false)
+      await loadUsers()
+    } catch (error: any) {
+      console.error('Error updating user role:', error)
+      alert(`Error: ${error.message}`)
+    }
+  }
+
   const handleUpdateUserPassword = async () => {
     if (!editingUser) return
     if (!editUserPassword.trim() || !editUserPasswordConfirm.trim()) {
@@ -667,6 +732,9 @@ export default function AdminPage() {
     }
     if (activeSection === "cotizador-config") {
       loadCotizadorConfig()
+    }
+    if (activeSection === "users") {
+      loadUsers()
     }
   }, [activeSection])
 
@@ -5767,6 +5835,313 @@ EMAIL_FROM=ventas@3abranding.com`}
                 </Card>
               </div>
             )}
+
+            {/* Users Management */}
+            {activeSection === "users" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <CardTitle>Gestión de Usuarios</CardTitle>
+                        <CardDescription>
+                          Administra usuarios registrados y sus permisos
+                        </CardDescription>
+                      </div>
+                      <Button 
+                        onClick={loadUsers}
+                        variant="outline"
+                        disabled={loadingUsers}
+                      >
+                        {loadingUsers ? 'Cargando...' : 'Actualizar'}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingUsers ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+                          <p className="text-muted-foreground">Cargando usuarios...</p>
+                        </div>
+                      </div>
+                    ) : users.length === 0 ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground">No hay usuarios registrados</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Estadísticas */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                            <CardContent className="pt-6">
+                              <div className="text-center space-y-2">
+                                <Users className="h-8 w-8 text-blue-600 dark:text-blue-400 mx-auto" />
+                                <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                                  {users.length}
+                                </p>
+                                <p className="text-sm text-muted-foreground">Total de Usuarios</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                            <CardContent className="pt-6">
+                              <div className="text-center space-y-2">
+                                <Shield className="h-8 w-8 text-amber-600 dark:text-amber-400 mx-auto" />
+                                <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+                                  {users.filter(u => u.role === 'admin').length}
+                                </p>
+                                <p className="text-sm text-muted-foreground">Administradores</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                            <CardContent className="pt-6">
+                              <div className="text-center space-y-2">
+                                <UserCog className="h-8 w-8 text-green-600 dark:text-green-400 mx-auto" />
+                                <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                                  {users.filter(u => u.role === 'customer').length}
+                                </p>
+                                <p className="text-sm text-muted-foreground">Clientes</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+
+                        <Separator />
+
+                        {/* Tabla de Usuarios */}
+                        <div className="border rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Usuario</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Rol</TableHead>
+                                <TableHead>Empresa</TableHead>
+                                <TableHead>Teléfono</TableHead>
+                                <TableHead>Registro</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {users.map((user) => (
+                                <TableRow key={user.id}>
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <span className="text-sm font-semibold text-primary">
+                                          {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || '?'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <p className="font-medium">{user.full_name || 'Sin nombre'}</p>
+                                        <p className="text-xs text-muted-foreground">ID: {user.id.slice(0, 8)}</p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm">{user.email || 'Sin email'}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge 
+                                      variant={
+                                        user.role === 'admin' ? 'default' : 
+                                        user.role === 'staff' ? 'secondary' : 
+                                        'outline'
+                                      }
+                                      className={
+                                        user.role === 'admin' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                        user.role === 'staff' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                        'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                      }
+                                    >
+                                      {user.role === 'admin' ? '👑 Admin' : 
+                                       user.role === 'staff' ? '⚙️ Staff' : 
+                                       '👤 Cliente'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm">{user.company_name || '-'}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm">{user.phone || '-'}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="text-sm text-muted-foreground">
+                                      {new Date(user.created_at).toLocaleDateString('es-MX', {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric'
+                                      })}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleEditUser(user)}
+                                    >
+                                      <Edit className="h-3 w-3 mr-1" />
+                                      Editar
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Dialog: Editar Usuario */}
+            <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Editar Usuario</DialogTitle>
+                  <DialogDescription>
+                    Modifica el rol y permisos del usuario
+                  </DialogDescription>
+                </DialogHeader>
+                
+                {editingUser && (
+                  <div className="space-y-6">
+                    {/* Información del Usuario */}
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-lg font-semibold text-primary">
+                            {editingUser.full_name?.charAt(0)?.toUpperCase() || editingUser.email?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{editingUser.full_name || 'Sin nombre'}</p>
+                          <p className="text-sm text-muted-foreground">{editingUser.email || 'Sin email'}</p>
+                        </div>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Empresa:</p>
+                          <p className="font-medium">{editingUser.company_name || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Teléfono:</p>
+                          <p className="font-medium">{editingUser.phone || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">RFC:</p>
+                          <p className="font-medium">{editingUser.tax_id || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Registro:</p>
+                          <p className="font-medium">
+                            {new Date(editingUser.created_at).toLocaleDateString('es-MX')}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cambiar Rol */}
+                    <div className="space-y-3">
+                      <Label>Rol del Usuario</Label>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Define el nivel de acceso y permisos del usuario en la plataforma
+                      </p>
+
+                      <RadioGroup
+                        value={editingUser.role}
+                        onValueChange={(value) => setEditingUser({ ...editingUser, role: value })}
+                      >
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                          <RadioGroupItem value="customer" id="role-customer" />
+                          <Label htmlFor="role-customer" className="flex-1 cursor-pointer">
+                            <div>
+                              <p className="font-medium">👤 Cliente</p>
+                              <p className="text-xs text-muted-foreground">
+                                Puede realizar pedidos y ver su historial
+                              </p>
+                            </div>
+                          </Label>
+                        </div>
+
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                          <RadioGroupItem value="staff" id="role-staff" />
+                          <Label htmlFor="role-staff" className="flex-1 cursor-pointer">
+                            <div>
+                              <p className="font-medium">⚙️ Staff</p>
+                              <p className="text-xs text-muted-foreground">
+                                Acceso limitado al panel administrativo
+                              </p>
+                            </div>
+                          </Label>
+                        </div>
+
+                        <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                          <RadioGroupItem value="admin" id="role-admin" />
+                          <Label htmlFor="role-admin" className="flex-1 cursor-pointer">
+                            <div>
+                              <p className="font-medium">👑 Administrador</p>
+                              <p className="text-xs text-muted-foreground">
+                                Acceso completo a todas las funciones
+                              </p>
+                            </div>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    {/* Confirmación visual */}
+                    <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                        <div className="flex-1 space-y-2">
+                          <p className="font-medium text-sm text-blue-900 dark:text-blue-100">
+                            Cambio de Rol
+                          </p>
+                          <div className="text-sm space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="bg-white dark:bg-gray-900">
+                                {editingUser.role === 'admin' ? '👑 Admin' : 
+                                 editingUser.role === 'staff' ? '⚙️ Staff' : 
+                                 '👤 Cliente'}
+                              </Badge>
+                              <span className="text-muted-foreground">← Rol seleccionado</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Botones */}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setEditUserDialogOpen(false)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={() => handleUpdateUserRole(editingUser.id, editingUser.role)}
+                      >
+                        Guardar Cambios
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </Tabs>
             </div>
           </div>
