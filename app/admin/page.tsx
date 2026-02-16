@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { Sidebar } from "@/components/sidebar"
+import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
 import { AdminGuard } from "@/components/auth/admin-guard"
 import { getSupabaseClient } from "@/lib/supabase"
@@ -1329,16 +1329,159 @@ export default function AdminPage() {
   return (
     <AdminGuard>
       <div className="min-h-screen bg-background">
-        <Sidebar />
+        <TopHeader />
         <WhatsappButton />
         
-        <div className="md:ml-64 p-6">
-          <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
-            <p className="text-muted-foreground">Sistema completo de gestión para 3A Branding</p>
-          </div>
+        <div className="flex">
+          {/* Admin Sidebar */}
+          <aside className="hidden md:flex md:flex-col w-64 border-r bg-card min-h-screen sticky top-0">
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-1">Administración</h2>
+              <p className="text-sm text-muted-foreground">Panel de control</p>
+            </div>
+            
+            <nav className="flex-1 px-3 space-y-1">
+              {/* Dashboard */}
+              <Button
+                variant={activeSection === "dashboard" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("dashboard")}
+              >
+                <BarChart3 className="h-4 w-4 mr-3" />
+                Dashboard
+              </Button>
+              
+              {/* Productos */}
+              <Button
+                variant={activeSection === "products" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("products")}
+              >
+                <Package className="h-4 w-4 mr-3" />
+                Productos
+              </Button>
+              
+              {/* Pedidos */}
+              <Button
+                variant={activeSection === "orders" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("orders")}
+              >
+                <ShoppingCart className="h-4 w-4 mr-3" />
+                Pedidos
+              </Button>
+              
+              {/* Inventario */}
+              <Button
+                variant={activeSection === "inventory" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("inventory")}
+              >
+                <Truck className="h-4 w-4 mr-3" />
+                Inventario
+              </Button>
+              
+              {/* Clientes */}
+              <Button
+                variant={activeSection === "customers" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("customers")}
+              >
+                <Users className="h-4 w-4 mr-3" />
+                Clientes
+              </Button>
+              
+              <Separator className="my-3" />
+              
+              {/* Configuración (colapsable) */}
+              <div className="space-y-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start font-semibold"
+                  onClick={() => {
+                    const settingsSections = ["settings", "content", "integrations", "cotizador-config", "users"];
+                    if (settingsSections.includes(activeSection)) {
+                      setActiveSection("dashboard");
+                    } else {
+                      setActiveSection("settings");
+                    }
+                  }}
+                >
+                  <Settings className="h-4 w-4 mr-3" />
+                  Configuración
+                  {["settings", "content", "integrations", "cotizador-config", "users"].includes(activeSection) && (
+                    <span className="ml-auto">▼</span>
+                  )}
+                  {!["settings", "content", "integrations", "cotizador-config", "users"].includes(activeSection) && (
+                    <span className="ml-auto">▶</span>
+                  )}
+                </Button>
+                
+                {["settings", "content", "integrations", "cotizador-config", "users"].includes(activeSection) && (
+                  <div className="ml-7 space-y-1">
+                    <Button
+                      variant={activeSection === "settings" ? "secondary" : "ghost"}
+                      className="w-full justify-start text-sm"
+                      size="sm"
+                      onClick={() => setActiveSection("settings")}
+                    >
+                      <Shield className="h-3 w-3 mr-2" />
+                      General
+                    </Button>
+                    
+                    <Button
+                      variant={activeSection === "content" ? "secondary" : "ghost"}
+                      className="w-full justify-start text-sm"
+                      size="sm"
+                      onClick={() => setActiveSection("content")}
+                    >
+                      <FileText className="h-3 w-3 mr-2" />
+                      Contenido del sitio
+                    </Button>
+                    
+                    <Button
+                      variant={activeSection === "integrations" ? "secondary" : "ghost"}
+                      className="w-full justify-start text-sm"
+                      size="sm"
+                      onClick={() => setActiveSection("integrations")}
+                    >
+                      <Plug className="h-3 w-3 mr-2" />
+                      Integraciones
+                    </Button>
+                    
+                    <Button
+                      variant={activeSection === "cotizador-config" ? "secondary" : "ghost"}
+                      className="w-full justify-start text-sm"
+                      size="sm"
+                      onClick={() => setActiveSection("cotizador-config")}
+                    >
+                      <Calculator className="h-3 w-3 mr-2" />
+                      Cotizador
+                    </Button>
+                    
+                    <Button
+                      variant={activeSection === "users" ? "secondary" : "ghost"}
+                      className="w-full justify-start text-sm"
+                      size="sm"
+                      onClick={() => setActiveSection("users")}
+                    >
+                      <UserCog className="h-3 w-3 mr-2" />
+                      Usuarios
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </nav>
+          </aside>
+          
+          {/* Main Content */}
+          <div className="flex-1 p-6">
+            <div className="max-w-7xl mx-auto">
+              {/* Header */}
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
+                <p className="text-muted-foreground">Sistema completo de gestión para 3A Branding</p>
+              </div>
 
           {/* Navigation Tabs */}
           <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-6">
@@ -2067,7 +2210,7 @@ export default function AdminPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12 sticky left-0 bg-background z-10">
+                          <TableHead className="w-12">
                             <input
                               type="checkbox"
                               className="rounded"
@@ -2078,7 +2221,7 @@ export default function AdminPage() {
                               onChange={(e) => toggleSelectAllFiltered(e.target.checked)}
                             />
                           </TableHead>
-                          <TableHead className="min-w-[200px] sticky left-12 bg-background z-10">Producto</TableHead>
+                          <TableHead className="min-w-[200px]">Producto</TableHead>
                           <TableHead className="min-w-[120px]">SKU</TableHead>
                           <TableHead className="min-w-[140px]">Categoría</TableHead>
                           <TableHead className="min-w-[140px] bg-primary/5 font-bold">
@@ -2092,7 +2235,7 @@ export default function AdminPage() {
                           <TableHead className="min-w-[100px]">Stock</TableHead>
                           <TableHead className="min-w-[100px]">Estado</TableHead>
                           <TableHead className="min-w-[120px]">Rel./Cruzada</TableHead>
-                          <TableHead className="text-right min-w-[150px] sticky right-0 bg-background z-10">Acciones</TableHead>
+                          <TableHead className="text-right min-w-[150px]">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2136,7 +2279,7 @@ export default function AdminPage() {
                                 key={product.id}
                                 className={hasPendingChanges ? "bg-yellow-50 border-l-4 border-l-yellow-500" : ""}
                               >
-                                <TableCell className="sticky left-0 bg-background z-10">
+                                <TableCell>
                                   <input
                                     type="checkbox"
                                     className="rounded"
@@ -2144,7 +2287,7 @@ export default function AdminPage() {
                                     onChange={(e) => toggleSelect(product.id, e.target.checked)}
                                   />
                                 </TableCell>
-                                <TableCell className="sticky left-12 bg-background z-10">
+                                <TableCell>
                                   <div className="flex items-center gap-3">
                                     <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
                                       <Package className="h-5 w-5 text-muted-foreground" />
@@ -4426,6 +4569,7 @@ EMAIL_FROM=ventas@3abranding.com`}
               </div>
             </TabsContent>
           </Tabs>
+            </div>
           </div>
         </div>
       </div>
