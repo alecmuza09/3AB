@@ -1,3 +1,18 @@
 [build]
   command = "npm run build"
   publish = ".next"
+
+# Configuración de Node.js
+[build.environment]
+  NODE_VERSION = "20"
+
+# IMPORTANTE: Configurar las siguientes variables de entorno en:
+# Netlify Dashboard > Site settings > Environment variables
+#
+# Variables MÍNIMAS requeridas para que el sitio funcione:
+# - NEXT_PUBLIC_SUPABASE_URL
+# - NEXT_PUBLIC_SUPABASE_ANON_KEY
+# - NEXTAUTH_URL (ejemplo: https://tu-sitio.netlify.app)
+# - NEXTAUTH_SECRET (genera uno con: openssl rand -base64 32)
+#
+# Para ver todas las variables opcionales, consulta .env.example

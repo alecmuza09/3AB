@@ -57,15 +57,21 @@ export function EditableImage({
 
   const handleSave = async () => {
     const supabase = getSupabaseClient()
-    if (!supabase) return
+    if (!supabase) {
+      alert("Error: Cliente de Supabase no disponible")
+      return
+    }
+    
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) {
-      alert("Sesión expirada. Inicia sesión de nuevo.")
+      alert("⚠️ Sesión expirada. Por favor, inicia sesión de nuevo.")
       return
     }
 
     setSaving(true)
     try {
+      console.log("🖼️ Guardando imagen:", { pageSlug, imageKey, url: editImageUrl })
+      
       const res = await fetch("/api/site-content", {
         method: "PATCH",
         headers: {
@@ -79,14 +85,25 @@ export function EditableImage({
           },
         }),
       })
+      
+      const data = await res.json()
+      console.log("📥 Respuesta del servidor:", data)
+      
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || "Error al guardar")
+        throw new Error(data.error || `Error ${res.status}: ${res.statusText}`)
       }
+      
+      console.log("✅ Imagen guardada exitosamente")
+      alert("✅ Imagen actualizada exitosamente")
       setOpen(false)
-      onSaved?.()
+      
+      // Esperar un momento antes de refetch para asegurar que la BD se actualizó
+      setTimeout(() => {
+        onSaved?.()
+      }, 300)
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error al guardar")
+      console.error("❌ Error al guardar imagen:", e)
+      alert(`❌ Error al guardar: ${e instanceof Error ? e.message : "Error desconocido"}`)
     } finally {
       setSaving(false)
     }
