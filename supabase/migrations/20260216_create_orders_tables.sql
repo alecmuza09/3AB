@@ -49,12 +49,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Eliminar trigger si existe antes de crearlo
+DROP TRIGGER IF EXISTS update_orders_updated_at ON public.orders;
+
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- RLS (Row Level Security) Policies
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+-- Eliminar policies si existen antes de crearlas
+DROP POLICY IF EXISTS "Users can view their own orders" ON public.orders;
+DROP POLICY IF EXISTS "Users can view their own order items" ON public.order_items;
+DROP POLICY IF EXISTS "Anyone can create orders" ON public.orders;
+DROP POLICY IF EXISTS "Anyone can create order items" ON public.order_items;
 
 -- Policy: Los usuarios autenticados pueden ver sus propios pedidos
 CREATE POLICY "Users can view their own orders"
