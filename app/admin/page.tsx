@@ -210,6 +210,9 @@ export default function AdminPage() {
         sendEmail: true,
       })
 
+      // Cerrar dialog
+      setCreateUserDialogOpen(false)
+
       alert("Usuario creado exitosamente")
     } catch (error: any) {
       console.error("Error creating user:", error)
@@ -1422,6 +1425,7 @@ export default function AdminPage() {
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [usersError, setUsersError] = useState<string | null>(null)
   const [creatingUser, setCreatingUser] = useState(false)
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithStats | null>(null)
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false)
   const [editUserPassword, setEditUserPassword] = useState("")
@@ -5748,13 +5752,22 @@ EMAIL_FROM=ventas@3abranding.com`}
                           Administra usuarios registrados y sus permisos
                         </CardDescription>
                       </div>
-                      <Button 
-                        onClick={loadUsers}
-                        variant="outline"
-                        disabled={loadingUsers}
-                      >
-                        {loadingUsers ? 'Cargando...' : 'Actualizar'}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={loadUsers}
+                          variant="outline"
+                          disabled={loadingUsers}
+                        >
+                          {loadingUsers ? 'Cargando...' : 'Actualizar'}
+                        </Button>
+                        <Button 
+                          onClick={() => setCreateUserDialogOpen(true)}
+                          className="bg-primary hover:bg-primary/90"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Añadir Usuario
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -5902,6 +5915,162 @@ EMAIL_FROM=ventas@3abranding.com`}
                 </Card>
               </div>
             )}
+
+            {/* Dialog: Crear Usuario */}
+            <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                  <DialogDescription>
+                    Agrega un nuevo usuario y asigna su rol en la plataforma
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Formulario de nuevo usuario */}
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="new-full-name">Nombre Completo *</Label>
+                      <Input
+                        id="new-full-name"
+                        placeholder="Juan Pérez"
+                        value={newUser.full_name}
+                        onChange={(e) => setNewUser({ ...newUser, full_name: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="new-email">Email *</Label>
+                      <Input
+                        id="new-email"
+                        type="email"
+                        placeholder="juan@empresa.com"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="new-phone">Teléfono</Label>
+                      <Input
+                        id="new-phone"
+                        placeholder="+52 55 1234 5678"
+                        value={newUser.phone}
+                        onChange={(e) => setNewUser({ ...newUser, phone: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="new-password">Contraseña *</Label>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Mínimo 6 caracteres. El usuario podrá cambiarla después.
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="new-role">Rol del Usuario *</Label>
+                      <Select
+                        value={newUser.role}
+                        onValueChange={(value: "customer" | "admin" | "staff") =>
+                          setNewUser({ ...newUser, role: value })
+                        }
+                      >
+                        <SelectTrigger id="new-role">
+                          <SelectValue placeholder="Selecciona un rol" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="customer">
+                            <div className="flex items-center gap-2">
+                              <span>👤</span>
+                              <div>
+                                <p className="font-medium">Cliente</p>
+                                <p className="text-xs text-muted-foreground">Puede realizar pedidos</p>
+                              </div>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="staff">
+                            <div className="flex items-center gap-2">
+                              <span>⚙️</span>
+                              <div>
+                                <p className="font-medium">Staff</p>
+                                <p className="text-xs text-muted-foreground">Acceso limitado al admin</p>
+                              </div>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="admin">
+                            <div className="flex items-center gap-2">
+                              <span>👑</span>
+                              <div>
+                                <p className="font-medium">Administrador</p>
+                                <p className="text-xs text-muted-foreground">Acceso completo</p>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/30">
+                      <Switch
+                        id="send-email"
+                        checked={newUser.sendEmail}
+                        onCheckedChange={(checked) => setNewUser({ ...newUser, sendEmail: checked })}
+                      />
+                      <Label htmlFor="send-email" className="cursor-pointer">
+                        Enviar email de bienvenida al usuario
+                      </Label>
+                    </div>
+                  </div>
+
+                  {/* Botones */}
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCreateUserDialogOpen(false)
+                        // Limpiar formulario
+                        setNewUser({
+                          full_name: "",
+                          email: "",
+                          phone: "",
+                          role: "customer",
+                          password: "",
+                          sendEmail: true,
+                        })
+                      }}
+                      disabled={creatingUser}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleCreateUser}
+                      disabled={
+                        creatingUser || 
+                        !newUser.email || 
+                        !newUser.password || 
+                        !newUser.full_name ||
+                        newUser.password.length < 6
+                      }
+                    >
+                      {creatingUser ? (
+                        <>
+                          <span className="animate-pulse">Creando...</span>
+                        </>
+                      ) : (
+                        'Crear Usuario'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             {/* Dialog: Editar Usuario */}
             <Dialog open={editUserDialogOpen} onOpenChange={setEditUserDialogOpen}>
