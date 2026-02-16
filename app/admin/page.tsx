@@ -1560,6 +1560,26 @@ export default function AdminPage() {
                 Clientes
               </Button>
               
+              {/* Cupones */}
+              <Button
+                variant={activeSection === "coupons" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("coupons")}
+              >
+                <Tag className="h-4 w-4 mr-3" />
+                Cupones
+              </Button>
+              
+              {/* Reportes */}
+              <Button
+                variant={activeSection === "reports" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("reports")}
+              >
+                <FileText className="h-4 w-4 mr-3" />
+                Reportes
+              </Button>
+              
               <Separator className="my-3" />
               
               {/* Configuración (colapsable) */}
@@ -1662,54 +1682,8 @@ export default function AdminPage() {
                 <p className="text-muted-foreground">Sistema completo de gestión para 3A Branding</p>
               </div>
 
-          {/* Navigation Tabs */}
+          {/* Content Sections */}
           <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-10 h-auto">
-              <TabsTrigger value="dashboard" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Dashboard</span>
-              </TabsTrigger>
-              <TabsTrigger value="products" className="flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                <span className="hidden sm:inline">Productos</span>
-              </TabsTrigger>
-              <TabsTrigger value="orders" className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                <span className="hidden sm:inline">Pedidos</span>
-              </TabsTrigger>
-              <TabsTrigger value="customers" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Clientes</span>
-              </TabsTrigger>
-              <TabsTrigger value="users-roles" className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                <span className="hidden sm:inline">Usuarios</span>
-              </TabsTrigger>
-              <TabsTrigger value="inventory" className="flex items-center gap-2">
-                <Truck className="h-4 w-4" />
-                <span className="hidden sm:inline">Inventario</span>
-              </TabsTrigger>
-              <TabsTrigger value="coupons" className="flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                <span className="hidden sm:inline">Cupones</span>
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Reportes</span>
-              </TabsTrigger>
-              <TabsTrigger value="integrations" className="flex items-center gap-2">
-                <Plug className="h-4 w-4" />
-                <span className="hidden sm:inline">Integraciones</span>
-              </TabsTrigger>
-              <TabsTrigger value="content" className="flex items-center gap-2">
-                <Edit className="h-4 w-4" />
-                <span className="hidden sm:inline">Contenido del sitio</span>
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Configuración</span>
-              </TabsTrigger>
-            </TabsList>
 
             {/* Dashboard */}
             <TabsContent value="dashboard" className="space-y-6">
