@@ -1334,7 +1334,7 @@ export default function AdminPage() {
         
         <div className="flex">
           {/* Admin Sidebar */}
-          <aside className="hidden md:flex md:flex-col w-64 border-r bg-card min-h-screen sticky top-0">
+          <aside className="hidden md:flex md:flex-col w-64 border-r bg-card h-screen sticky top-0 overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold mb-1">Administración</h2>
               <p className="text-sm text-muted-foreground">Panel de control</p>
