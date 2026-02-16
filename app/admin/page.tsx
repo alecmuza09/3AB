@@ -122,6 +122,17 @@ export default function AdminPage() {
   const [editOrderDialogOpen, setEditOrderDialogOpen] = useState(false)
   const [editingOrderStatus, setEditingOrderStatus] = useState("")
   
+  // Estados para configuración de envíos
+  const [shippingConfig, setShippingConfig] = useState<any>({
+    methods: {},
+    zones: {},
+    general: {},
+    restrictions: {},
+    notifications: {}
+  })
+  const [loadingShippingConfig, setLoadingShippingConfig] = useState(false)
+  const [savingShippingConfig, setSavingShippingConfig] = useState(false)
+  
   // Leer sección desde URL si existe
   useEffect(() => {
     const section = searchParams.get("section")
@@ -338,6 +349,94 @@ export default function AdminPage() {
     }
   }
 
+  // Funciones para configuración de envíos
+  const loadShippingConfig = async () => {
+    try {
+      setLoadingShippingConfig(true)
+      const response = await fetch('/api/shipping-config')
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar configuración de envíos')
+      }
+
+      const data = await response.json()
+      setShippingConfig({
+        methods: data.shipping_methods || {},
+        zones: data.shipping_zones || {},
+        general: data.shipping_general || {},
+        restrictions: data.shipping_restrictions || {},
+        notifications: data.shipping_notifications || {}
+      })
+    } catch (error) {
+      console.error('Error loading shipping config:', error)
+      alert('Error al cargar la configuración de envíos')
+    } finally {
+      setLoadingShippingConfig(false)
+    }
+  }
+
+  const saveShippingConfig = async () => {
+    try {
+      setSavingShippingConfig(true)
+      
+      const response = await fetch('/api/shipping-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(shippingConfig),
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al guardar configuración')
+      }
+
+      alert('✅ Configuración de envíos guardada exitosamente')
+      await loadShippingConfig()
+    } catch (error: any) {
+      console.error('Error saving shipping config:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setSavingShippingConfig(false)
+    }
+  }
+
+  const updateShippingMethod = (methodKey: string, field: string, value: any) => {
+    setShippingConfig((prev: any) => ({
+      ...prev,
+      methods: {
+        ...prev.methods,
+        [methodKey]: {
+          ...prev.methods[methodKey],
+          [field]: value
+        }
+      }
+    }))
+  }
+
+  const updateShippingZone = (zoneKey: string, field: string, value: any) => {
+    setShippingConfig((prev: any) => ({
+      ...prev,
+      zones: {
+        ...prev.zones,
+        [zoneKey]: {
+          ...prev.zones[zoneKey],
+          [field]: value
+        }
+      }
+    }))
+  }
+
+  const updateShippingGeneral = (field: string, value: any) => {
+    setShippingConfig((prev: any) => ({
+      ...prev,
+      general: {
+        ...prev.general,
+        [field]: value
+      }
+    }))
+  }
+
   const handleUpdateUserPassword = async () => {
     if (!editingUser) return
     if (!editUserPassword.trim() || !editUserPasswordConfirm.trim()) {
@@ -474,6 +573,9 @@ export default function AdminPage() {
     }
     if (activeSection === "inventory") {
       loadMovements()
+    }
+    if (activeSection === "shipping-config") {
+      loadShippingConfig()
     }
   }, [activeSection])
 
@@ -1466,7 +1568,7 @@ export default function AdminPage() {
                   variant="ghost"
                   className="w-full justify-start font-semibold"
                   onClick={() => {
-                    const settingsSections = ["settings", "content", "integrations", "cotizador-config", "users"];
+                    const settingsSections = ["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"];
                     if (settingsSections.includes(activeSection)) {
                       setActiveSection("dashboard");
                     } else {
@@ -1476,15 +1578,15 @@ export default function AdminPage() {
                 >
                   <Settings className="h-4 w-4 mr-3" />
                   Configuración
-                  {["settings", "content", "integrations", "cotizador-config", "users"].includes(activeSection) && (
+                  {["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"].includes(activeSection) && (
                     <span className="ml-auto">▼</span>
                   )}
-                  {!["settings", "content", "integrations", "cotizador-config", "users"].includes(activeSection) && (
+                  {!["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"].includes(activeSection) && (
                     <span className="ml-auto">▶</span>
                   )}
                 </Button>
                 
-                {["settings", "content", "integrations", "cotizador-config", "users"].includes(activeSection) && (
+                {["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"].includes(activeSection) && (
                   <div className="ml-7 space-y-1">
                     <Button
                       variant={activeSection === "settings" ? "secondary" : "ghost"}
@@ -1534,6 +1636,16 @@ export default function AdminPage() {
                     >
                       <UserCog className="h-3 w-3 mr-2" />
                       Usuarios
+                    </Button>
+                    
+                    <Button
+                      variant={activeSection === "shipping-config" ? "secondary" : "ghost"}
+                      className="w-full justify-start text-sm"
+                      size="sm"
+                      onClick={() => setActiveSection("shipping-config")}
+                    >
+                      <Truck className="h-3 w-3 mr-2" />
+                      Envíos
                     </Button>
                   </div>
                 )}
@@ -4913,6 +5025,353 @@ EMAIL_FROM=ventas@3abranding.com`}
                 </Card>
               </div>
             </TabsContent>
+
+            {/* Shipping Configuration */}
+            {activeSection === "shipping-config" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <CardTitle>Configuración de Envíos</CardTitle>
+                        <CardDescription>
+                          Administra métodos, zonas, costos y reglas de envío
+                        </CardDescription>
+                      </div>
+                      <Button 
+                        onClick={saveShippingConfig}
+                        disabled={savingShippingConfig}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        {savingShippingConfig ? 'Guardando...' : 'Guardar Cambios'}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingShippingConfig ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Truck className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+                          <p className="text-muted-foreground">Cargando configuración...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <Tabs defaultValue="methods" className="space-y-6">
+                        <TabsList className="grid w-full grid-cols-4">
+                          <TabsTrigger value="methods">Métodos</TabsTrigger>
+                          <TabsTrigger value="zones">Zonas</TabsTrigger>
+                          <TabsTrigger value="general">General</TabsTrigger>
+                          <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
+                        </TabsList>
+
+                        {/* Métodos de Envío */}
+                        <TabsContent value="methods" className="space-y-4">
+                          <h3 className="text-lg font-semibold">Métodos de Envío</h3>
+                          
+                          {Object.entries(shippingConfig.methods).map(([key, method]: [string, any]) => (
+                            <Card key={key}>
+                              <CardHeader>
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-base">{method.name}</CardTitle>
+                                  <Switch
+                                    checked={method.enabled}
+                                    onCheckedChange={(checked) => 
+                                      updateShippingMethod(key, 'enabled', checked)
+                                    }
+                                  />
+                                </div>
+                                <CardDescription>{method.description}</CardDescription>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label htmlFor={`${key}-cost`}>Costo Base</Label>
+                                    <Input
+                                      id={`${key}-cost`}
+                                      type="number"
+                                      value={method.base_cost}
+                                      onChange={(e) => 
+                                        updateShippingMethod(key, 'base_cost', Number(e.target.value))
+                                      }
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor={`${key}-threshold`}>Envío Gratis desde</Label>
+                                    <Input
+                                      id={`${key}-threshold`}
+                                      type="number"
+                                      value={method.free_shipping_threshold}
+                                      onChange={(e) => 
+                                        updateShippingMethod(key, 'free_shipping_threshold', Number(e.target.value))
+                                      }
+                                      placeholder="0.00"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label htmlFor={`${key}-description`}>Descripción</Label>
+                                  <Textarea
+                                    id={`${key}-description`}
+                                    value={method.description}
+                                    onChange={(e) => 
+                                      updateShippingMethod(key, 'description', e.target.value)
+                                    }
+                                    rows={2}
+                                  />
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </TabsContent>
+
+                        {/* Zonas de Envío */}
+                        <TabsContent value="zones" className="space-y-4">
+                          <h3 className="text-lg font-semibold">Zonas de Envío</h3>
+                          
+                          {Object.entries(shippingConfig.zones).map(([key, zone]: [string, any]) => (
+                            <Card key={key}>
+                              <CardHeader>
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-base">{zone.name}</CardTitle>
+                                  <Switch
+                                    checked={zone.enabled}
+                                    onCheckedChange={(checked) => 
+                                      updateShippingZone(key, 'enabled', checked)
+                                    }
+                                  />
+                                </div>
+                              </CardHeader>
+                              <CardContent className="space-y-4">
+                                <div>
+                                  <Label htmlFor={`${key}-multiplier`}>Multiplicador de Costo</Label>
+                                  <Input
+                                    id={`${key}-multiplier`}
+                                    type="number"
+                                    step="0.1"
+                                    value={zone.multiplier}
+                                    onChange={(e) => 
+                                      updateShippingZone(key, 'multiplier', Number(e.target.value))
+                                    }
+                                    placeholder="1.0"
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    El costo base se multiplicará por este valor para esta zona
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label htmlFor={`${key}-states`}>Estados Incluidos</Label>
+                                  <Input
+                                    id={`${key}-states`}
+                                    value={Array.isArray(zone.states) ? zone.states.join(', ') : zone.states}
+                                    onChange={(e) => 
+                                      updateShippingZone(key, 'states', e.target.value.split(',').map(s => s.trim()))
+                                    }
+                                    placeholder="CDMX, Estado de México"
+                                  />
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Separa los estados con comas. Usa "all" para todos los estados.
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </TabsContent>
+
+                        {/* Configuración General */}
+                        <TabsContent value="general" className="space-y-4">
+                          <h3 className="text-lg font-semibold">Configuración General</h3>
+                          
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Envío Gratis</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <Label>Habilitar Envío Gratis</Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Ofrecer envío gratis al alcanzar un monto mínimo
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={shippingConfig.general.free_shipping_enabled}
+                                  onCheckedChange={(checked) => 
+                                    updateShippingGeneral('free_shipping_enabled', checked)
+                                  }
+                                />
+                              </div>
+                              {shippingConfig.general.free_shipping_enabled && (
+                                <div>
+                                  <Label htmlFor="free-shipping-threshold">Monto Mínimo para Envío Gratis</Label>
+                                  <Input
+                                    id="free-shipping-threshold"
+                                    type="number"
+                                    value={shippingConfig.general.free_shipping_threshold}
+                                    onChange={(e) => 
+                                      updateShippingGeneral('free_shipping_threshold', Number(e.target.value))
+                                    }
+                                    placeholder="3000"
+                                  />
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Costos Adicionales</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div>
+                                <Label htmlFor="handling-fee">Cargo por Manejo</Label>
+                                <Input
+                                  id="handling-fee"
+                                  type="number"
+                                  value={shippingConfig.general.handling_fee}
+                                  onChange={(e) => 
+                                    updateShippingGeneral('handling_fee', Number(e.target.value))
+                                  }
+                                  placeholder="0"
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Cargo adicional por procesamiento y embalaje
+                                </p>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <Label>Impuestos Incluidos</Label>
+                                  <p className="text-xs text-muted-foreground">
+                                    Los precios de envío incluyen impuestos
+                                  </p>
+                                </div>
+                                <Switch
+                                  checked={shippingConfig.general.tax_included}
+                                  onCheckedChange={(checked) => 
+                                    updateShippingGeneral('tax_included', checked)
+                                  }
+                                />
+                              </div>
+                            </CardContent>
+                          </Card>
+
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Tiempos de Entrega</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <Label htmlFor="delivery-min">Días Mínimos</Label>
+                                  <Input
+                                    id="delivery-min"
+                                    type="number"
+                                    value={shippingConfig.general.estimated_delivery_days?.min || 5}
+                                    onChange={(e) => 
+                                      updateShippingGeneral('estimated_delivery_days', {
+                                        ...shippingConfig.general.estimated_delivery_days,
+                                        min: Number(e.target.value)
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="delivery-max">Días Máximos</Label>
+                                  <Input
+                                    id="delivery-max"
+                                    type="number"
+                                    value={shippingConfig.general.estimated_delivery_days?.max || 7}
+                                    onChange={(e) => 
+                                      updateShippingGeneral('estimated_delivery_days', {
+                                        ...shippingConfig.general.estimated_delivery_days,
+                                        max: Number(e.target.value)
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+
+                        {/* Notificaciones */}
+                        <TabsContent value="notifications" className="space-y-4">
+                          <h3 className="text-lg font-semibold">Notificaciones de Envío</h3>
+                          
+                          <Card>
+                            <CardHeader>
+                              <CardTitle className="text-base">Configurar Notificaciones</CardTitle>
+                              <CardDescription>
+                                Alertas automáticas sobre el estado de los envíos
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              {Object.entries({
+                                send_shipping_confirmation: 'Confirmar Envío',
+                                send_tracking_updates: 'Actualizaciones de Rastreo',
+                                send_delivery_confirmation: 'Confirmar Entrega',
+                                notify_delays: 'Notificar Retrasos',
+                              }).map(([key, label]) => (
+                                <div key={key} className="flex items-center justify-between">
+                                  <div>
+                                    <Label>{label}</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                      {key === 'send_shipping_confirmation' && 'Enviar confirmación cuando el pedido sea enviado'}
+                                      {key === 'send_tracking_updates' && 'Actualizaciones sobre el estado del envío'}
+                                      {key === 'send_delivery_confirmation' && 'Confirmar cuando el pedido sea entregado'}
+                                      {key === 'notify_delays' && 'Notificar al cliente sobre retrasos'}
+                                    </p>
+                                  </div>
+                                  <Switch
+                                    checked={shippingConfig.notifications[key]}
+                                    onCheckedChange={(checked) => {
+                                      setShippingConfig((prev: any) => ({
+                                        ...prev,
+                                        notifications: {
+                                          ...prev.notifications,
+                                          [key]: checked
+                                        }
+                                      }))
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                              
+                              <Separator className="my-4" />
+                              
+                              <div className="space-y-4">
+                                <h4 className="font-medium">Canales de Notificación</h4>
+                                {Object.entries({
+                                  email_notifications: 'Email',
+                                  sms_notifications: 'SMS',
+                                  whatsapp_notifications: 'WhatsApp',
+                                }).map(([key, label]) => (
+                                  <div key={key} className="flex items-center justify-between">
+                                    <Label>{label}</Label>
+                                    <Switch
+                                      checked={shippingConfig.notifications[key]}
+                                      onCheckedChange={(checked) => {
+                                        setShippingConfig((prev: any) => ({
+                                          ...prev,
+                                          notifications: {
+                                            ...prev.notifications,
+                                            [key]: checked
+                                          }
+                                        }))
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                      </Tabs>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </Tabs>
             </div>
           </div>
