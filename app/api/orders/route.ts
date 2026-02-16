@@ -2,11 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 // Crear cliente de Supabase con service role para bypassing RLS
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+// Verificar configuración
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Faltan variables de entorno para Orders API:')
+  console.error('NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? '✅' : '❌')
+  console.error('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? '✅' : '❌')
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Verificar configuración
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Variables de entorno faltantes en POST /api/orders')
+      return NextResponse.json(
+        { 
+          error: 'Configuración de Supabase incompleta',
+          details: 'Verifica NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en .env.local'
+        },
+        { status: 500 }
+      )
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -15,6 +34,8 @@ export async function POST(request: NextRequest) {
     })
 
     const orderData = await request.json()
+    
+    console.log('📦 Creando pedido:', orderData.id || 'nuevo')
 
     // Generar número de pedido único
     const orderNumber = orderData.id || `ORD-${new Date().getFullYear()}-${Math.floor(Math.random() * 90000 + 10000)}`
@@ -43,12 +64,20 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (orderError) {
-      console.error('Error creating order:', orderError)
+      console.error('❌ Error creating order:', orderError)
       return NextResponse.json(
-        { error: 'Error al crear el pedido', details: orderError.message },
+        { 
+          error: 'Error al crear el pedido', 
+          details: orderError.message,
+          hint: orderError.code === '42P01' 
+            ? 'La tabla "orders" no existe. Ejecuta la migración SQL en Supabase.' 
+            : 'Verifica la configuración de Supabase y las tablas.'
+        },
         { status: 500 }
       )
     }
+
+    console.log('✅ Pedido creado:', order.id, order.order_number)
 
     // Insertar items del pedido
     if (orderData.items && orderData.items.length > 0) {
@@ -68,19 +97,26 @@ export async function POST(request: NextRequest) {
         .insert(orderItems)
 
       if (itemsError) {
-        console.error('Error creating order items:', itemsError)
+        console.error('⚠️ Error creating order items:', itemsError)
         // No hacemos rollback, el pedido ya se creó
         return NextResponse.json(
           { 
             success: true, 
             order, 
             warning: 'Pedido creado pero hubo un problema con los items',
-            details: itemsError.message 
+            details: itemsError.message,
+            hint: itemsError.code === '42P01' 
+              ? 'La tabla "order_items" no existe. Ejecuta la migración SQL en Supabase.' 
+              : undefined
           },
           { status: 201 }
         )
       }
+      
+      console.log('✅ Items del pedido creados:', orderItems.length)
     }
+
+    console.log('✅ Pedido completado exitosamente:', order.order_number)
 
     return NextResponse.json(
       { 
@@ -102,12 +138,27 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Verificar configuración
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Variables de entorno faltantes en GET /api/orders')
+      return NextResponse.json(
+        { 
+          error: 'Configuración de Supabase incompleta',
+          details: 'Verifica NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en .env.local',
+          orders: []
+        },
+        { status: 500 }
+      )
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     })
+    
+    console.log('📥 Cargando pedidos desde Supabase...')
 
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
@@ -132,14 +183,24 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching orders:', error)
+      console.error('❌ Error fetching orders:', error)
       return NextResponse.json(
-        { error: 'Error al obtener pedidos', details: error.message },
+        { 
+          error: 'Error al obtener pedidos', 
+          details: error.message,
+          hint: error.code === '42P01' 
+            ? 'La tabla "orders" no existe. Ejecuta la migración SQL en Supabase.' 
+            : 'Verifica la configuración y permisos de Supabase.',
+          orders: []
+        },
         { status: 500 }
       )
     }
 
-    return NextResponse.json({ orders: data || [] })
+    const orders = Array.isArray(data) ? data : (data ? [data] : [])
+    console.log('✅ Pedidos obtenidos:', orders.length)
+
+    return NextResponse.json({ orders })
 
   } catch (error) {
     console.error('Error in GET /api/orders:', error)
