@@ -4,6 +4,14 @@
 
 Para que los pedidos aparezcan en el panel de administración, debes ejecutar la migración SQL en Supabase.
 
+### 🆕 ¿Pedidos sin usuario no funcionan?
+
+Si ves el error **"Hubo un problema al procesar tu pedido..."** al intentar hacer un pedido sin iniciar sesión, ve a:
+
+👉 **[DIAGNOSTICO-PEDIDOS.md](./DIAGNOSTICO-PEDIDOS.md)** - Guía completa de diagnóstico y solución
+
+---
+
 ---
 
 ## 📝 PASO 1: Ejecutar SQL en Supabase
