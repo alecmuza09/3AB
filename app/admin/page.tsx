@@ -133,6 +133,11 @@ export default function AdminPage() {
   const [loadingShippingConfig, setLoadingShippingConfig] = useState(false)
   const [savingShippingConfig, setSavingShippingConfig] = useState(false)
   
+  // Estados para configuración del cotizador
+  const [cotizadorConfig, setCotizadorConfig] = useState<CotizadorConfig>(defaultCotizadorConfig)
+  const [loadingCotizadorConfig, setLoadingCotizadorConfig] = useState(false)
+  const [savingCotizadorConfig, setSavingCotizadorConfig] = useState(false)
+  
   // Leer sección desde URL si existe
   useEffect(() => {
     const section = searchParams.get("section")
@@ -437,6 +442,89 @@ export default function AdminPage() {
     }))
   }
 
+  // Funciones para configuración del cotizador
+  const loadCotizadorConfig = async () => {
+    try {
+      setLoadingCotizadorConfig(true)
+      const response = await fetch('/api/cotizador-config')
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar configuración del cotizador')
+      }
+
+      const data = await response.json()
+      setCotizadorConfig(data)
+    } catch (error) {
+      console.error('Error loading cotizador config:', error)
+      setCotizadorConfig(defaultCotizadorConfig)
+    } finally {
+      setLoadingCotizadorConfig(false)
+    }
+  }
+
+  const saveCotizadorConfig = async () => {
+    try {
+      setSavingCotizadorConfig(true)
+      
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        alert('Supabase no está disponible')
+        return
+      }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert('Debes iniciar sesión para guardar cambios')
+        return
+      }
+
+      const response = await fetch('/api/cotizador-config', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(cotizadorConfig),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Error al guardar configuración')
+      }
+
+      alert('✅ Configuración del cotizador guardada exitosamente')
+      await loadCotizadorConfig()
+    } catch (error: any) {
+      console.error('Error saving cotizador config:', error)
+      alert(`Error: ${error.message}`)
+    } finally {
+      setSavingCotizadorConfig(false)
+    }
+  }
+
+  const updateCotizadorMargin = (level: 'low' | 'medium' | 'high', field: 'threshold' | 'percentage', value: number) => {
+    setCotizadorConfig((prev) => ({
+      ...prev,
+      margins: {
+        ...prev.margins,
+        [level]: {
+          ...prev.margins[level],
+          [field]: value
+        }
+      }
+    }))
+  }
+
+  const updateCotizadorExtra = (extraKey: 'placa' | 'ponchado' | 'tratamiento', value: number) => {
+    setCotizadorConfig((prev) => ({
+      ...prev,
+      extras: {
+        ...prev.extras,
+        [extraKey]: value
+      }
+    }))
+  }
+
   const handleUpdateUserPassword = async () => {
     if (!editingUser) return
     if (!editUserPassword.trim() || !editUserPasswordConfirm.trim()) {
@@ -576,6 +664,9 @@ export default function AdminPage() {
     }
     if (activeSection === "shipping-config") {
       loadShippingConfig()
+    }
+    if (activeSection === "cotizador-config") {
+      loadCotizadorConfig()
     }
   }, [activeSection])
 
@@ -5341,6 +5432,336 @@ EMAIL_FROM=ventas@3abranding.com`}
                           </Card>
                         </TabsContent>
                       </Tabs>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Cotizador Configuration */}
+            {activeSection === "cotizador-config" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <CardTitle>Configuración del Cotizador</CardTitle>
+                        <CardDescription>
+                          Administra márgenes de ganancia y costos de extras
+                        </CardDescription>
+                      </div>
+                      <Button 
+                        onClick={saveCotizadorConfig}
+                        disabled={savingCotizadorConfig}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        {savingCotizadorConfig ? 'Guardando...' : 'Guardar Cambios'}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingCotizadorConfig ? (
+                      <div className="flex items-center justify-center py-12">
+                        <div className="text-center">
+                          <Calculator className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+                          <p className="text-muted-foreground">Cargando configuración...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {/* Márgenes de Ganancia */}
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4">Márgenes de Ganancia</h3>
+                          <p className="text-sm text-muted-foreground mb-6">
+                            Define los márgenes según el volumen del pedido. Los márgenes se aplican automáticamente en el cotizador.
+                          </p>
+
+                          <div className="space-y-4">
+                            {/* Margen Bajo */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">Margen Bajo (Pedidos Pequeños)</CardTitle>
+                                <CardDescription>
+                                  Para pedidos de hasta {cotizadorConfig.margins.low.threshold} unidades
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label htmlFor="margin-low-threshold">Hasta (unidades)</Label>
+                                    <Input
+                                      id="margin-low-threshold"
+                                      type="number"
+                                      value={cotizadorConfig.margins.low.threshold}
+                                      onChange={(e) => 
+                                        updateCotizadorMargin('low', 'threshold', Number(e.target.value))
+                                      }
+                                      min={1}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="margin-low-percentage">Margen (%)</Label>
+                                    <Input
+                                      id="margin-low-percentage"
+                                      type="number"
+                                      value={cotizadorConfig.margins.low.percentage}
+                                      onChange={(e) => 
+                                        updateCotizadorMargin('low', 'percentage', Number(e.target.value))
+                                      }
+                                      min={0}
+                                      max={100}
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Ejemplo: 30% de margen = precio final incluye 30% de ganancia
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Margen Medio */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">Margen Medio</CardTitle>
+                                <CardDescription>
+                                  Para pedidos de {cotizadorConfig.margins.low.threshold + 1} a {cotizadorConfig.margins.medium.threshold} unidades
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label htmlFor="margin-medium-threshold">Hasta (unidades)</Label>
+                                    <Input
+                                      id="margin-medium-threshold"
+                                      type="number"
+                                      value={cotizadorConfig.margins.medium.threshold}
+                                      onChange={(e) => 
+                                        updateCotizadorMargin('medium', 'threshold', Number(e.target.value))
+                                      }
+                                      min={cotizadorConfig.margins.low.threshold + 1}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="margin-medium-percentage">Margen (%)</Label>
+                                    <Input
+                                      id="margin-medium-percentage"
+                                      type="number"
+                                      value={cotizadorConfig.margins.medium.percentage}
+                                      onChange={(e) => 
+                                        updateCotizadorMargin('medium', 'percentage', Number(e.target.value))
+                                      }
+                                      min={0}
+                                      max={100}
+                                    />
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Margen Alto */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">Margen Alto (Pedidos Grandes)</CardTitle>
+                                <CardDescription>
+                                  Para pedidos de más de {cotizadorConfig.margins.medium.threshold} unidades
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-muted-foreground">Desde (unidades)</Label>
+                                    <Input
+                                      disabled
+                                      value={`${cotizadorConfig.margins.medium.threshold + 1}+`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="margin-high-percentage">Margen (%)</Label>
+                                    <Input
+                                      id="margin-high-percentage"
+                                      type="number"
+                                      value={cotizadorConfig.margins.high.percentage}
+                                      onChange={(e) => 
+                                        updateCotizadorMargin('high', 'percentage', Number(e.target.value))
+                                      }
+                                      min={0}
+                                      max={100}
+                                    />
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </div>
+
+                        <Separator className="my-6" />
+
+                        {/* Costos de Extras */}
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4">Costos de Extras</h3>
+                          <p className="text-sm text-muted-foreground mb-6">
+                            Precios adicionales que se pueden agregar a las cotizaciones según el servicio.
+                          </p>
+
+                          <div className="grid md:grid-cols-3 gap-4">
+                            {/* Placa */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">Placa de Tampografía</CardTitle>
+                                <CardDescription>
+                                  Costo de preparación de placa (una sola vez)
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <Label htmlFor="extra-placa">Costo (MXN)</Label>
+                                <Input
+                                  id="extra-placa"
+                                  type="number"
+                                  value={cotizadorConfig.extras.placa}
+                                  onChange={(e) => 
+                                    updateCotizadorExtra('placa', Number(e.target.value))
+                                  }
+                                  min={0}
+                                  placeholder="280"
+                                />
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Se aplica en tampografía y vidrio/metal/rubber
+                                </p>
+                              </CardContent>
+                            </Card>
+
+                            {/* Ponchado */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">Ponchado de Bordado</CardTitle>
+                                <CardDescription>
+                                  Costo de preparación para bordado
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <Label htmlFor="extra-ponchado">Costo (MXN)</Label>
+                                <Input
+                                  id="extra-ponchado"
+                                  type="number"
+                                  value={cotizadorConfig.extras.ponchado}
+                                  onChange={(e) => 
+                                    updateCotizadorExtra('ponchado', Number(e.target.value))
+                                  }
+                                  min={0}
+                                  placeholder="280"
+                                />
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Se aplica solo en servicio de bordado
+                                </p>
+                              </CardContent>
+                            </Card>
+
+                            {/* Tratamiento */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-base">Tratamiento Especial</CardTitle>
+                                <CardDescription>
+                                  Costo de tratamiento adicional
+                                </CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <Label htmlFor="extra-tratamiento">Costo (MXN)</Label>
+                                <Input
+                                  id="extra-tratamiento"
+                                  type="number"
+                                  value={cotizadorConfig.extras.tratamiento}
+                                  onChange={(e) => 
+                                    updateCotizadorExtra('tratamiento', Number(e.target.value))
+                                  }
+                                  min={0}
+                                  placeholder="150"
+                                />
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  Se puede aplicar a cualquier servicio
+                                </p>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        </div>
+
+                        <Separator className="my-6" />
+
+                        {/* Preview de Cálculos */}
+                        <div>
+                          <h3 className="text-lg font-semibold mb-4">Preview de Márgenes</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Cómo se aplicarán los márgenes según la cantidad
+                          </p>
+
+                          <div className="grid md:grid-cols-3 gap-4">
+                            <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                              <CardContent className="pt-6">
+                                <div className="text-center space-y-2">
+                                  <p className="text-sm text-muted-foreground">1 - {cotizadorConfig.margins.low.threshold} unidades</p>
+                                  <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                                    {cotizadorConfig.margins.low.percentage}%
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Margen de ganancia</p>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                              <CardContent className="pt-6">
+                                <div className="text-center space-y-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    {cotizadorConfig.margins.low.threshold + 1} - {cotizadorConfig.margins.medium.threshold} unidades
+                                  </p>
+                                  <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">
+                                    {cotizadorConfig.margins.medium.percentage}%
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Margen de ganancia</p>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+                              <CardContent className="pt-6">
+                                <div className="text-center space-y-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    {cotizadorConfig.margins.medium.threshold + 1}+ unidades
+                                  </p>
+                                  <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                                    {cotizadorConfig.margins.high.percentage}%
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">Margen de ganancia</p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+
+                          <div className="mt-6 bg-muted/50 p-4 rounded-lg">
+                            <h4 className="font-medium mb-3">Ejemplo de Cálculo:</h4>
+                            <div className="space-y-2 text-sm">
+                              <p className="flex justify-between">
+                                <span className="text-muted-foreground">Costo base de 100 unidades:</span>
+                                <span className="font-medium">$1,000 MXN</span>
+                              </p>
+                              <p className="flex justify-between">
+                                <span className="text-muted-foreground">Margen aplicado:</span>
+                                <span className="font-medium text-amber-600">
+                                  {cotizadorConfig.margins.low.percentage}%
+                                </span>
+                              </p>
+                              <Separator />
+                              <p className="flex justify-between text-base">
+                                <span className="font-semibold">Precio final al cliente:</span>
+                                <span className="font-bold text-primary">
+                                  ${Math.round(1000 / (1 - cotizadorConfig.margins.low.percentage / 100)).toLocaleString()} MXN
+                                </span>
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Ganancia: ${Math.round(1000 / (1 - cotizadorConfig.margins.low.percentage / 100) - 1000).toLocaleString()} MXN
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
