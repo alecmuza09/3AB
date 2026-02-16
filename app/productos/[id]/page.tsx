@@ -589,17 +589,6 @@ export default function ProductDetailPage() {
                                 </CardContent>
                               </Card>
                             )}
-                            {spec(proveedor) !== NA && (
-                              <Card className="border-l-4 border-l-primary">
-                                <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Box className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Proveedor</Label>
-                                  </div>
-                                  <p className="text-sm text-foreground font-medium capitalize">{spec(proveedor)}</p>
-                                </CardContent>
-                              </Card>
-                            )}
                           </div>
                           
                           {/* Técnicas de personalización */}
