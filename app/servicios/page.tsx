@@ -347,12 +347,38 @@ export default function ServiciosPage() {
             {/* Main Services */}
             <section>
               <div className="text-center mb-12">
-                <Badge className="mb-4">Nuestros Servicios</Badge>
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">Soluciones Completas para tu Marca</h2>
-                <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                  Ofrecemos un servicio integral que cubre todas las necesidades de tu proyecto, desde la conceptualización
-                  hasta la entrega final.
-                </p>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="services_badge"
+                  value={t("services_badge", "Nuestros Servicios")}
+                  onSaved={refetch}
+                  label="Badge Servicios"
+                  type="input"
+                >
+                  <Badge className="mb-4">{t("services_badge", "Nuestros Servicios")}</Badge>
+                </EditableText>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="services_title"
+                  value={t("services_title", "Soluciones Completas para tu Marca")}
+                  onSaved={refetch}
+                  label="Título Servicios"
+                  type="input"
+                >
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("services_title", "Soluciones Completas para tu Marca")}</h2>
+                </EditableText>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="services_subtitle"
+                  value={t("services_subtitle", "Ofrecemos un servicio integral que cubre todas las necesidades de tu proyecto, desde la conceptualización hasta la entrega final.")}
+                  onSaved={refetch}
+                  label="Subtítulo Servicios"
+                  type="textarea"
+                >
+                  <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+                    {t("services_subtitle", "Ofrecemos un servicio integral que cubre todas las necesidades de tu proyecto, desde la conceptualización hasta la entrega final.")}
+                  </p>
+                </EditableText>
               </div>
 
               <div className="grid md:grid-cols-2 gap-6">
@@ -398,14 +424,40 @@ export default function ServiciosPage() {
             {/* Customization Techniques */}
             <section className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 rounded-3xl p-8 md:p-12">
               <div className="text-center mb-12">
-                <Badge className="mb-4">Técnicas de Personalización</Badge>
-                <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                  Tecnología de Vanguardia para Resultados Perfectos
-                </h2>
-                <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-                  Contamos con las mejores técnicas y equipos profesionales para personalizar tus productos con la máxima
-                  calidad.
-                </p>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="techniques_badge"
+                  value={t("techniques_badge", "Técnicas de Personalización")}
+                  onSaved={refetch}
+                  label="Badge Técnicas"
+                  type="input"
+                >
+                  <Badge className="mb-4">{t("techniques_badge", "Técnicas de Personalización")}</Badge>
+                </EditableText>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="techniques_title"
+                  value={t("techniques_title", "Tecnología de Vanguardia para Resultados Perfectos")}
+                  onSaved={refetch}
+                  label="Título Técnicas"
+                  type="input"
+                >
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                    {t("techniques_title", "Tecnología de Vanguardia para Resultados Perfectos")}
+                  </h2>
+                </EditableText>
+                <EditableText
+                  pageSlug="servicios"
+                  contentKey="techniques_subtitle"
+                  value={t("techniques_subtitle", "Contamos con las mejores técnicas y equipos profesionales para personalizar tus productos con la máxima calidad.")}
+                  onSaved={refetch}
+                  label="Subtítulo Técnicas"
+                  type="textarea"
+                >
+                  <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+                    {t("techniques_subtitle", "Contamos con las mejores técnicas y equipos profesionales para personalizar tus productos con la máxima calidad.")}
+                  </p>
+                </EditableText>
               </div>
 
               <Tabs defaultValue="serigrafía" className="w-full">
@@ -610,24 +662,59 @@ export default function ServiciosPage() {
               <Card className="bg-gradient-to-br from-primary to-red-700 text-white border-0 shadow-2xl">
                 <CardContent className="p-12 text-center">
                   <Sparkles className="h-16 w-16 mx-auto mb-6" />
-                  <h2 className="text-3xl md:text-4xl font-bold mb-4">¿Listo para Impulsar tu Marca?</h2>
-                  <p className="text-lg text-white/90 mb-8 max-w-2xl mx-auto">
-                    Contáctanos hoy mismo y descubre cómo podemos ayudarte a crear productos promocionales que realmente
-                    conecten con tu audiencia y fortalezcan tu presencia de marca.
-                  </p>
+                  <EditableText
+                    pageSlug="servicios"
+                    contentKey="cta_title"
+                    value={t("cta_title", "¿Listo para Impulsar tu Marca?")}
+                    onSaved={refetch}
+                    label="CTA Título"
+                    type="input"
+                  >
+                    <h2 className="text-3xl md:text-4xl font-bold mb-4">{t("cta_title", "¿Listo para Impulsar tu Marca?")}</h2>
+                  </EditableText>
+                  <EditableText
+                    pageSlug="servicios"
+                    contentKey="cta_subtitle"
+                    value={t("cta_subtitle", "Contáctanos hoy mismo y descubre cómo podemos ayudarte a crear productos promocionales que realmente conecten con tu audiencia y fortalezcan tu presencia de marca.")}
+                    onSaved={refetch}
+                    label="CTA Subtítulo"
+                    type="textarea"
+                  >
+                    <p className="text-lg text-white/90 mb-8 max-w-2xl mx-auto">
+                      {t("cta_subtitle", "Contáctanos hoy mismo y descubre cómo podemos ayudarte a crear productos promocionales que realmente conecten con tu audiencia y fortalezcan tu presencia de marca.")}
+                    </p>
+                  </EditableText>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <Button
-                      size="lg"
-                      className="bg-white text-primary hover:bg-white/90 font-semibold"
+                    <EditableText
+                      pageSlug="servicios"
+                      contentKey="cta_button1"
+                      value={t("cta_button1", "Solicitar Cotización Ahora")}
+                      onSaved={refetch}
+                      label="CTA Botón 1"
+                      type="input"
                     >
-                      <Rocket className="h-5 w-5 mr-2" />
-                      Solicitar Cotización Ahora
-                      <ArrowRight className="h-5 w-5 ml-2" />
-                    </Button>
-                    <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-                      <Clock className="h-5 w-5 mr-2" />
-                      Agendar Consulta Gratis
-                    </Button>
+                      <Button
+                        size="lg"
+                        className="bg-white text-primary hover:bg-white/90 font-semibold"
+                      >
+                        <Rocket className="h-5 w-5 mr-2" />
+                        {t("cta_button1", "Solicitar Cotización Ahora")}
+                        <ArrowRight className="h-5 w-5 ml-2" />
+                      </Button>
+                    </EditableText>
+                    <EditableText
+                      pageSlug="servicios"
+                      contentKey="cta_button2"
+                      value={t("cta_button2", "Agendar Consulta Gratis")}
+                      onSaved={refetch}
+                      label="CTA Botón 2"
+                      type="input"
+                    >
+                      <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                        <Clock className="h-5 w-5 mr-2" />
+                        {t("cta_button2", "Agendar Consulta Gratis")}
+                      </Button>
+                    </EditableText>
                   </div>
                   <div className="flex items-center justify-center gap-8 mt-8 text-sm">
                     <div className="flex items-center gap-2">

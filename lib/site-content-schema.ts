@@ -84,9 +84,43 @@ export const SITE_CONTENT_SCHEMA: PageSchema[] = [
       { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_nosotros-WznuT9mn7xdXXoRlIIIyEgsYihr7QF.png" },
       { key: "title", label: "Título principal", type: "text", default: "Nosotros" },
       { key: "subtitle", label: "Subtítulo", type: "text", default: "Somos 3A Branding, una empresa mexicana que combina creatividad, tecnología y un servicio único en el mercado para ayudarte a dar vida a tus ideas y crear conexiones que perduran." },
-      { key: "intro_p1", label: "Párrafo intro 1", type: "html", default: "Nuestro propósito es conectar a marcas, empresas y personas con quienes más les importan, recordando su valor a través de detalles significativos." },
-      { key: "intro_p2", label: "Párrafo intro 2", type: "html", default: "Con más de 10 años de experiencia en el mercado de promocionales, hemos evolucionado hasta convertirnos en la forma más fácil y accesible de comprar promocionales en México, sin dejar atrás la calidad y la atención que siempre nos han distinguido." },
-      { key: "why_title", label: "Título ¿Por qué elegirnos?", type: "text", default: "¿Por qué elegir 3A Branding?" },
+      
+      // Introducción
+      { key: "intro_p1", label: "Introducción: Párrafo 1", type: "html", default: "Nuestro propósito es conectar a marcas, empresas y personas con quienes más les importan, recordando su valor a través de detalles significativos." },
+      { key: "intro_p2", label: "Introducción: Párrafo 2", type: "html", default: "Con más de 10 años de experiencia en el mercado de promocionales, hemos evolucionado hasta convertirnos en la forma más fácil y accesible de comprar promocionales en México, sin dejar atrás la calidad y la atención que siempre nos han distinguido." },
+      
+      // Por qué elegir 3A Branding
+      { key: "why_title", label: "¿Por qué elegirnos?: Título", type: "text", default: "¿Por qué elegir 3A Branding?" },
+      { key: "why_intro", label: "¿Por qué elegirnos?: Intro", type: "text", default: "Te ofrecemos valor real en cada etapa:" },
+      { key: "why_short_title", label: "Corto plazo: Título", type: "text", default: "A corto plazo" },
+      { key: "why_short_desc", label: "Corto plazo: Descripción", type: "text", default: "Resultados inmediatos: procesos rápidos y automáticos que te permiten cotizar, personalizar y ordenar sin complicaciones." },
+      { key: "why_short_features", label: "Corto plazo: Lista (una por línea)", type: "html", default: "Menor tiempo de gestión\nMejor control del presupuesto\nMayor rotación y apoyo directo a tus ventas" },
+      { key: "why_medium_title", label: "Mediano plazo: Título", type: "text", default: "A mediano plazo" },
+      { key: "why_medium_desc", label: "Mediano plazo: Descripción", type: "text", default: "Construcción de marca: productos de calidad que generan recordación, identidad y presencia en el día a día." },
+      { key: "why_medium_features", label: "Mediano plazo: Lista (una por línea)", type: "html", default: "Mayor reconocimiento\nMensajes consistentes\nExperiencias memorables" },
+      { key: "why_long_title", label: "Largo plazo: Título", type: "text", default: "A largo plazo" },
+      { key: "why_long_desc", label: "Largo plazo: Descripción", type: "text", default: "Relaciones que perduran: los promocionales adecuados fortalecen la lealtad, el vínculo emocional y las recomendaciones genuinas." },
+      { key: "why_long_features", label: "Largo plazo: Lista (una por línea)", type: "html", default: "Más fidelidad\nMás recomendaciones\nMás conexión con las personas" },
+      
+      // Con 3A Branding obtienes
+      { key: "benefits_title", label: "Beneficios: Título", type: "text", default: "Con 3A Branding obtienes:" },
+      { key: "benefits_list", label: "Beneficios: Lista (una por línea)", type: "html", default: "Compra 100% digital con cotización y visualización automática y asistida por IA.\nFlexibilidad total, desde 1 pieza hasta miles.\nOpciones sustentables para marcas responsables.\nAtención humana cuando la necesitas, sin perder eficiencia.\nMás de 10 años de experiencia trabajando con marcas, equipos y personas en todo México." },
+      
+      // Historia
+      { key: "history_title", label: "Historia: Título", type: "text", default: "Nuestra historia" },
+      { key: "history_p1", label: "Historia: Párrafo 1", type: "html", default: "3A Branding nació en 2015 con un objetivo claro: ofrecer al mercado de artículos promocionales una propuesta basada en calidad, innovación y un servicio realmente orientado al cliente. Desde el inicio, la empresa ha trabajado para diferenciarse a través de soluciones creativas, procesos eficientes y una atención cercana que responda a las necesidades reales de marcas y organizaciones." },
+      { key: "history_p2", label: "Historia: Párrafo 2", type: "html", default: "A lo largo de estos años, 3A Branding ha consolidado relaciones con empresas de diversos sectores, creciendo junto a ellas y adaptándose a un entorno cada vez más dinámico. Esta evolución constante ha sido posible gracias a una lectura profunda del mercado y a la búsqueda permanente de nuevas formas de simplificar y mejorar la experiencia del cliente." },
+      { key: "history_p3", label: "Historia: Párrafo 3", type: "html", default: "Hoy, con más de una década de trayectoria, 3A Branding se distingue por combinar tecnología, creatividad y servicio en cada proyecto, manteniendo el mismo enfoque que los ha guiado desde el primer día: entregar soluciones de alto valor, de manera ágil, clara y accesible." },
+      
+      // Propósito
+      { key: "purpose_title", label: "Propósito: Título", type: "text", default: "Nuestro propósito" },
+      { key: "purpose_text", label: "Propósito: Texto", type: "html", default: "3A Branding nace para crear conexiones. Ayudamos a que marcas, empresas y personas comuniquen su esencia a través de soluciones que generan cercanía, emoción y recuerdo. Nuestro propósito es entender lo que cada cliente quiere transmitir y convertirlo en experiencias que conectan de verdad." },
+      
+      // Compromiso
+      { key: "commitment_title", label: "Compromiso: Título", type: "text", default: "Nuestro compromiso" },
+      { key: "commitment_p1", label: "Compromiso: Párrafo 1", type: "html", default: "En 3A Branding trabajamos con un compromiso que guía cada decisión: entregar excelencia en todo lo que hacemos. Nuestro enfoque está en ofrecer soluciones claras, confiables y alineadas a las necesidades reales de nuestros clientes, con la transparencia y cercanía que nos caracteriza." },
+      { key: "commitment_p2", label: "Compromiso: Párrafo 2", type: "html", default: "También entendemos el impacto que nuestra industria puede generar en el entorno. Como parte de nuestro compromiso, impulsamos prácticas sostenibles, promovemos alternativas responsables y buscamos continuamente opciones que permitan a nuestros clientes elegir productos con menor impacto ambiental. Nuestro objetivo es avanzar hacia un modelo de negocio que sea rentable, consciente y sostenible." },
+      { key: "commitment_p3", label: "Compromiso: Párrafo 3", type: "html", default: "En 3A Branding, nuestro compromiso es simple y firme: calidad, transparencia, confianza y responsabilidad con nuestros clientes y con el entorno." },
     ],
   },
   {
@@ -156,6 +190,7 @@ export const SITE_CONTENT_SCHEMA: PageSchema[] = [
       { key: "banner_image", label: "Imagen banner (URL)", type: "image", default: "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/3A_banners_1920x720_CATALOGOS-rG2mR0uYlwK1bFLO7gxvbiOV9hUI6a.png" },
       { key: "title", label: "Título principal", type: "text", default: "Catálogos" },
       { key: "subtitle", label: "Subtítulo", type: "text", default: "Explora nuestros catálogos y encuentra los productos perfectos para tu marca." },
+      { key: "intro_text", label: "Texto introductorio", type: "html", default: "Descarga nuestros catálogos digitales y descubre la amplia variedad de productos promocionales que tenemos para ti. Cada catálogo incluye especificaciones detalladas, opciones de personalización y precios competitivos." },
     ],
   },
   {

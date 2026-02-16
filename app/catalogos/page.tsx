@@ -201,10 +201,24 @@ export default function CatalogosPage() {
                 label="Subtítulo"
                 type="textarea"
               >
-                <p className="text-lg text-muted-foreground">
+                <p className="text-lg text-muted-foreground mb-4">
                   {t("subtitle", "Explora nuestros catálogos y encuentra los productos perfectos para tu marca.")}
                 </p>
               </EditableText>
+              {t("intro_text", "") && (
+                <EditableText
+                  pageSlug="catalogos"
+                  contentKey="intro_text"
+                  value={t("intro_text", "Descarga nuestros catálogos digitales y descubre la amplia variedad de productos promocionales que tenemos para ti. Cada catálogo incluye especificaciones detalladas, opciones de personalización y precios competitivos.")}
+                  onSaved={refetch}
+                  label="Texto Introductorio"
+                  type="textarea"
+                >
+                  <p className="text-base text-muted-foreground">
+                    {t("intro_text", "Descarga nuestros catálogos digitales y descubre la amplia variedad de productos promocionales que tenemos para ti. Cada catálogo incluye especificaciones detalladas, opciones de personalización y precios competitivos.")}
+                  </p>
+                </EditableText>
+              )}
             </div>
 
             {/* Catalogs Grid */}
