@@ -659,7 +659,7 @@ export default function AdminPage() {
         : ""
 
     const idsToApply = applyToCategory
-      ? products.filter((p) => p.category === applyToCategory).map((p) => p.id)
+      ? products.filter((p) => p.category?.name === applyToCategory).map((p) => p.id)
       : selectedProductIds
 
     if (idsToApply.length === 0) {
@@ -671,17 +671,26 @@ export default function AdminPage() {
       setSelectedProductIds(idsToApply)
     }
 
+    let totalUpdated = 0
     setProductDrafts((prev) => {
       const next = { ...prev }
       for (const id of idsToApply) {
         const product = products.find((p) => p.id === id)
         if (!product) continue
+        
+        // IMPORTANTE: Siempre aplicar el margen sobre el precio ORIGINAL del producto,
+        // no sobre el draft actual (para evitar aplicación compuesta de márgenes)
+        const basePrice = product.price
+        const newPrice = Math.max(0, Number((basePrice * (1 + margin / 100)).toFixed(2)))
+        
         const current = next[id] || {}
-        const base = typeof current.price === "number" ? current.price : product.price
-        next[id] = { ...current, price: Math.max(0, Number((base * (1 + margin / 100)).toFixed(2))) }
+        next[id] = { ...current, price: newPrice }
+        totalUpdated++
       }
       return next
     })
+    
+    alert(`✅ Margen del ${margin}% aplicado a ${totalUpdated} producto(s).\n\nAhora haz clic en "Guardar seleccionados" para aplicar los cambios permanentemente.`)
   }
 
   const applyBulkEditsToSelection = () => {
@@ -1553,49 +1562,70 @@ export default function AdminPage() {
             {/* Products Management - Enhanced */}
             <TabsContent value="products" className="space-y-6">
               {/* Configuración masiva de precios con margen de ganancia */}
-              <Card className="border-primary/20 bg-muted/30">
+              <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <DollarSign className="h-5 w-5 text-primary" />
                     Configuración masiva de precios
                   </CardTitle>
                   <CardDescription>
-                    Aumenta los precios aplicando un margen de ganancia (%) a la selección actual o a todos los productos de una categoría. Luego usa &quot;Guardar seleccionados&quot; para aplicar los cambios.
+                    Aumenta los precios aplicando un margen de ganancia (%) a la selección actual o a todos los productos de una categoría. Luego usa &quot;Guardar seleccionados&quot; para aplicar los cambios permanentemente.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-wrap items-end gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="bulkMarginPercent">Margen de ganancia (%)</Label>
-                    <Input
-                      id="bulkMarginPercent"
-                      type="number"
-                      min={1}
-                      step={0.5}
-                      placeholder="Ej: 25"
-                      value={bulkMarginPercent}
-                      onChange={(e) => setBulkMarginPercent(e.target.value)}
-                      className="w-32"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Aplicar a</Label>
-                    <Select value={bulkMarginApplyToCategory} onValueChange={setBulkMarginApplyToCategory}>
-                      <SelectTrigger className="w-56">
-                        <SelectValue placeholder="Selección actual" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="selection">Selección actual ({selectedProductIds.length} productos)</SelectItem>
-                        {categoryOptions.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            Todos de: {cat}
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-end gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="bulkMarginPercent">Margen de ganancia (%)</Label>
+                      <Input
+                        id="bulkMarginPercent"
+                        type="number"
+                        min={0.01}
+                        step={0.5}
+                        placeholder="Ej: 25"
+                        value={bulkMarginPercent}
+                        onChange={(e) => setBulkMarginPercent(e.target.value)}
+                        className="w-32"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Aplicar a</Label>
+                      <Select value={bulkMarginApplyToCategory} onValueChange={setBulkMarginApplyToCategory}>
+                        <SelectTrigger className="w-56">
+                          <SelectValue placeholder="Selección actual" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="selection">
+                            Selección actual ({selectedProductIds.length} {selectedProductIds.length === 1 ? 'producto' : 'productos'})
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          {categoryOptions.map((cat) => (
+                            <SelectItem key={cat} value={cat}>
+                              Todos de: {cat}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      onClick={applyBulkMargin}
+                      className="bg-primary hover:bg-primary/90"
+                      disabled={!bulkMarginPercent || Number(bulkMarginPercent) <= 0}
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Aplicar margen a precios
+                    </Button>
                   </div>
-                  <Button onClick={applyBulkMargin}>
-                    Aplicar margen a precios
-                  </Button>
+                  
+                  {/* Información de ayuda */}
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
+                    <p className="font-medium text-blue-900 mb-1">💡 Cómo funciona:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-blue-800">
+                      <li>Ingresa el margen de ganancia (ej: 25 para 25%)</li>
+                      <li>Elige si aplicar a productos seleccionados o a una categoría completa</li>
+                      <li>Haz clic en &quot;Aplicar margen a precios&quot;</li>
+                      <li>Verifica los nuevos precios en la tabla (con fondo amarillo)</li>
+                      <li>Haz clic en &quot;Guardar seleccionados&quot; más abajo para guardar definitivamente</li>
+                    </ol>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -2026,8 +2056,13 @@ export default function AdminPage() {
                             const relatedCount = Array.isArray(attrs.related_product_ids) ? attrs.related_product_ids.length : 0
                             const crossSellCount = Array.isArray(attrs.cross_sell_product_ids) ? attrs.cross_sell_product_ids.length : 0
 
+                            const hasPendingChanges = !!productDrafts[product.id]
+                            
                             return (
-                              <TableRow key={product.id}>
+                              <TableRow 
+                                key={product.id}
+                                className={hasPendingChanges ? "bg-yellow-50 border-l-4 border-l-yellow-500" : ""}
+                              >
                                 <TableCell>
                                   <input
                                     type="checkbox"
@@ -2054,12 +2089,19 @@ export default function AdminPage() {
                                 </TableCell>
                                 <TableCell>{product.category}</TableCell>
                                 <TableCell className="w-40">
-                                  <Input
-                                    type="number"
-                                    value={Number.isFinite(priceValue) ? String(priceValue) : ""}
-                                    onChange={(e) => setDraft(product.id, { price: Number(e.target.value || 0) })}
-                                    className="h-8"
-                                  />
+                                  <div className="space-y-1">
+                                    <Input
+                                      type="number"
+                                      value={Number.isFinite(priceValue) ? String(priceValue) : ""}
+                                      onChange={(e) => setDraft(product.id, { price: Number(e.target.value || 0) })}
+                                      className={`h-8 ${hasPendingChanges ? "border-yellow-500 font-semibold" : ""}`}
+                                    />
+                                    {hasPendingChanges && productDrafts[product.id]?.price !== product.price && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Antes: ${product.price.toFixed(2)}
+                                      </p>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell className="w-28">
                                   <Input
