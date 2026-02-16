@@ -908,51 +908,52 @@ export default function AdminPage() {
   const loadOrders = async () => {
     try {
       setLoadingOrders(true)
-      const supabase = getSupabaseClient()
-      if (!supabase) {
-        console.error("Supabase no está disponible")
+      
+      // Usar la API en lugar de consultar directamente Supabase
+      // La API usa service_role_key y puede ver todos los pedidos
+      const response = await fetch('/api/orders')
+      
+      if (!response.ok) {
+        console.error("Error loading orders - Status:", response.status)
+        const result = await response.json().catch(() => ({ error: 'Error desconocido' }))
+        console.error("Error details:", result.error)
+        setOrders([])
         return
       }
 
-      const { data: ordersData, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100)
+      const result = await response.json()
+      const ordersData = Array.isArray(result.orders) ? result.orders : []
 
-      if (error) {
-        console.error("Error loading orders:", error)
-        return
-      }
-
-      // Obtener conteo de items para cada pedido
-      const orderIds = (ordersData || []).map((o: any) => o.id)
-      const { data: orderItemsData } = await supabase
-        .from("order_items")
-        .select("order_id")
-        .in("order_id", orderIds)
-
-      // Contar items por pedido
-      const itemsCountByOrder: Record<string, number> = {}
-      ;(orderItemsData || []).forEach((item: any) => {
-        itemsCountByOrder[item.order_id] = (itemsCountByOrder[item.order_id] || 0) + 1
-      })
+      console.log('✅ Pedidos cargados desde API:', ordersData.length)
 
       // Transformar datos para el formato esperado
-      const formattedOrders = (ordersData || []).map((order: any) => ({
-        id: order.order_number || order.id,
-        customer: (order.contact_info as any)?.contactName || "Cliente",
-        email: (order.contact_info as any)?.email || "",
-        total: Number(order.total || 0),
-        status: order.status,
-        date: order.created_at ? new Date(order.created_at).toISOString().split("T")[0] : "",
-        items: itemsCountByOrder[order.id] || 0,
-        orderData: order,
-      }))
+      const formattedOrders = ordersData.map((order: any) => {
+        // Contar items del pedido
+        const itemsCount = Array.isArray(order.order_items) ? order.order_items.length : 0
 
+        return {
+          id: order.order_number || order.id,
+          orderId: order.id, // ID real de la base de datos
+          customer: order.contact_info?.contactName || "Cliente Anónimo",
+          email: order.contact_info?.email || "Sin email",
+          phone: order.contact_info?.phone || "",
+          company: order.contact_info?.company || "",
+          total: Number(order.total || 0),
+          subtotal: Number(order.subtotal || 0),
+          tax: Number(order.tax || 0),
+          shippingCost: Number(order.shipping_cost || 0),
+          status: order.status || "pending",
+          date: order.created_at ? new Date(order.created_at).toISOString().split("T")[0] : "",
+          items: itemsCount,
+          orderData: order,
+        }
+      })
+
+      console.log('✅ Pedidos formateados:', formattedOrders.length)
       setOrders(formattedOrders)
     } catch (error) {
-      console.error("Error loading orders:", error)
+      console.error("❌ Error loading orders:", error)
+      setOrders([])
     } finally {
       setLoadingOrders(false)
     }
