@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useSiteContent } from "@/hooks/use-site-content"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
@@ -9,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { useOrders } from "@/contexts/orders-context"
+import { useAuth } from "@/contexts/auth-context"
+import { AuthDialog } from "@/components/auth/auth-dialog"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import {
@@ -21,6 +24,9 @@ import {
   Eye,
   Package,
   CheckCircle,
+  UserPlus,
+  LogIn,
+  Lock,
 } from "lucide-react"
 
 const statusColors: Record<string, string> = {
@@ -44,8 +50,10 @@ const formatDate = (iso: string) =>
 export default function PedidosPage() {
   const router = useRouter()
   const { orders } = useOrders()
+  const { user, loading } = useAuth()
   const { content } = useSiteContent("pedidos")
   const t = (key: string, fallback: string) => content[key] ?? fallback
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,12 +73,87 @@ export default function PedidosPage() {
                 {t("subtitle", "Consulta el estado de tus proyectos, descargas y documentación.")}
               </p>
             </div>
-            <Badge variant="secondary" className="px-4 py-2">
-              Total pedidos: {orders.length}
-            </Badge>
+            {user && (
+              <Badge variant="secondary" className="px-4 py-2">
+                Total pedidos: {orders.length}
+              </Badge>
+            )}
           </div>
 
-          {orders.length === 0 ? (
+          {/* Mostrar mensaje de registro si no está autenticado */}
+          {!loading && !user ? (
+            <Card className="text-center py-16">
+              <CardContent className="space-y-6">
+                <div className="flex justify-center">
+                  <div className="relative">
+                    <ShoppingBag className="h-20 w-20 text-muted-foreground" />
+                    <Lock className="h-8 w-8 text-primary absolute -bottom-1 -right-1 bg-background rounded-full p-1" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-semibold">Crea una cuenta para ver tu historial</h2>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Registrarte te permite:
+                  </p>
+                  <ul className="text-muted-foreground max-w-md mx-auto space-y-2 text-left">
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                      Ver el estado de todos tus pedidos
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                      Acceder a tu historial de compras
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                      Reordenar productos fácilmente
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                      Descargar documentos y comprobantes
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-primary" />
+                      Guardar direcciones de envío
+                    </li>
+                  </ul>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+                  <Button 
+                    size="lg"
+                    onClick={() => setAuthDialogOpen(true)}
+                    className="bg-[#DC2626] hover:bg-[#B91C1C]"
+                  >
+                    <UserPlus className="h-5 w-5 mr-2" />
+                    Crear Cuenta Gratis
+                  </Button>
+                  <Button 
+                    size="lg"
+                    variant="outline"
+                    onClick={() => setAuthDialogOpen(true)}
+                  >
+                    <LogIn className="h-5 w-5 mr-2" />
+                    Ya tengo cuenta
+                  </Button>
+                </div>
+                <div className="pt-6 border-t">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    ¿Hiciste un pedido recientemente?
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Crea una cuenta con el mismo email que usaste en tu pedido y podrás verlo aquí.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : loading ? (
+            <Card className="text-center py-16">
+              <CardContent className="space-y-4">
+                <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto animate-pulse" />
+                <p className="text-muted-foreground">Cargando...</p>
+              </CardContent>
+            </Card>
+          ) : orders.length === 0 ? (
             <Card className="text-center py-16">
               <CardContent className="space-y-4">
                 <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto" />
@@ -215,6 +298,9 @@ export default function PedidosPage() {
         </div>
       </main>
       <Footer />
+      
+      {/* Dialog de autenticación */}
+      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </div>
   )
 }
