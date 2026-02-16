@@ -138,12 +138,6 @@ export default function AdminPage() {
   const [cotizadorConfig, setCotizadorConfig] = useState<CotizadorConfig>(defaultCotizadorConfig)
   const [loadingCotizadorConfig, setLoadingCotizadorConfig] = useState(false)
   const [savingCotizadorConfig, setSavingCotizadorConfig] = useState(false)
-
-  // Estados para gestión de usuarios
-  const [users, setUsers] = useState<any[]>([])
-  const [loadingUsers, setLoadingUsers] = useState(false)
-  const [editingUser, setEditingUser] = useState<any>(null)
-  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false)
   
   // Leer sección desde URL si existe
   useEffect(() => {
@@ -532,62 +526,10 @@ export default function AdminPage() {
     }))
   }
 
-  // Funciones para gestión de usuarios
-  const loadUsers = async () => {
-    try {
-      setLoadingUsers(true)
-      const supabase = getSupabaseClient()
-      if (!supabase) return
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error loading users:', error)
-        return
-      }
-
-      setUsers(data || [])
-    } catch (error) {
-      console.error('Error loading users:', error)
-    } finally {
-      setLoadingUsers(false)
-    }
-  }
-
+  // Función para editar usuario (abrir dialog)
   const handleEditUser = (user: any) => {
     setEditingUser(user)
     setEditUserDialogOpen(true)
-  }
-
-  const handleUpdateUserRole = async (userId: string, newRole: 'customer' | 'admin' | 'staff') => {
-    try {
-      const supabase = getSupabaseClient()
-      if (!supabase) {
-        alert('Supabase no está disponible')
-        return
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole, updated_at: new Date().toISOString() })
-        .eq('id', userId)
-
-      if (error) {
-        console.error('Error updating user role:', error)
-        alert('Error al actualizar rol del usuario')
-        return
-      }
-
-      alert('✅ Rol de usuario actualizado exitosamente')
-      setEditUserDialogOpen(false)
-      await loadUsers()
-    } catch (error: any) {
-      console.error('Error updating user role:', error)
-      alert(`Error: ${error.message}`)
-    }
   }
 
   const handleUpdateUserPassword = async () => {
@@ -737,49 +679,6 @@ export default function AdminPage() {
       loadUsers()
     }
   }, [activeSection])
-
-  // Estado y carga del configurador de la calculadora de precios
-  const [cotizadorConfig, setCotizadorConfig] = useState<CotizadorConfig>(defaultCotizadorConfig)
-  const [loadingCotizadorConfig, setLoadingCotizadorConfig] = useState(false)
-  const [savingCotizadorConfig, setSavingCotizadorConfig] = useState(false)
-  useEffect(() => {
-    if (activeSection !== "settings") return
-    let cancelled = false
-    setLoadingCotizadorConfig(true)
-    fetch("/api/cotizador-config")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled && data?.margins && data?.extras) setCotizadorConfig(data)
-      })
-      .finally(() => { if (!cancelled) setLoadingCotizadorConfig(false) })
-    return () => { cancelled = true }
-  }, [activeSection])
-  const handleSaveCotizadorConfig = async () => {
-    const supabase = getSupabaseClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) {
-      alert("Inicia sesión para guardar la configuración.")
-      return
-    }
-    setSavingCotizadorConfig(true)
-    try {
-      const res = await fetch("/api/cotizador-config", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(cotizadorConfig),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Error al guardar")
-      alert("Configuración de la calculadora guardada correctamente.")
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Error al guardar la configuración.")
-    } finally {
-      setSavingCotizadorConfig(false)
-    }
-  }
 
   const [newProduct, setNewProduct] = useState({
     name: "",
@@ -1524,6 +1423,7 @@ export default function AdminPage() {
   const [usersError, setUsersError] = useState<string | null>(null)
   const [creatingUser, setCreatingUser] = useState(false)
   const [editingUser, setEditingUser] = useState<UserWithStats | null>(null)
+  const [editUserDialogOpen, setEditUserDialogOpen] = useState(false)
   const [editUserPassword, setEditUserPassword] = useState("")
   const [editUserPasswordConfirm, setEditUserPasswordConfirm] = useState("")
   const [updatingPassword, setUpdatingPassword] = useState(false)
@@ -4896,7 +4796,7 @@ export default function AdminPage() {
                             Restaurar valores por defecto
                           </Button>
                           <Button
-                            onClick={handleSaveCotizadorConfig}
+                            onClick={saveCotizadorConfig}
                             disabled={savingCotizadorConfig}
                           >
                             {savingCotizadorConfig ? "Guardando…" : "Guardar configuración"}
