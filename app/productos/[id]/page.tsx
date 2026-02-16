@@ -466,6 +466,11 @@ export default function ProductDetailPage() {
                   const attrs = (product as any).attributes || {}
                   const dims = (product as any).dimensions
                   const weight = (product as any).weight
+                  
+                  // Medidas del producto (pueden venir en diferentes formatos)
+                  const alto = attrs.alto || dims?.height
+                  const ancho = attrs.ancho || dims?.width  
+                  const largo = attrs.largo || dims?.length
                   const medidasFromAttrs = attrs.medidas
                   const medidasFromDims = dims && typeof dims === "object" && [dims.length, dims.width, dims.height].filter(Boolean).length
                     ? `${[dims.length, dims.width, dims.height].filter(Boolean).join(" × ")} cm`
@@ -482,8 +487,16 @@ export default function ProductDetailPage() {
                   const colorsRaw = attrs.color || attrs.colors || attrs.available_colors
                   const colors = Array.isArray(colorsRaw) ? colorsRaw : colorsRaw ? [colorsRaw] : []
                   
+                  // Información de empaque (box_info)
+                  const boxInfo = (product as any).box_info || {}
+                  const piezasPorCaja = boxInfo.pieces_per_box || attrs.pieces_per_box || attrs.piezas_por_caja
+                  const pesoCaja = boxInfo.weight_kg || attrs.box_weight || attrs.peso_caja
+                  const medidasCaja = boxInfo.dimensions 
+                    ? `${boxInfo.dimensions.length_cm} × ${boxInfo.dimensions.width_cm} × ${boxInfo.dimensions.height_cm} cm`
+                    : attrs.box_dimensions || attrs.medidas_caja
+                  
                   // Especificaciones adicionales (cualquier otro atributo)
-                  const excludeKeys = ['medidas', 'material', 'area_impresion', 'areaImpresion', 'capacidad', 'printing_technique', 'color', 'colors', 'available_colors', 'proveedor', 'supplier', 'related_product_ids']
+                  const excludeKeys = ['medidas', 'material', 'area_impresion', 'areaImpresion', 'capacidad', 'printing_technique', 'color', 'colors', 'available_colors', 'proveedor', 'supplier', 'related_product_ids', 'pieces_per_box', 'piezas_por_caja', 'box_weight', 'peso_caja', 'box_dimensions', 'medidas_caja']
                   const additionalSpecs = Object.entries(attrs)
                     .filter(([key, value]) => !excludeKeys.includes(key) && value != null && String(value).trim() !== "")
                     .map(([key, value]) => ({
@@ -545,14 +558,34 @@ export default function ProductDetailPage() {
                                 </CardContent>
                               </Card>
                             )}
-                            {spec(medidas) !== NA && (
+                            {(spec(medidas) !== NA || alto || ancho || largo) && (
                               <Card className="border-l-4 border-l-primary">
                                 <CardContent className="p-4">
-                                  <div className="flex items-center gap-2 mb-1">
+                                  <div className="flex items-center gap-2 mb-2">
                                     <Ruler className="h-5 w-5 text-primary" />
-                                    <Label className="text-sm font-semibold">Medidas</Label>
+                                    <Label className="text-sm font-semibold">Medidas del producto</Label>
                                   </div>
-                                  <p className="text-sm text-foreground font-medium">{spec(medidas)}</p>
+                                  {medidas ? (
+                                    <p className="text-sm text-foreground font-medium">{medidas}</p>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {alto && (
+                                        <p className="text-sm text-foreground">
+                                          <span className="text-muted-foreground">Alto:</span> <span className="font-medium">{alto} cm</span>
+                                        </p>
+                                      )}
+                                      {ancho && (
+                                        <p className="text-sm text-foreground">
+                                          <span className="text-muted-foreground">Ancho:</span> <span className="font-medium">{ancho} cm</span>
+                                        </p>
+                                      )}
+                                      {largo && (
+                                        <p className="text-sm text-foreground">
+                                          <span className="text-muted-foreground">Largo:</span> <span className="font-medium">{largo} cm</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
                                 </CardContent>
                               </Card>
                             )}
@@ -608,6 +641,44 @@ export default function ProductDetailPage() {
                                 </div>
                               </CardContent>
                             </Card>
+                          )}
+                          
+                          {/* Información de empaque */}
+                          {(piezasPorCaja || pesoCaja || medidasCaja) && (
+                            <div className="pt-2">
+                              <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
+                                <Box className="h-5 w-5 text-primary" />
+                                Información de empaque
+                              </h3>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {piezasPorCaja && (
+                                  <Card className="border-l-4 border-l-blue-500">
+                                    <CardContent className="p-4">
+                                      <Label className="text-xs text-muted-foreground">Piezas por caja</Label>
+                                      <p className="text-lg font-bold text-foreground mt-1">
+                                        {piezasPorCaja} {piezasPorCaja === 1 ? 'pieza' : 'piezas'}
+                                      </p>
+                                    </CardContent>
+                                  </Card>
+                                )}
+                                {medidasCaja && (
+                                  <Card className="border-l-4 border-l-blue-500">
+                                    <CardContent className="p-4">
+                                      <Label className="text-xs text-muted-foreground">Medidas de caja</Label>
+                                      <p className="text-sm font-bold text-foreground mt-1">{medidasCaja}</p>
+                                    </CardContent>
+                                  </Card>
+                                )}
+                                {pesoCaja && (
+                                  <Card className="border-l-4 border-l-blue-500">
+                                    <CardContent className="p-4">
+                                      <Label className="text-xs text-muted-foreground">Peso de caja</Label>
+                                      <p className="text-lg font-bold text-foreground mt-1">{pesoCaja} kg</p>
+                                    </CardContent>
+                                  </Card>
+                                )}
+                              </div>
+                            </div>
                           )}
                           
                           {/* Especificaciones adicionales */}
