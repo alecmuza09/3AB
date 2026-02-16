@@ -18,6 +18,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Switch } from "@/components/ui/switch"
 import { useCart } from "@/contexts/cart-context"
 import { useOrders } from "@/contexts/orders-context"
+import { useAuth } from "@/contexts/auth-context"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -64,6 +65,7 @@ function CheckoutContent() {
 
   const { items, getTotal, clearCart } = useCart()
   const { addOrder } = useOrders()
+  const { user } = useAuth()
   const [step, setStep] = useState(1)
   const [shippingMethod, setShippingMethod] = useState("standard")
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true)
@@ -207,7 +209,17 @@ function CheckoutContent() {
 
       clearCart()
       setIsSubmitting(false)
-      toast.success("¡Gracias! Tu pedido ha sido registrado. En breve te contactamos.")
+      
+      // Mensaje diferente según si está autenticado o no
+      if (!user) {
+        toast.success("¡Gracias! Tu pedido ha sido registrado.", {
+          description: "Crea una cuenta con este email para ver el estado de tu pedido.",
+          duration: 6000,
+        })
+      } else {
+        toast.success("¡Gracias! Tu pedido ha sido registrado. En breve te contactamos.")
+      }
+      
       router.push("/pedidos")
     } catch (error) {
       console.error('❌ Error creating order:', error)
