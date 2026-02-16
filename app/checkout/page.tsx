@@ -169,6 +169,12 @@ function CheckoutContent() {
     }
 
     try {
+      console.log('📦 Enviando pedido a la API...', {
+        orderId,
+        items: orderData.items.length,
+        total: orderData.total
+      })
+
       // Guardar en la base de datos (Supabase)
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -178,11 +184,23 @@ function CheckoutContent() {
         body: JSON.stringify(orderData),
       })
 
+      console.log('📡 Respuesta de API:', response.status, response.statusText)
+
       const result = await response.json()
+      console.log('📄 Resultado:', result)
 
       if (!response.ok) {
-        throw new Error(result.error || 'Error al crear el pedido')
+        console.error('❌ Error de API:', result)
+        
+        // Mostrar mensaje de error más específico
+        const errorMessage = result.hint 
+          ? `${result.error}. ${result.hint}` 
+          : result.error || 'Error al crear el pedido'
+        
+        throw new Error(errorMessage)
       }
+
+      console.log('✅ Pedido creado exitosamente:', result.order?.order_number)
 
       // También guardar en localStorage para que el usuario lo vea en /pedidos
       addOrder(orderData)
@@ -192,9 +210,23 @@ function CheckoutContent() {
       toast.success("¡Gracias! Tu pedido ha sido registrado. En breve te contactamos.")
       router.push("/pedidos")
     } catch (error) {
-      console.error('Error creating order:', error)
+      console.error('❌ Error creating order:', error)
       setIsSubmitting(false)
-      toast.error("Hubo un problema al procesar tu pedido. Por favor intenta de nuevo o contáctanos.")
+      
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
+      
+      // Si el error contiene información técnica, mostrar solo la parte relevante
+      if (errorMessage.includes('tabla') || errorMessage.includes('table')) {
+        toast.error("Error de configuración. Por favor contacta al administrador.", {
+          description: "Las tablas de pedidos no están configuradas correctamente."
+        })
+      } else {
+        toast.error("Hubo un problema al procesar tu pedido.", {
+          description: errorMessage.length > 100 
+            ? "Por favor intenta de nuevo o contáctanos por WhatsApp." 
+            : errorMessage
+        })
+      }
     }
   }
 
