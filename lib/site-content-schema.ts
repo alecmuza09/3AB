@@ -29,7 +29,7 @@ export const SITE_CONTENT_SCHEMA: PageSchema[] = [
       { key: "hero_title_line1", label: "Título hero (línea 1)", type: "text", default: "La forma más fácil de comprar" },
       { key: "hero_title_line2", label: "Título hero (línea 2)", type: "text", default: "promocionales" },
       { key: "hero_subtitle", label: "Subtítulo hero", type: "text", default: "Conectamos marcas, personas y momentos. Cotiza, personaliza y ordena de manera automática con la calidad y el precio que necesitas." },
-      { key: "hero_image", label: "Imagen principal hero (URL)", type: "image", default: "/placeholder.svg?height=500&width=600", placeholder: "https://..." },
+      { key: "hero_image", label: "Imagen principal hero (URL)", type: "image", default: "/demo-promocionales.png", placeholder: "https://..." },
       { key: "hero_cta_primary", label: "Texto botón principal", type: "text", default: "Explorar productos" },
       { key: "hero_cta_secondary", label: "Texto botón secundario", type: "text", default: "Personalizar ahora" },
       { key: "hero_social_proof", label: "Prueba social (ej. empresas)", type: "text", default: "1K 2K 3K 4K +4,000 empresas confían en nosotros" },
