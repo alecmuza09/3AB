@@ -132,14 +132,14 @@ export function HeroSection() {
               <EditableImage
                 pageSlug="home"
                 imageKey="hero_image"
-                currentImageUrl={t("hero_image", "/placeholder.svg?height=500&width=600")}
+                currentImageUrl={t("hero_image", "/demo-promocionales.png")}
                 onSaved={refetch}
                 imageLabel="Imagen Hero"
                 altText="Productos promocionales"
               >
                 <div className="relative w-full h-[500px] bg-gray-200 rounded-lg overflow-hidden">
                   <Image
-                    src={t("hero_image", "/placeholder.svg?height=500&width=600")}
+                    src={t("hero_image", "/demo-promocionales.png")}
                     alt="Productos promocionales"
                     fill
                     className="object-cover"
