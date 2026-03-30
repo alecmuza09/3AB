@@ -427,6 +427,8 @@ export default function AsistentePage() {
   const [isTyping, setIsTyping] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
+  const isFirstMount = useRef(true)
 
   useEffect(() => {
     setIsMounted(true)
@@ -460,7 +462,15 @@ export default function AsistentePage() {
   }, [supabase])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    // Saltarse el scroll en la carga inicial para no bajar la página al footer
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
+    const container = messagesContainerRef.current
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" })
+    }
   }, [messages, isTyping])
 
   const formatTimestamp = (value: string) =>
@@ -823,7 +833,7 @@ export default function AsistentePage() {
               </CardTitle>
             </CardHeader>
 
-            <CardContent className="flex-1 overflow-y-auto p-4 space-y-4">
+            <CardContent ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[80%] ${message.sender === "user" ? "order-2" : "order-1"}`}>
