@@ -26,7 +26,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   
-  // Crear cliente de Supabase de forma segura solo en el cliente
   const supabase = useMemo(() => {
     if (typeof window === "undefined") return null
     try {
@@ -39,7 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAdmin = profile?.role === "admin" || user?.email === "alecmuza09@gmail.com" || user?.email === "alec.muza@capacit.io"
 
-  // Cargar perfil del usuario
   const loadProfile = async (userId: string) => {
     if (!supabase) return
     
@@ -51,24 +49,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single()
 
       if (error) {
-        // Si no existe la fila en profiles, crearla como customer
-        // Solo si el error es definitivamente "no existe" (PGRST116)
         if (error.code === "PGRST116") {
+          // Perfil no existe — verificar antes de crear para no sobreescribir un admin
+          const { data: existingProfile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", userId)
+            .maybeSingle()
+
+          if (existingProfile) {
+            setProfile(existingProfile)
+            return
+          }
+
           const { data: userData } = await supabase.auth.getUser()
           if (userData.user) {
-            // Verificar una segunda vez antes de insertar para evitar
-            // crear un perfil customer sobre uno admin existente
-            const { data: existingProfile } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userId)
-              .maybeSingle()
-
-            if (existingProfile) {
-              setProfile(existingProfile)
-              return
-            }
-
             const { error: insertError } = await supabase
               .from("profiles")
               .insert({
@@ -89,17 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           console.error("Error loading profile:", error)
-          // Reintentar una vez después de 1.5s para cubrir errores de red transitorios
-          // y evitar que profile quede null indefinidamente (lo que causa spinner infinito)
-          setTimeout(async () => {
-            if (!supabase) return
-            const { data: retryData } = await supabase
-              .from("profiles")
-              .select("*")
-              .eq("id", userId)
-              .maybeSingle()
-            if (retryData) setProfile(retryData)
-          }, 1500)
         }
         return
       }
@@ -110,16 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Refrescar perfil
   const refreshProfile = async () => {
     if (user) {
       await loadProfile(user.id)
     }
   }
 
-  // Inicializar autenticación
-  // REGLA: `loading` solo lo controla getSession(). onAuthStateChange
-  // nunca toca `loading` para evitar que resets competitivos rompan AdminGuard.
   useEffect(() => {
     if (!supabase) {
       setLoading(false)
@@ -133,16 +113,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!cancelled) setLoading(false)
     }, AUTH_TIMEOUT_MS)
 
-    // getSession() es la fuente de verdad para la carga inicial
+    // getSession carga la sesión inicial y espera el perfil antes de
+    // quitar el spinner, así AdminGuard nunca ve loading=false con isAdmin=false
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
         if (cancelled) return
         clearTimeout(timeoutId)
+        setUser(session?.user ?? null)
         if (session?.user) {
-          setUser(session.user)
           await loadProfile(session.user.id)
-        } else {
-          setUser(null)
         }
         if (!cancelled) setLoading(false)
       })
@@ -159,32 +138,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return
 
-      // INITIAL_SESSION ya lo maneja getSession() arriba.
-      // Si lo procesamos aquí también podría pisar el estado con una sesión
-      // todavía-sin-refrescar y poner user=null antes de que getSession() termine.
-      if (event === 'INITIAL_SESSION') return
+      // INITIAL_SESSION ya lo maneja getSession() — ignorarlo aquí evita que
+      // una sesión sin refrescar pise el estado y deje user=null con loading=false
+      if (event === "INITIAL_SESSION") return
 
-      if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setProfile(null)
-        return
-      }
-
-      // TOKEN_REFRESHED: solo actualizar el objeto user (nuevo access token),
-      // no recargar profile para evitar sobrescribir rol admin con errores de red.
-      if (event === 'TOKEN_REFRESHED') {
+      // TOKEN_REFRESHED solo renueva el token; el perfil no cambia
+      if (event === "TOKEN_REFRESHED") {
         if (session?.user) setUser(session.user)
         return
       }
 
-      // SIGNED_IN, USER_UPDATED y otros: actualizar user y recargar perfil
+      setUser(session?.user ?? null)
       if (session?.user) {
-        setUser(session.user)
         await loadProfile(session.user.id)
       } else {
-        setUser(null)
         setProfile(null)
       }
+      if (!cancelled) setLoading(false)
     })
 
     return () => {
@@ -207,10 +177,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message }
       }
 
-      // Setear user y cargar perfil directamente aquí para que el estado
-      // sea correcto antes de que se cierre el modal y se navegue a /admin.
-      // onAuthStateChange también lo hará (SIGNED_IN), pero ese camino tiene
-      // un hueco de ~300ms donde user!=null y profile=null (isAdmin=false).
       if (data.user) {
         setUser(data.user)
         await loadProfile(data.user.id)
@@ -233,9 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
         options: {
           emailRedirectTo: siteUrl,
-          data: {
-            full_name: fullName,
-          },
+          data: { full_name: fullName },
         },
       })
 
@@ -244,15 +208,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.user) {
-        // Crear perfil automáticamente como cliente
         await supabase.from("profiles").insert({
           id: data.user.id,
           email: data.user.email || "",
           full_name: fullName || null,
           phone: phone || null,
-          role: "customer", // Siempre se crea como cliente
+          role: "customer",
         })
-
         await loadProfile(data.user.id)
       }
 
@@ -263,23 +225,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    if (!supabase) {
-      // Sin cliente, limpiar estado manualmente como fallback
-      setUser(null)
-      setProfile(null)
-      return
-    }
+    setUser(null)
+    setProfile(null)
+    if (!supabase) return
     try {
       await supabase.auth.signOut({ scope: "local" })
-      // El evento SIGNED_OUT de onAuthStateChange limpia user y profile.
-      // No hacer setUser(null) aquí para evitar que AdminGuard redirija
-      // antes de que window.location.href ejecute la navegación correcta.
     } catch (e) {
       console.error("Error en signOut de Supabase:", e)
-      // Si falló el signOut, limpiar estado manualmente para que la UI
-      // no muestre al usuario como logueado
-      setUser(null)
-      setProfile(null)
     }
   }
 
@@ -329,5 +281,3 @@ export function useAuth() {
   }
   return context
 }
-
-

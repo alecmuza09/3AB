@@ -10,31 +10,26 @@ import { Button } from "@/components/ui/button"
 const LOADING_MAX_MS = 12000
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { user, profile, isAdmin, loading } = useAuth()
+  const { user, isAdmin, loading } = useAuth()
   const router = useRouter()
-  const [timedOut, setTimedOut] = useState(false)
-
-  // "Resuelto" = sabemos el estado completo: la sesión cargó Y
-  // (no hay usuario, o el perfil ya llegó).
-  const resolved = !loading && (user === null || profile !== null)
-
-  // Un solo timeout basado en `resolved`: si no resuelve en 12s, mostramos el mensaje.
-  useEffect(() => {
-    if (resolved) {
-      setTimedOut(false)
-      return
-    }
-    const t = setTimeout(() => setTimedOut(true), LOADING_MAX_MS)
-    return () => clearTimeout(t)
-  }, [resolved])
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
 
   useEffect(() => {
-    if (resolved && (!user || !isAdmin)) {
+    if (!loading && (!user || !isAdmin)) {
       router.push("/")
     }
-  }, [resolved, user, isAdmin, router])
+  }, [user, isAdmin, loading, router])
 
-  if (!resolved && !timedOut) {
+  useEffect(() => {
+    if (!loading) {
+      setLoadingTimedOut(false)
+      return
+    }
+    const t = setTimeout(() => setLoadingTimedOut(true), LOADING_MAX_MS)
+    return () => clearTimeout(t)
+  }, [loading])
+
+  if (loading && !loadingTimedOut) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -42,7 +37,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (!resolved && timedOut) {
+  if (loading && loadingTimedOut) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <Alert className="max-w-md">
@@ -100,5 +95,3 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>
 }
-
-
