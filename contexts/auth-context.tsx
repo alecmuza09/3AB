@@ -51,11 +51,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single()
 
       if (error) {
-        console.error("Error loading profile:", error)
-        // Si no existe el perfil, crearlo
+        // Si no existe la fila en profiles, crearla como customer
+        // Solo si el error es definitivamente "no existe" (PGRST116)
         if (error.code === "PGRST116") {
           const { data: userData } = await supabase.auth.getUser()
           if (userData.user) {
+            // Verificar una segunda vez antes de insertar para evitar
+            // crear un perfil customer sobre uno admin existente
+            const { data: existingProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userId)
+              .maybeSingle()
+
+            if (existingProfile) {
+              setProfile(existingProfile)
+              return
+            }
+
             const { error: insertError } = await supabase
               .from("profiles")
               .insert({
@@ -74,6 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setProfile(newProfile)
             }
           }
+        } else {
+          console.error("Error loading profile:", error)
         }
         return
       }
@@ -108,14 +123,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, AUTH_TIMEOUT_MS)
 
     supabase.auth.getSession()
-      .then(({ data: { session } }) => {
+      .then(async ({ data: { session } }) => {
         if (cancelled) return
         clearTimeout(timeoutId)
         setUser(session?.user ?? null)
         if (session?.user) {
-          loadProfile(session.user.id)
+          await loadProfile(session.user.id)
         }
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
