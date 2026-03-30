@@ -117,7 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Inicializar autenticación (con timeout para no quedarse colgado)
+  // Inicializar autenticación
+  // REGLA: `loading` solo lo controla getSession(). onAuthStateChange
+  // nunca toca `loading` para evitar que resets competitivos rompan AdminGuard.
   useEffect(() => {
     if (!supabase) {
       setLoading(false)
@@ -128,22 +130,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const AUTH_TIMEOUT_MS = 10000
 
     const timeoutId = setTimeout(() => {
-      if (!cancelled) {
-        setLoading(false)
-      }
+      if (!cancelled) setLoading(false)
     }, AUTH_TIMEOUT_MS)
 
+    // getSession() es la fuente de verdad para la carga inicial
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
         if (cancelled) return
         clearTimeout(timeoutId)
-        setUser(session?.user ?? null)
         if (session?.user) {
+          setUser(session.user)
           await loadProfile(session.user.id)
+        } else {
+          setUser(null)
         }
-        if (!cancelled) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       })
       .catch((err) => {
         if (!cancelled) {
@@ -157,21 +158,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return
-      setUser(session?.user ?? null)
 
-      if (session?.user) {
-        // TOKEN_REFRESHED solo renueva el access token; el perfil no cambia.
-        // Recargar el perfil en ese evento puede causar que un error de red
-        // sobreescriba el rol del admin con "customer".
-        if (event !== 'TOKEN_REFRESHED') {
-          await loadProfile(session.user.id)
-        }
-      } else {
+      // INITIAL_SESSION ya lo maneja getSession() arriba.
+      // Si lo procesamos aquí también podría pisar el estado con una sesión
+      // todavía-sin-refrescar y poner user=null antes de que getSession() termine.
+      if (event === 'INITIAL_SESSION') return
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
         setProfile(null)
+        return
       }
 
-      if (!cancelled) {
-        setLoading(false)
+      // TOKEN_REFRESHED: solo actualizar el objeto user (nuevo access token),
+      // no recargar profile para evitar sobrescribir rol admin con errores de red.
+      if (event === 'TOKEN_REFRESHED') {
+        if (session?.user) setUser(session.user)
+        return
+      }
+
+      // SIGNED_IN, USER_UPDATED y otros: actualizar user y recargar perfil
+      if (session?.user) {
+        setUser(session.user)
+        await loadProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
       }
     })
 
