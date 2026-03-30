@@ -10,15 +10,19 @@ import { Button } from "@/components/ui/button"
 const LOADING_MAX_MS = 12000
 
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { user, isAdmin, loading } = useAuth()
+  const { user, profile, isAdmin, loading } = useAuth()
   const router = useRouter()
   const [loadingTimedOut, setLoadingTimedOut] = useState(false)
 
+  // Consideramos "resuelto" cuando loading terminó Y (no hay usuario O el perfil ya cargó).
+  // Esto evita redirigir durante el hueco user!=null / profile=null.
+  const resolved = !loading && (user === null || profile !== null)
+
   useEffect(() => {
-    if (!loading && (!user || !isAdmin)) {
+    if (resolved && (!user || !isAdmin)) {
       router.push("/")
     }
-  }, [user, isAdmin, loading, router])
+  }, [resolved, user, isAdmin, router])
 
   useEffect(() => {
     if (!loading) {
@@ -29,7 +33,17 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t)
   }, [loading])
 
+  // Spinner mientras carga la sesión inicial
   if (loading && !loadingTimedOut) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  // Spinner breve mientras el perfil llega (loading ya terminó pero profile aún null)
+  if (!resolved && !loadingTimedOut) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

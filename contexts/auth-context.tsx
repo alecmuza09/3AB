@@ -153,9 +153,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Recargar el perfil en ese evento puede causar que un error de red
         // sobreescriba el rol del admin con "customer".
         if (event !== 'TOKEN_REFRESHED') {
-          // Mantener loading=true mientras se carga el perfil para que
-          // AdminGuard no redirija durante el hueco user!=null / profile=null.
-          if (!cancelled) setLoading(true)
           await loadProfile(session.user.id)
         }
       } else {
