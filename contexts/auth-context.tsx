@@ -153,6 +153,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Recargar el perfil en ese evento puede causar que un error de red
         // sobreescriba el rol del admin con "customer".
         if (event !== 'TOKEN_REFRESHED') {
+          // Mantener loading=true mientras se carga el perfil para que
+          // AdminGuard no redirija durante el hueco user!=null / profile=null.
+          if (!cancelled) setLoading(true)
           await loadProfile(session.user.id)
         }
       } else {
@@ -175,7 +178,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return { error: "Supabase no está inicializado" }
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -184,8 +187,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message }
       }
 
-      // El perfil se carga en onAuthStateChange (evento SIGNED_IN).
-      // No llamar loadProfile aquí para evitar la doble ejecución concurrente.
+      // Setear user y cargar perfil directamente aquí para que el estado
+      // sea correcto antes de que se cierre el modal y se navegue a /admin.
+      // onAuthStateChange también lo hará (SIGNED_IN), pero ese camino tiene
+      // un hueco de ~300ms donde user!=null y profile=null (isAdmin=false).
+      if (data.user) {
+        setUser(data.user)
+        await loadProfile(data.user.id)
+      }
+
       return { error: null }
     } catch (error: any) {
       return { error: error.message || "Error al iniciar sesión" }
