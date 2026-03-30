@@ -147,12 +147,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return
       setUser(session?.user ?? null)
+
       if (session?.user) {
-        await loadProfile(session.user.id)
+        // TOKEN_REFRESHED solo renueva el access token; el perfil no cambia.
+        // Recargar el perfil en ese evento puede causar que un error de red
+        // sobreescriba el rol del admin con "customer".
+        if (event !== 'TOKEN_REFRESHED') {
+          await loadProfile(session.user.id)
+        }
       } else {
         setProfile(null)
       }
-      setLoading(false)
+
+      if (!cancelled) {
+        setLoading(false)
+      }
     })
 
     return () => {
@@ -166,7 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return { error: "Supabase no está inicializado" }
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -175,10 +184,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message }
       }
 
-      if (data.user) {
-        await loadProfile(data.user.id)
-      }
-
+      // El perfil se carga en onAuthStateChange (evento SIGNED_IN).
+      // No llamar loadProfile aquí para evitar la doble ejecución concurrente.
       return { error: null }
     } catch (error: any) {
       return { error: error.message || "Error al iniciar sesión" }
@@ -223,13 +230,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    setUser(null)
-    setProfile(null)
-    if (!supabase) return
+    if (!supabase) {
+      // Sin cliente, limpiar estado manualmente como fallback
+      setUser(null)
+      setProfile(null)
+      return
+    }
     try {
       await supabase.auth.signOut({ scope: "local" })
+      // El evento SIGNED_OUT de onAuthStateChange limpia user y profile.
+      // No hacer setUser(null) aquí para evitar que AdminGuard redirija
+      // antes de que window.location.href ejecute la navegación correcta.
     } catch (e) {
       console.error("Error en signOut de Supabase:", e)
+      // Si falló el signOut, limpiar estado manualmente para que la UI
+      // no muestre al usuario como logueado
+      setUser(null)
+      setProfile(null)
     }
   }
 
