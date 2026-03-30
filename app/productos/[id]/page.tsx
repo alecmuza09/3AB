@@ -86,16 +86,16 @@ export default function ProductDetailPage() {
 
     async function loadFromApi() {
       try {
-        const res = await fetch("/api/products?activeOnly=true")
-        const json = await res.json().catch(() => ({ products: [] }))
-        const all = (json.products || []) as SupabaseProduct[]
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)
+
+        // Buscar el producto directamente por ID o slug para evitar el límite
+        // de 500 que excluye productos más antiguos del listado general.
+        const param = isUuid ? `id=${productId}` : `slug=${productId}`
+        const res = await fetch(`/api/products?${param}`)
+        const json = await res.json().catch(() => ({ product: null }))
+        const current = json.product as SupabaseProduct | null
 
         if (cancelled) return
-
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)
-        const current = isUuid
-          ? all.find((p) => p.id === productId)
-          : all.find((p) => p.slug === productId)
 
         if (!current) {
           setProduct(null)
@@ -105,25 +105,43 @@ export default function ProductDetailPage() {
         setProduct(current)
         setQuantity(Number((current as any).min_quantity) || 1)
 
-        // Calcular relacionados usando el mismo listado
+        // Cargar productos relacionados por categoría (consulta separada)
         const attrs = (current as any).attributes || {}
         const relatedIds: string[] = Array.isArray(attrs.related_product_ids)
           ? attrs.related_product_ids.filter(Boolean)
           : []
 
-        let related: SupabaseProduct[] = []
-        if (relatedIds.length > 0) {
-          const byId = new Map(all.map((p) => [p.id, p]))
-          related = relatedIds.map((id) => byId.get(id)).filter(Boolean) as SupabaseProduct[]
-        }
+        setLoadingRelated(true)
+        try {
+          let related: SupabaseProduct[] = []
 
-        if (related.length === 0) {
-          related = all
-            .filter((p) => p.id !== current.id && p.category_id === current.category_id)
-            .slice(0, 4)
-        }
+          if (relatedIds.length > 0) {
+            // Buscar cada relacionado individualmente
+            const results = await Promise.all(
+              relatedIds.slice(0, 4).map((rid) =>
+                fetch(`/api/products?id=${rid}`)
+                  .then((r) => r.json())
+                  .then((j) => j.product as SupabaseProduct | null)
+                  .catch(() => null)
+              )
+            )
+            related = results.filter(Boolean) as SupabaseProduct[]
+          }
 
-        setRelatedProducts(related)
+          if (related.length === 0 && current.category_id) {
+            // Fallback: productos de la misma categoría
+            const catRes = await fetch(
+              `/api/products?activeOnly=true&categoryId=${current.category_id}`
+            )
+            const catJson = await catRes.json().catch(() => ({ products: [] }))
+            const catProducts = (catJson.products || []) as SupabaseProduct[]
+            related = catProducts.filter((p) => p.id !== current.id).slice(0, 4)
+          }
+
+          if (!cancelled) setRelatedProducts(related)
+        } finally {
+          if (!cancelled) setLoadingRelated(false)
+        }
       } catch (error) {
         if (!cancelled) {
           console.error("Error fetching product from API:", error)
