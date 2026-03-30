@@ -196,10 +196,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) return { error: "Supabase no está inicializado" }
     
     try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://3abranding.com"
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: siteUrl,
           data: {
             full_name: fullName,
           },
