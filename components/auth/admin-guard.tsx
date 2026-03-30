@@ -12,11 +12,21 @@ const LOADING_MAX_MS = 12000
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { user, profile, isAdmin, loading } = useAuth()
   const router = useRouter()
-  const [loadingTimedOut, setLoadingTimedOut] = useState(false)
+  const [timedOut, setTimedOut] = useState(false)
 
-  // Consideramos "resuelto" cuando loading terminó Y (no hay usuario O el perfil ya cargó).
-  // Esto evita redirigir durante el hueco user!=null / profile=null.
+  // "Resuelto" = sabemos el estado completo: la sesión cargó Y
+  // (no hay usuario, o el perfil ya llegó).
   const resolved = !loading && (user === null || profile !== null)
+
+  // Un solo timeout basado en `resolved`: si no resuelve en 12s, mostramos el mensaje.
+  useEffect(() => {
+    if (resolved) {
+      setTimedOut(false)
+      return
+    }
+    const t = setTimeout(() => setTimedOut(true), LOADING_MAX_MS)
+    return () => clearTimeout(t)
+  }, [resolved])
 
   useEffect(() => {
     if (resolved && (!user || !isAdmin)) {
@@ -24,17 +34,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     }
   }, [resolved, user, isAdmin, router])
 
-  useEffect(() => {
-    if (!loading) {
-      setLoadingTimedOut(false)
-      return
-    }
-    const t = setTimeout(() => setLoadingTimedOut(true), LOADING_MAX_MS)
-    return () => clearTimeout(t)
-  }, [loading])
-
-  // Spinner mientras carga la sesión inicial
-  if (loading && !loadingTimedOut) {
+  if (!resolved && !timedOut) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -42,16 +42,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Spinner breve mientras el perfil llega (loading ya terminó pero profile aún null)
-  if (!resolved && !loadingTimedOut) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (loading && loadingTimedOut) {
+  if (!resolved && timedOut) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <Alert className="max-w-md">

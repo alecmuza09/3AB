@@ -89,6 +89,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           console.error("Error loading profile:", error)
+          // Reintentar una vez después de 1.5s para cubrir errores de red transitorios
+          // y evitar que profile quede null indefinidamente (lo que causa spinner infinito)
+          setTimeout(async () => {
+            if (!supabase) return
+            const { data: retryData } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", userId)
+              .maybeSingle()
+            if (retryData) setProfile(retryData)
+          }, 1500)
         }
         return
       }
