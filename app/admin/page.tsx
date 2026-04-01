@@ -1403,15 +1403,29 @@ export default function AdminPage() {
   const getOrderStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
+      case "Pendiente":
         return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>
       case "processing":
+      case "Procesando":
         return <Badge className="bg-blue-100 text-blue-800">Procesando</Badge>
+      case "En revisión":
+        return <Badge className="bg-orange-100 text-orange-800">En revisión</Badge>
+      case "Cotización":
+        return <Badge className="bg-purple-100 text-purple-800">Cotización</Badge>
+      case "En producción":
+        return <Badge className="bg-blue-100 text-blue-800">En producción</Badge>
+      case "Listo para enviar":
+        return <Badge className="bg-teal-100 text-teal-800">Listo para enviar</Badge>
+      case "Enviado":
+        return <Badge className="bg-indigo-100 text-indigo-800">Enviado</Badge>
+      case "Entregado":
       case "completed":
-        return <Badge className="bg-green-100 text-green-800">Completado</Badge>
+        return <Badge className="bg-green-100 text-green-800">Entregado</Badge>
+      case "Cancelado":
       case "cancelled":
-        return <Badge className="bg-primary/10 text-primary">Cancelado</Badge>
+        return <Badge className="bg-red-100 text-red-800">Cancelado</Badge>
       default:
-        return <Badge>Desconocido</Badge>
+        return <Badge className="bg-gray-100 text-gray-700">{status || "Sin estado"}</Badge>
     }
   }
 
@@ -1564,9 +1578,9 @@ export default function AdminPage() {
         <TopHeader />
         <WhatsappButton />
         
-        <div className="flex">
+        <div className="flex overflow-x-hidden">
           {/* Admin Sidebar */}
-          <aside className="hidden md:flex md:flex-col w-64 border-r bg-card h-screen sticky top-0 overflow-y-auto">
+          <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r bg-card h-screen sticky top-0 overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold mb-1">Administración</h2>
               <p className="text-sm text-muted-foreground">Panel de control</p>
@@ -2628,14 +2642,6 @@ export default function AdminPage() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      title="Editar ficha pública"
-                                      onClick={() => window.open(`/productos/${product.id}`, "_self")}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
                                       title="Duplicar (borrador local)"
                                       onClick={() => {
                                         const copy: Product = {
@@ -3204,7 +3210,7 @@ export default function AdminPage() {
                                 <SelectValue placeholder="Selecciona un estado" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="pending">Pendiente</SelectItem>
+                                <SelectItem value="Pendiente">Pendiente</SelectItem>
                                 <SelectItem value="En revisión">En revisión</SelectItem>
                                 <SelectItem value="Cotización">Cotización</SelectItem>
                                 <SelectItem value="En producción">En producción</SelectItem>
@@ -3212,7 +3218,6 @@ export default function AdminPage() {
                                 <SelectItem value="Enviado">Enviado</SelectItem>
                                 <SelectItem value="Entregado">Entregado</SelectItem>
                                 <SelectItem value="Cancelado">Cancelado</SelectItem>
-                                <SelectItem value="Desconocido">Desconocido</SelectItem>
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground mt-1">

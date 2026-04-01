@@ -163,7 +163,7 @@ export default function CatalogosPage() {
           imageLabel="Banner de Catálogos"
           altText="Catálogos 3A Branding"
         >
-          <div className="relative w-full h-32 md:h-48 lg:h-64 overflow-hidden">
+          <div className="relative w-full h-[200px] md:h-[300px] lg:h-[380px] overflow-hidden">
             {t("banner_image", "") ? (
               <Image
                 src={t("banner_image", "")}
@@ -174,7 +174,7 @@ export default function CatalogosPage() {
                 unoptimized={t("banner_image", "").startsWith("http")}
               />
             ) : (
-              <div className="absolute inset-0 bg-gray-200" />
+              <div className="absolute inset-0 bg-white" />
             )}
           </div>
         </EditableImage>

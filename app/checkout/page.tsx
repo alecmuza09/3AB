@@ -79,6 +79,7 @@ function CheckoutContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPaymentInfo, setShowPaymentInfo] = useState(false)
   const [confirmedOrderId, setConfirmedOrderId] = useState("")
+  const [orderCompleted, setOrderCompleted] = useState(false)
 
   const [contactData, setContactData] = useState({
     company: "",
@@ -105,10 +106,10 @@ function CheckoutContent() {
   })
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (items.length === 0 && !orderCompleted) {
       router.replace("/carrito")
     }
-  }, [items.length, router])
+  }, [items.length, orderCompleted, router])
 
   const subtotal = useMemo(() => getTotal(), [getTotal])
   const selectedShipping = shippingMethods.find((method) => method.id === shippingMethod) || shippingMethods[0]
@@ -216,6 +217,15 @@ function CheckoutContent() {
       // También guardar en localStorage para que el usuario lo vea en /pedidos
       addOrder(orderData)
 
+      // Enviar correo de confirmación (no bloqueante)
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: orderData, type: 'confirmation' }),
+      }).catch((err) => console.warn('⚠️ No se pudo enviar el correo de confirmación:', err))
+
+      // Marcar pedido completado ANTES de limpiar el carrito para evitar redirect a /carrito
+      setOrderCompleted(true)
       clearCart()
       setIsSubmitting(false)
       

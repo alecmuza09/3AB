@@ -5,7 +5,7 @@
 
 :root {
   /* Updated color tokens to match 3A Branding with #CE1818 red */
-  --background: oklch(0.96 0.005 240); /* Light gray background #f5f5f5 */
+  --background: oklch(1 0 0); /* White background */
   --foreground: oklch(0.25 0 0); /* Dark gray text #404040 */
   --card: oklch(1 0 0); /* White card background */
   --card-foreground: oklch(0.25 0 0); /* Dark gray card text */

@@ -263,67 +263,66 @@ export default function ServiciosPage() {
                 src={t("banner_image", "")}
                 alt="Nuestros Servicios - 3A Branding"
                 fill
-                className="object-cover"
+                className="object-cover object-center"
                 priority
                 unoptimized={t("banner_image", "").startsWith("http")}
               />
             ) : (
-              <div className="absolute inset-0 bg-gray-200" />
+              <div className="absolute inset-0 bg-white" />
             )}
-          </div>
-        </EditableImage>
-        <div className="relative w-full">
-          <div className="absolute inset-0 h-[300px] md:h-[400px] lg:h-[500px] bg-gradient-to-r from-black/70 to-black/30 flex items-center pointer-events-none">
-            <div className="container mx-auto px-6">
-              <div className="max-w-3xl text-white">
-                <EditableText
-                  pageSlug="servicios"
-                  contentKey="hero_badge"
-                  value={t("hero_badge", "Soluciones Integrales")}
-                  onSaved={refetch}
-                  label="Badge del Hero"
-                  type="input"
-                >
-                  <Badge className="mb-4 bg-primary">{t("hero_badge", "Soluciones Integrales")}</Badge>
-                </EditableText>
-                <EditableText
-                  pageSlug="servicios"
-                  contentKey="hero_title"
-                  value={t("hero_title", "Servicios que Transforman tu Marca")}
-                  onSaved={refetch}
-                  label="Título del Hero"
-                  type="input"
-                >
-                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
-                    {loading ? "..." : t("hero_title", "Servicios que Transforman tu Marca")}
-                  </h1>
-                </EditableText>
-                <EditableText
-                  pageSlug="servicios"
-                  contentKey="hero_subtitle"
-                  value={t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
-                  onSaved={refetch}
-                  label="Subtítulo del Hero"
-                  type="textarea"
-                >
-                  <p className="text-lg md:text-xl mb-6 text-gray-200">
-                    {t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
-                  </p>
-                </EditableText>
-                <div className="flex flex-wrap gap-4">
-                  <Button size="lg" className="bg-primary hover:bg-primary/90">
-                    <Sparkles className="h-5 w-5 mr-2" />
-                    Solicitar Cotización
-                  </Button>
-                  <Button size="lg" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white">
-                    <Target className="h-5 w-5 mr-2" />
-                    Ver Catálogos
-                  </Button>
+            {/* Gradient overlay with hero text */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/30 flex items-center">
+              <div className="container mx-auto px-6">
+                <div className="max-w-3xl text-white">
+                  <EditableText
+                    pageSlug="servicios"
+                    contentKey="hero_badge"
+                    value={t("hero_badge", "Soluciones Integrales")}
+                    onSaved={refetch}
+                    label="Badge del Hero"
+                    type="input"
+                  >
+                    <Badge className="mb-4 bg-primary">{t("hero_badge", "Soluciones Integrales")}</Badge>
+                  </EditableText>
+                  <EditableText
+                    pageSlug="servicios"
+                    contentKey="hero_title"
+                    value={t("hero_title", "Servicios que Transforman tu Marca")}
+                    onSaved={refetch}
+                    label="Título del Hero"
+                    type="input"
+                  >
+                    <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
+                      {loading ? "..." : t("hero_title", "Servicios que Transforman tu Marca")}
+                    </h1>
+                  </EditableText>
+                  <EditableText
+                    pageSlug="servicios"
+                    contentKey="hero_subtitle"
+                    value={t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
+                    onSaved={refetch}
+                    label="Subtítulo del Hero"
+                    type="textarea"
+                  >
+                    <p className="text-lg md:text-xl mb-6 text-gray-200">
+                      {t("hero_subtitle", "Desde el diseño hasta la entrega, manejamos cada detalle de tu proyecto con excelencia y dedicación.")}
+                    </p>
+                  </EditableText>
+                  <div className="flex flex-wrap gap-4">
+                    <Button size="lg" className="bg-primary hover:bg-primary/90">
+                      <Sparkles className="h-5 w-5 mr-2" />
+                      Solicitar Cotización
+                    </Button>
+                    <Button size="lg" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border-white">
+                      <Target className="h-5 w-5 mr-2" />
+                      Ver Catálogos
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </EditableImage>
         
         <div className="p-6">
           <div className="max-w-7xl mx-auto space-y-16">

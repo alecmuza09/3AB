@@ -3,6 +3,7 @@ import { HeroSection } from "@/components/hero-section"
 import { HowItWorksSection } from "@/components/how-it-works-section"
 import { AIAssistantSection } from "@/components/ai-assistant-section"
 import { CategoriesSection } from "@/components/categories-section"
+import { CustomizationSection } from "@/components/customization-section"
 import { AboutUsSection } from "@/components/about-us-section"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -23,6 +24,9 @@ export default function HomePage() {
         
         {/* Categorías - Exploración de productos */}
         <CategoriesSection />
+
+        {/* Personalización - Configurador interactivo */}
+        <CustomizationSection />
         
         {/* Nosotros - Sobre la empresa */}
         <AboutUsSection />

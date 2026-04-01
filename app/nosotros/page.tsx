@@ -76,7 +76,7 @@ export default function NosotrosPage() {
                 unoptimized={t("banner_image", "").startsWith("http")}
               />
             ) : (
-              <div className="absolute inset-0 bg-gray-200" />
+              <div className="absolute inset-0 bg-white" />
             )}
           </div>
         </EditableImage>

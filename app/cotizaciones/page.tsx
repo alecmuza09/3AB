@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -40,6 +40,31 @@ export default function CotizacionesPage() {
     specialRequirements: "",
     paymentTerms: "30_days",
   })
+
+  const [formErrors, setFormErrors] = useState<{ email?: string; phone?: string }>({})
+
+  const validateStep1 = useCallback((): boolean => {
+    const errors: { email?: string; phone?: string } = {}
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const phoneRegex = /^[\d\s\+\-\(\)]{7,20}$/
+
+    if (!formData.companyName.trim() || !formData.contactName.trim()) {
+      return false
+    }
+    if (!formData.email.trim()) {
+      errors.email = "El correo electrónico es obligatorio."
+    } else if (!emailRegex.test(formData.email.trim())) {
+      errors.email = "Ingresa un correo electrónico válido (ej. nombre@empresa.com)."
+    }
+    if (!formData.phone.trim()) {
+      errors.phone = "El teléfono es obligatorio."
+    } else if (!phoneRegex.test(formData.phone.trim())) {
+      errors.phone = "Ingresa un teléfono válido (ej. +52 55 1234 5678)."
+    }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }, [formData])
 
   const productCategories = [
     { name: "Antiestrés", products: ["Pelota antiestrés", "Cubo antiestrés", "Spinner", "Squishy"] },
@@ -246,18 +271,32 @@ export default function CotizacionesPage() {
                       id="email"
                       type="email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value })
+                        if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: undefined }))
+                      }}
                       placeholder="contacto@empresa.com"
+                      className={formErrors.email ? "border-red-500 focus-visible:ring-red-500" : ""}
                     />
+                    {formErrors.email && (
+                      <p className="text-xs text-red-500">{formErrors.email}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Teléfono *</Label>
                     <Input
                       id="phone"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, phone: e.target.value })
+                        if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: undefined }))
+                      }}
                       placeholder="+52 55 1234 5678"
+                      className={formErrors.phone ? "border-red-500 focus-visible:ring-red-500" : ""}
                     />
+                    {formErrors.phone && (
+                      <p className="text-xs text-red-500">{formErrors.phone}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="eventType">Tipo de Evento/Proyecto</Label>
@@ -299,7 +338,12 @@ export default function CotizacionesPage() {
                   />
                 </div>
                 <div className="flex justify-end">
-                  <Button onClick={() => setStep(2)} className="bg-primary hover:bg-primary/90">
+                  <Button
+                    onClick={() => {
+                      if (validateStep1()) setStep(2)
+                    }}
+                    className="bg-primary hover:bg-primary/90"
+                  >
                     Continuar <Package className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
