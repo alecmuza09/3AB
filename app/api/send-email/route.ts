@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
 const FROM_EMAIL = process.env.EMAIL_FROM || 'noreply@3abranding.com'
 const ADMIN_EMAIL = 'factura@3abranding.com'
 
@@ -186,10 +185,13 @@ function buildAdminNotificationEmail(order: any): string {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.RESEND_API_KEY) {
+    const apiKey = process.env.RESEND_API_KEY
+    if (!apiKey) {
       console.warn('⚠️ RESEND_API_KEY no configurada — correo no enviado')
       return NextResponse.json({ success: true, message: 'Email omitido (sin API key)' })
     }
+
+    const resend = new Resend(apiKey)
 
     const { order, type } = await request.json()
 
