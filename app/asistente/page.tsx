@@ -127,19 +127,32 @@ export default function AsistentePage() {
     containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, isTyping])
 
-  // Buscar productos usando el contexto completo de la conversación
+  // Buscar productos por nombres exactos mencionados por la IA
+  const findProductsByNames = useCallback(
+    (names: string[]): Product[] => {
+      if (catalog.length === 0 || names.length === 0) return []
+      return names
+        .map((name) =>
+          catalog.find((p) => p.name.toLowerCase() === name.toLowerCase())
+        )
+        .filter(Boolean) as Product[]
+    },
+    [catalog]
+  )
+
+  // Fallback: buscar por keywords del historial si la IA no menciona nombres exactos
   const findRelatedProducts = useCallback(
     (conversationHistory: { role: string; content: string }[], limit = 4): Product[] => {
       if (catalog.length === 0) return []
       const keywords = extractKeywordsFromConversation(conversationHistory)
-      if (keywords.length === 0) return catalog.slice(0, limit)
+      if (keywords.length === 0) return []
       const scored = catalog
         .map((p) => ({ p, score: scoreProduct(p, keywords) }))
         .filter((x) => x.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((x) => x.p)
-      return scored.length > 0 ? scored : catalog.slice(0, limit)
+      return scored
     },
     [catalog]
   )
@@ -166,22 +179,12 @@ export default function AsistentePage() {
         content: m.content,
       }))
 
-      // Catálogo resumido para la IA
-      const catalogSummary = catalog.slice(0, 80).map((p) => ({
-        name: p.name,
-        category: p.category?.name ?? "General",
-        price: p.price,
-        description: p.description,
-      }))
-
-      // Productos relacionados usando TODO el historial de conversación
-      const relatedProducts = findRelatedProducts(history)
-
       try {
+        // El catálogo ahora lo obtiene la API directamente desde Supabase
         const res = await fetch("/api/ai/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, catalogSummary }),
+          body: JSON.stringify({ messages: history }),
         })
 
         const data = await res.json()
@@ -190,6 +193,14 @@ export default function AsistentePage() {
           throw new Error(data.detail ?? data.error ?? `HTTP ${res.status}`)
         }
 
+        // Prioridad: productos mencionados por nombre exacto en la respuesta
+        // Fallback: búsqueda por keywords del historial
+        const exactMatches = findProductsByNames(data.mentionedProducts ?? [])
+        const fallbackProducts = exactMatches.length === 0
+          ? findRelatedProducts(history)
+          : []
+        const productsToShow = exactMatches.length > 0 ? exactMatches : fallbackProducts
+
         setMessages((prev) => [
           ...prev,
           {
@@ -197,7 +208,7 @@ export default function AsistentePage() {
             role: "assistant",
             content: data.reply || "Lo siento, no pude generar una respuesta. Intenta de nuevo.",
             timestamp: new Date().toISOString(),
-            products: relatedProducts.length > 0 ? relatedProducts : undefined,
+            products: productsToShow.length > 0 ? productsToShow : undefined,
           },
         ])
       } catch (err: any) {

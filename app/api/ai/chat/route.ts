@@ -1,12 +1,46 @@
 /**
- * API de chat con IA usando Google Gemini 2.0 Flash via REST.
+ * API de chat con IA usando Google Gemini 2.5 Flash via REST.
+ * Los productos se obtienen directamente de Supabase en el servidor,
+ * para garantizar que siempre haya catálogo disponible.
  * POST /api/ai/chat
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { createSupabaseServerClient } from "@/lib/supabase"
 
-const GEMINI_API_URL =
+const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+
+interface CatalogProduct {
+  name: string
+  category: string
+  price: number | null
+  description: string | null
+}
+
+// Obtiene productos del catálogo directo desde Supabase (servidor)
+async function fetchCatalogFromDB(): Promise<CatalogProduct[]> {
+  try {
+    const supabase = createSupabaseServerClient()
+    const { data, error } = await supabase
+      .from("products")
+      .select("name, price, description, category:categories(name)")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(80)
+
+    if (error || !data) return []
+
+    return data.map((p: any) => ({
+      name: p.name,
+      category: p.category?.name ?? "General",
+      price: p.price,
+      description: p.description,
+    }))
+  } catch {
+    return []
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,56 +50,46 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const {
-      messages = [],
-      catalogSummary = [],
-    } = body as {
+    const { messages = [] } = body as {
       messages: { role: "user" | "assistant"; content: string }[]
-      catalogSummary: { name: string; category: string; price: number | null; description?: string | null }[]
     }
 
-    // Construir resumen del catálogo para el contexto
+    // Siempre obtenemos el catálogo desde el servidor
+    const catalog = await fetchCatalogFromDB()
+
     const catalogText =
-      catalogSummary.length > 0
-        ? catalogSummary
-            .slice(0, 50)
+      catalog.length > 0
+        ? catalog
             .map((p) => {
-              const price = Number(p.price ?? 0).toFixed(2)
-              const desc = p.description ? ` — ${p.description.slice(0, 80)}` : ""
-              return `• ${p.name} (${p.category || "General"}) $${price} MXN${desc}`
+              const price = p.price != null ? `$${Number(p.price).toFixed(2)} MXN` : "precio a consultar"
+              const desc = p.description ? ` — ${p.description.slice(0, 100)}` : ""
+              return `• ${p.name} | ${p.category} | ${price}${desc}`
             })
             .join("\n")
-        : "El catálogo está cargando."
+        : "No hay productos disponibles en este momento."
 
-    // System prompt optimizado para ser directo y recomendar productos
-    const systemPrompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana especializada en productos promocionales y branding corporativo.
+    const systemPrompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana especializada en productos promocionales y branding corporativo. Tu trabajo es ayudar a los clientes a elegir los mejores productos para sus necesidades.
 
 CATÁLOGO DE PRODUCTOS DISPONIBLES:
 ${catalogText}
 
-CÓMO DEBES RESPONDER:
-1. Si el cliente da suficiente contexto (tipo de evento, ocasión o necesidad), RECOMIENDA PRODUCTOS DE INMEDIATO del catálogo. No sigas haciendo preguntas.
-2. Solo haz UNA pregunta a la vez cuando realmente falte información clave (ej: si no sabes nada del evento).
-3. Cuando recomiendes, menciona 2-4 productos del catálogo por nombre exacto y precio. Sé específico.
-4. Si el cliente menciona presupuesto, filtra las recomendaciones a productos dentro de ese rango.
-5. Si el cliente menciona cantidad (ej: 100 piezas), considera el costo total en tu respuesta.
-6. Responde de forma directa y concisa. Máximo 5 oraciones. Sin rodeos ni preguntas innecesarias.
-7. Habla en español mexicano, amigable y profesional.
-8. No inventes productos ni precios que no estén en el catálogo.
-9. Si preguntan por cotización, diles que hagan clic en el producto o contacten al equipo de ventas.`
+REGLAS DE COMPORTAMIENTO:
+1. SIEMPRE recomienda productos concretos del catálogo en cuanto tengas suficiente información. No esperes más de 1-2 preguntas antes de dar opciones.
+2. Cuando tengas el contexto (evento, audiencia, cantidad o presupuesto), da DE INMEDIATO una lista de 3-5 productos específicos con nombre y precio.
+3. Si el presupuesto es por total (ej: $10,000 para 20 personas = $500/pieza), calcula el costo unitario y recomienda productos en ese rango.
+4. Si no hay suficiente info, haz SOLO UNA pregunta específica, no varias.
+5. Sé directo, amigable y profesional. Máximo 4-5 oraciones por respuesta.
+6. No inventes productos ni precios. Solo usa el catálogo.
+7. Si preguntan cómo comprar o cotizar, diles que hagan clic en el producto para ver detalles o que contacten al equipo de ventas.
+8. Responde siempre en español mexicano.`
 
-    // Formatear historial como conversación para Gemini
     const conversationText = messages
-      .map((m) => {
-        const role = m.role === "user" ? "Cliente" : "Asistente"
-        return `${role}: ${m.content}`
-      })
+      .map((m) => `${m.role === "user" ? "Cliente" : "Asistente"}: ${m.content}`)
       .join("\n")
 
     const fullPrompt = `${systemPrompt}\n\nCONVERSACIÓN:\n${conversationText}\n\nAsistente:`
 
-    // Llamada REST directa a Gemini
-    const geminiRes = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+    const geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -79,17 +103,19 @@ CÓMO DEBES RESPONDER:
 
     if (!geminiRes.ok) {
       const errBody = await geminiRes.text()
-      console.error("[AI Chat] Gemini API error:", geminiRes.status, errBody)
-      return NextResponse.json(
-        { error: "Error de Gemini API", detail: errBody },
-        { status: 500 }
-      )
+      console.error("[AI Chat] Gemini error:", geminiRes.status, errBody)
+      return NextResponse.json({ error: "Error de Gemini API", detail: errBody }, { status: 500 })
     }
 
     const geminiData = await geminiRes.json()
     const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
-    return NextResponse.json({ reply })
+    // Devolvemos también los nombres de productos mencionados para que el frontend los busque
+    const mentionedNames = catalog
+      .filter((p) => reply.toLowerCase().includes(p.name.toLowerCase()))
+      .map((p) => p.name)
+
+    return NextResponse.json({ reply, mentionedProducts: mentionedNames })
   } catch (error: any) {
     console.error("[AI Chat] Error interno:", error?.message ?? error)
     return NextResponse.json(
