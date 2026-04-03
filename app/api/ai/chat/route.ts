@@ -79,8 +79,20 @@ export async function POST(request: NextRequest) {
       catalogText,
     ].join("\n")
 
-    // Historial de conversación (excluyendo el último mensaje del usuario)
-    const history = messages.slice(0, -1).map((m) => ({
+    // Historial de conversación (excluyendo el último mensaje del usuario).
+    // Se filtra para que empiece en el primer mensaje "user" y los roles alternen
+    // estrictamente (user → model → user…), ya que Gemini lo exige.
+    const rawHistory = messages.slice(0, -1)
+    const firstUserIdx = rawHistory.findIndex((m) => m.role === "user")
+    const alternatingHistory: typeof rawHistory = []
+    let expectedRole: "user" | "model" = "user"
+    for (const m of firstUserIdx >= 0 ? rawHistory.slice(firstUserIdx) : []) {
+      if (m.role === expectedRole) {
+        alternatingHistory.push(m)
+        expectedRole = expectedRole === "user" ? "model" : "user"
+      }
+    }
+    const history = alternatingHistory.map((m) => ({
       role: m.role,
       parts: [{ text: m.text }],
     }))
