@@ -51,17 +51,38 @@ function scoreProduct(p: Product, keywords: string[]): number {
   return keywords.reduce((score, kw) => score + (text.includes(kw.toLowerCase()) ? 2 : 0), 0)
 }
 
-function extractKeywords(text: string): string[] {
-  const kws = [
-    "termo", "taza", "vaso", "botella", "mochila", "playera", "camisa", "gorra", "sudadera",
-    "chaleco", "uniforme", "libreta", "agenda", "pluma", "usb", "memoria", "llavero", "carpeta",
-    "bolsa", "maleta", "reloj", "audífono", "cargador", "power bank", "bocina", "gafete",
-    "lanyard", "pin", "trofeo", "placa", "ecológico", "sustentable", "bambú", "premium",
-    "ejecutivo", "tecnología", "gadget", "textil", "wearable", "evento", "expo", "feria",
-    "corporativo", "oficina", "cliente", "regalo", "equipo", "staff",
+// Extrae palabras clave de TODA la conversación para mejores recomendaciones
+function extractKeywordsFromConversation(messages: { role: string; content: string }[]): string[] {
+  const PRODUCT_KEYWORDS = [
+    "termo", "termos", "taza", "tazas", "vaso", "botella", "botellas",
+    "mochila", "mochilas", "playera", "playeras", "camisa", "camisas",
+    "gorra", "gorras", "sudadera", "chaleco", "uniforme", "uniformes",
+    "libreta", "libretas", "agenda", "agendas", "pluma", "plumas",
+    "usb", "memoria", "memorias", "llavero", "llaveros", "carpeta", "carpetas",
+    "bolsa", "bolsas", "maleta", "maletas", "reloj", "relojes",
+    "audífono", "audífonos", "cargador", "cargadores", "power bank", "bocina", "bocinas",
+    "gafete", "gafetes", "lanyard", "lanyards", "pin", "pines",
+    "trofeo", "trofeos", "placa", "placas", "reconocimiento",
+    "ecológico", "sustentable", "bambú", "reciclado", "premium", "ejecutivo",
+    "tecnología", "gadget", "textil", "wearable",
   ]
-  const t = text.toLowerCase()
-  return kws.filter((k) => t.includes(k))
+
+  const CONTEXT_KEYWORDS = [
+    "evento", "expo", "feria", "exposición", "conferencia", "congreso",
+    "corporativo", "empresa", "empresarial", "negocio", "oficina",
+    "cliente", "clientes", "regalo", "regalos", "obsequio",
+    "equipo", "staff", "empleado", "colaborador", "personal",
+    "promocional", "marketing", "branding",
+  ]
+
+  const allText = messages.map((m) => m.content).join(" ").toLowerCase()
+  const found = new Set<string>()
+
+  for (const kw of [...PRODUCT_KEYWORDS, ...CONTEXT_KEYWORDS]) {
+    if (allText.includes(kw.toLowerCase())) found.add(kw)
+  }
+
+  return Array.from(found)
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -106,18 +127,19 @@ export default function AsistentePage() {
     containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, isTyping])
 
-  // Buscar productos relacionados con el texto del usuario
+  // Buscar productos usando el contexto completo de la conversación
   const findRelatedProducts = useCallback(
-    (text: string, limit = 4): Product[] => {
+    (conversationHistory: { role: string; content: string }[], limit = 4): Product[] => {
       if (catalog.length === 0) return []
-      const keywords = extractKeywords(text)
-      if (keywords.length === 0) return []
-      return catalog
+      const keywords = extractKeywordsFromConversation(conversationHistory)
+      if (keywords.length === 0) return catalog.slice(0, limit)
+      const scored = catalog
         .map((p) => ({ p, score: scoreProduct(p, keywords) }))
         .filter((x) => x.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((x) => x.p)
+      return scored.length > 0 ? scored : catalog.slice(0, limit)
     },
     [catalog]
   )
@@ -152,8 +174,8 @@ export default function AsistentePage() {
         description: p.description,
       }))
 
-      // Productos relacionados para mostrar visualmente
-      const relatedProducts = findRelatedProducts(trimmed)
+      // Productos relacionados usando TODO el historial de conversación
+      const relatedProducts = findRelatedProducts(history)
 
       try {
         const res = await fetch("/api/ai/chat", {
@@ -236,7 +258,7 @@ export default function AsistentePage() {
         </div>
 
         {/* Chat */}
-        <Card className="flex flex-col" style={{ height: "60vh", minHeight: 400 }}>
+        <Card className="flex flex-col" style={{ height: "72vh", minHeight: 520 }}>
           <CardHeader className="py-3 px-4 border-b bg-primary/5 shrink-0">
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
               <Sparkles className="h-4 w-4 text-primary" />

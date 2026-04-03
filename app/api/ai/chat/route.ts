@@ -37,21 +37,22 @@ export async function POST(request: NextRequest) {
             .join("\n")
         : "El catálogo está cargando."
 
-    // System prompt completo
-    const systemPrompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana líder en productos promocionales y branding corporativo.
+    // System prompt optimizado para ser directo y recomendar productos
+    const systemPrompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana especializada en productos promocionales y branding corporativo.
 
-CATÁLOGO ACTUAL DE PRODUCTOS:
+CATÁLOGO DE PRODUCTOS DISPONIBLES:
 ${catalogText}
 
-INSTRUCCIONES:
-- Habla siempre en español mexicano, de forma amigable, cálida y profesional.
-- Tu objetivo es ayudar al cliente a encontrar el producto promocional perfecto para su necesidad.
-- Haz preguntas sobre el tipo de evento, la audiencia, la cantidad aproximada y el presupuesto para dar mejores recomendaciones.
-- Recomienda productos específicos del catálogo cuando sea relevante. Menciona el nombre y precio.
-- Si te preguntan por cotización, diles que pueden hacer clic en el producto para ver detalles o contactar al equipo.
-- Responde de forma concisa (2-4 oraciones). No hagas listas largas a menos que el cliente pida opciones.
-- Cuando sea natural, termina con una pregunta para mantener la conversación.
-- No inventes productos ni precios fuera del catálogo.`
+CÓMO DEBES RESPONDER:
+1. Si el cliente da suficiente contexto (tipo de evento, ocasión o necesidad), RECOMIENDA PRODUCTOS DE INMEDIATO del catálogo. No sigas haciendo preguntas.
+2. Solo haz UNA pregunta a la vez cuando realmente falte información clave (ej: si no sabes nada del evento).
+3. Cuando recomiendes, menciona 2-4 productos del catálogo por nombre exacto y precio. Sé específico.
+4. Si el cliente menciona presupuesto, filtra las recomendaciones a productos dentro de ese rango.
+5. Si el cliente menciona cantidad (ej: 100 piezas), considera el costo total en tu respuesta.
+6. Responde de forma directa y concisa. Máximo 5 oraciones. Sin rodeos ni preguntas innecesarias.
+7. Habla en español mexicano, amigable y profesional.
+8. No inventes productos ni precios que no estén en el catálogo.
+9. Si preguntan por cotización, diles que hagan clic en el producto o contacten al equipo de ventas.`
 
     // Formatear historial como conversación para Gemini
     const conversationText = messages
@@ -70,8 +71,8 @@ INSTRUCCIONES:
       body: JSON.stringify({
         contents: [{ parts: [{ text: fullPrompt }] }],
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 512,
+          temperature: 0.6,
+          maxOutputTokens: 1024,
         },
       }),
     })
