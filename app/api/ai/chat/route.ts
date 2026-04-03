@@ -12,10 +12,13 @@ const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 interface CatalogProduct {
+  id: string
   name: string
   category: string
   price: number | null
   description: string | null
+  image_url: string | null
+  slug: string | null
 }
 
 // Obtiene productos del catálogo directo desde Supabase (servidor)
@@ -24,7 +27,7 @@ async function fetchCatalogFromDB(): Promise<CatalogProduct[]> {
     const supabase = createSupabaseServerClient()
     const { data, error } = await supabase
       .from("products")
-      .select("name, price, description, category:categories(name)")
+      .select("id, name, price, description, image_url, slug, category:categories(name)")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(80)
@@ -32,10 +35,13 @@ async function fetchCatalogFromDB(): Promise<CatalogProduct[]> {
     if (error || !data) return []
 
     return data.map((p: any) => ({
+      id: p.id,
       name: p.name,
       category: p.category?.name ?? "General",
       price: p.price,
       description: p.description,
+      image_url: p.image_url,
+      slug: p.slug ?? null,
     }))
   } catch {
     return []
@@ -110,12 +116,13 @@ REGLAS DE COMPORTAMIENTO:
     const geminiData = await geminiRes.json()
     const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
-    // Devolvemos también los nombres de productos mencionados para que el frontend los busque
-    const mentionedNames = catalog
-      .filter((p) => reply.toLowerCase().includes(p.name.toLowerCase()))
-      .map((p) => p.name)
+    // Devolvemos los productos mencionados completos (con id, imagen, precio, slug)
+    // para que el frontend pueda mostrarlos con links directos
+    const mentionedProducts = catalog.filter((p) =>
+      reply.toLowerCase().includes(p.name.toLowerCase())
+    )
 
-    return NextResponse.json({ reply, mentionedProducts: mentionedNames })
+    return NextResponse.json({ reply, mentionedProducts })
   } catch (error: any) {
     console.error("[AI Chat] Error interno:", error?.message ?? error)
     return NextResponse.json(

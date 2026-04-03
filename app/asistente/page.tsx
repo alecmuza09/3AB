@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { useSupabase } from "@/lib/supabase-client"
-import { Bot, User, Send, Sparkles, Calendar, Users, Gift, Briefcase } from "lucide-react"
+import { Bot, User, Send, Sparkles, Calendar, Users, Gift, Briefcase, ArrowRight } from "lucide-react"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -19,6 +19,7 @@ interface Product {
   description: string | null
   price: number
   image_url: string | null
+  slug?: string | null
   category?: { id: string; name: string; slug: string } | null
 }
 
@@ -127,20 +128,7 @@ export default function AsistentePage() {
     containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: "smooth" })
   }, [messages, isTyping])
 
-  // Buscar productos por nombres exactos mencionados por la IA
-  const findProductsByNames = useCallback(
-    (names: string[]): Product[] => {
-      if (catalog.length === 0 || names.length === 0) return []
-      return names
-        .map((name) =>
-          catalog.find((p) => p.name.toLowerCase() === name.toLowerCase())
-        )
-        .filter(Boolean) as Product[]
-    },
-    [catalog]
-  )
-
-  // Fallback: buscar por keywords del historial si la IA no menciona nombres exactos
+  // Fallback: buscar por keywords del historial si la API no devuelve productos
   const findRelatedProducts = useCallback(
     (conversationHistory: { role: string; content: string }[], limit = 4): Product[] => {
       if (catalog.length === 0) return []
@@ -193,13 +181,11 @@ export default function AsistentePage() {
           throw new Error(data.detail ?? data.error ?? `HTTP ${res.status}`)
         }
 
-        // Prioridad: productos mencionados por nombre exacto en la respuesta
-        // Fallback: búsqueda por keywords del historial
-        const exactMatches = findProductsByNames(data.mentionedProducts ?? [])
-        const fallbackProducts = exactMatches.length === 0
-          ? findRelatedProducts(history)
-          : []
-        const productsToShow = exactMatches.length > 0 ? exactMatches : fallbackProducts
+        // Prioridad: objetos completos devueltos por la API (la IA los mencionó)
+        // Fallback: búsqueda local por keywords del historial
+        const apiProducts: Product[] = data.mentionedProducts ?? []
+        const productsToShow =
+          apiProducts.length > 0 ? apiProducts : findRelatedProducts(history)
 
         setMessages((prev) => [
           ...prev,
@@ -303,34 +289,50 @@ export default function AsistentePage() {
                     </div>
                   </div>
 
-                  {/* Productos relacionados */}
+                  {/* Productos recomendados */}
                   {msg.products && msg.products.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full mt-1">
-                      {msg.products.map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => window.location.assign(`/productos/${p.id}`)}
-                          className="flex gap-3 items-center border rounded-xl p-2.5 bg-background hover:border-primary hover:shadow-sm transition text-left"
-                        >
-                          <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted shrink-0">
-                            <Image
-                              src={p.image_url || `/placeholder.svg?height=112&width=112&query=${encodeURIComponent(p.name)}`}
-                              alt={p.name}
-                              fill
-                              className="object-contain p-1"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold line-clamp-2">{p.name}</p>
-                            {p.category?.name && (
-                              <p className="text-[10px] text-muted-foreground mt-0.5">{p.category.name}</p>
-                            )}
-                            <p className="text-xs font-bold text-primary mt-0.5">
-                              ${Number(p.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
+                      {msg.products.map((p) => {
+                        const href = `/productos/${p.slug ?? p.id}`
+                        return (
+                          <a
+                            key={p.id}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex flex-col border rounded-xl overflow-hidden bg-background hover:border-primary hover:shadow-md transition-all"
+                          >
+                            {/* Imagen */}
+                            <div className="relative w-full h-28 bg-muted">
+                              <Image
+                                src={p.image_url || `/placeholder.svg?height=200&width=200&query=${encodeURIComponent(p.name)}`}
+                                alt={p.name}
+                                fill
+                                className="object-contain p-2"
+                              />
+                            </div>
+                            {/* Info */}
+                            <div className="p-2.5 flex flex-col gap-0.5 flex-1">
+                              <p className="text-xs font-semibold line-clamp-2 leading-tight">{p.name}</p>
+                              {(p.category?.name ?? (p as any).category) && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  {p.category?.name ?? (p as any).category}
+                                </p>
+                              )}
+                              <p className="text-xs font-bold text-primary mt-0.5">
+                                ${Number(p.price || 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })} MXN
+                              </p>
+                            </div>
+                            {/* CTA */}
+                            <div className="px-2.5 pb-2.5">
+                              <span className="flex items-center justify-center gap-1.5 w-full text-[11px] font-medium text-primary border border-primary/40 rounded-lg py-1.5 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                                Ver producto
+                                <ArrowRight className="h-3 w-3" />
+                              </span>
+                            </div>
+                          </a>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
