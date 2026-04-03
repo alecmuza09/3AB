@@ -100,8 +100,7 @@ INSTRUCCIONES:
         contents: [{ parts: [{ text: fullPrompt }] }],
         generationConfig: {
           temperature: 0.5,
-          maxOutputTokens: 1024,
-          responseMimeType: "application/json",
+          maxOutputTokens: 2048,
         },
       }),
     })
@@ -113,19 +112,30 @@ INSTRUCCIONES:
     }
 
     const geminiData = await geminiRes.json()
-    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    const rawText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
-    // Parsear el JSON de la respuesta
+    // Parsear la respuesta JSON — Gemini a veces la envuelve en ```json ... ```
     let message = ""
     let productIds: string[] = []
 
+    const extractJSON = (text: string): string => {
+      // Quitar bloques de código markdown si los hay
+      const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
+      if (mdMatch) return mdMatch[1].trim()
+      // Extraer el primer objeto JSON del texto
+      const objMatch = text.match(/\{[\s\S]*\}/)
+      if (objMatch) return objMatch[0]
+      return text.trim()
+    }
+
     try {
-      const parsed = JSON.parse(rawText)
-      message = parsed.message ?? ""
+      const jsonStr = extractJSON(rawText)
+      const parsed = JSON.parse(jsonStr)
+      message = typeof parsed.message === "string" ? parsed.message.trim() : ""
       productIds = Array.isArray(parsed.productIds) ? parsed.productIds : []
     } catch {
-      // Si no es JSON válido, usar el texto tal cual
-      message = rawText
+      // Fallback: usar el texto como mensaje sin productos
+      message = rawText.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim()
       productIds = []
     }
 
