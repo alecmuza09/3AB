@@ -64,7 +64,7 @@ interface ConversationStage {
   onAnswer?: (value: string, responses: Responses) => string
 }
 
-const BOT_RESPONSE_DELAY = 900
+const BOT_RESPONSE_DELAY = 400
 
 const FINAL_OPTIONS = [
   "Explorar ideas destacadas",
@@ -233,34 +233,6 @@ function extractContextFromMessage(text: string): { context: Partial<Responses>;
   return { context, productKeywords }
 }
 
-/** Genera una respuesta natural según el contexto y si hay productos que mostrar */
-function buildNaturalReply(
-  userText: string,
-  context: Responses,
-  hasProducts: boolean,
-  productCount: number
-): string {
-  const t = normalize(userText)
-  const askingRecommendation = /recomienda|sugiere|ideas|qué me das|qué tienen|opciones|alternativas|busco|necesito|quiero ver|muestra|dame|ayuda/i.test(t)
-  const sayingThanks = /gracias|genial|perfecto|ok|vale/i.test(t) && t.length < 30
-
-  if (sayingThanks) {
-    return "De nada. Si quieres afinar por tipo de producto, cantidad o presupuesto, dime y te sigo recomendando."
-  }
-
-  if (hasProducts && productCount > 0) {
-    if (askingRecommendation) {
-      return "Con lo que me comentas te recomiendo estos productos de nuestro catálogo. Puedes hacer clic en cualquiera para ver detalles. Si me dices algo más (por ejemplo cantidad o presupuesto), afino mejor."
-    }
-    return "Te dejo estas opciones que encajan con lo que platicamos. ¿Quieres que afinemos por tipo de producto o que te ayude a cotizar?"
-  }
-
-  if (Object.keys(context).length > 0) {
-    return "Tomo nota de eso. ¿Me dices un poco más? Por ejemplo qué tipo de producto te gustaría (termos, playeras, libretas…) o para cuántas personas, y te paso recomendaciones concretas del catálogo."
-  }
-
-  return "Cuéntame un poco más: ¿es para un evento, para clientes o para tu equipo? También puedes decirme el tipo de producto que buscas (termos, playeras, gorras…) y te recomiendo opciones de nuestro catálogo."
-}
 
 const getAcknowledgement = (key: StageKey, value: string) => {
   const acknowledgementMap = STAGE_ACKNOWLEDGEMENTS[key]
@@ -667,7 +639,14 @@ export default function AsistentePage() {
     }
   }
 
-  const handleSendMessage = (rawText: string) => {
+  const buildCatalogSummary = () =>
+    catalog.slice(0, 80).map((p) => ({
+      name: p.name,
+      category: p.category?.name || "General",
+      price: p.price,
+    }))
+
+  const handleSendMessage = async (rawText: string) => {
     const text = rawText.trim()
     if (!text) return
 
@@ -711,35 +690,54 @@ export default function AsistentePage() {
       return
     }
 
-    // Flujo conversacional: interpretar mensaje y recomendar productos
+    // Extraer contexto del mensaje
     const { context: extracted, productKeywords } = extractContextFromMessage(text)
     const updatedResponses: Responses = { ...userResponses, ...extracted }
     setUserResponses(updatedResponses)
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        text,
-        sender: "user",
-        timestamp: new Date().toISOString(),
-      },
-    ])
+    // Agregar mensaje del usuario al historial
+    const userMessage: Message = {
+      id: messages.length + 1,
+      text,
+      sender: "user",
+      timestamp: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, userMessage])
     setInputMessage("")
     setIsTyping(true)
 
-    setTimeout(() => {
-      const keywords = buildKeywordsFromResponses(updatedResponses, productKeywords)
-      const productsToShow = catalog.length > 0 ? recommendFromCatalog(keywords, 6) : []
-      const hasProducts = productsToShow.length > 0
-      const botText = buildNaturalReply(text, updatedResponses, catalog.length > 0, productsToShow.length)
+    // Recomendar productos del catálogo en paralelo
+    const keywords = buildKeywordsFromResponses(updatedResponses, productKeywords)
+    const productsToShow = catalog.length > 0 ? recommendFromCatalog(keywords, 6) : []
+
+    // Preparar historial para Gemini (solo mensajes de texto)
+    const chatHistory = [...messages, userMessage]
+      .filter((m) => m.sender === "user" || m.sender === "bot")
+      .map((m) => ({
+        role: m.sender === "user" ? ("user" as const) : ("model" as const),
+        text: m.text,
+      }))
+
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: chatHistory,
+          context: updatedResponses,
+          catalogSummary: buildCatalogSummary(),
+        }),
+      })
+
+      const data = await response.json()
+      const botText: string = data.reply || "Lo siento, hubo un problema al procesar tu mensaje. Intenta de nuevo."
 
       const suggestions: string[] = [
         "Ver más opciones",
         "Ver productos para cotizar",
         "Hablar con un especialista",
       ]
-      if (hasProducts) suggestions.unshift("Necesito algo más específico")
+      if (productsToShow.length > 0) suggestions.unshift("Necesito algo más específico")
 
       setMessages((prev) => [
         ...prev,
@@ -752,8 +750,21 @@ export default function AsistentePage() {
           products: productsToShow.length > 0 ? productsToShow : undefined,
         },
       ])
+    } catch (error) {
+      console.error("[Asistente] Error al llamar Gemini:", error)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: prev.length + 1,
+          text: "Hubo un error de conexión. Por favor intenta de nuevo.",
+          sender: "bot",
+          timestamp: new Date().toISOString(),
+          suggestions: ["Reiniciar conversación", "Hablar con un especialista"],
+        },
+      ])
+    } finally {
       setIsTyping(false)
-    }, BOT_RESPONSE_DELAY)
+    }
   }
 
   const handleSuggestionClick = (suggestion: string) => {
