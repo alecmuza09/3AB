@@ -1,7 +1,7 @@
 /**
  * API de chat con IA usando Google Gemini 2.5 Flash via REST.
- * Gemini responde en JSON estructurado con { message, productIds }
- * para garantizar que los productos recomendados siempre sean del catálogo real.
+ * Usa formato texto con separador para evitar problemas de truncación de JSON.
+ * El catálogo se pre-filtra por relevancia para reducir el tamaño del prompt.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -28,7 +28,7 @@ async function fetchCatalogFromDB(): Promise<CatalogProduct[]> {
       .select("id, name, price, description, image_url, slug, category:categories(name)")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
-      .limit(80)
+      .limit(150)
 
     if (error || !data) return []
 
@@ -46,6 +46,56 @@ async function fetchCatalogFromDB(): Promise<CatalogProduct[]> {
   }
 }
 
+// Pre-filtra el catálogo por relevancia usando la conversación completa
+// para reducir el tamaño del prompt enviado a Gemini
+function filterCatalogByRelevance(
+  catalog: CatalogProduct[],
+  conversationText: string,
+  limit = 30
+): CatalogProduct[] {
+  if (catalog.length === 0) return []
+
+  const text = conversationText.toLowerCase()
+
+  // Palabras clave de producto mapeadas a términos de búsqueda
+  const keywordMap: Record<string, string[]> = {
+    viaje: ["viaje", "travel", "auto", "carro", "portátil", "outdoor"],
+    tecnología: ["usb", "cargador", "cable", "power", "gadget", "tech", "electrónico"],
+    escritura: ["pluma", "bolígrafo", "libreta", "agenda", "cuaderno", "escritorio", "bic", "escolar"],
+    bebidas: ["termo", "taza", "vaso", "botella", "mug", "bebida", "café"],
+    textil: ["playera", "camisa", "gorra", "mochila", "bolsa", "tela", "prenda"],
+    herramienta: ["herramienta", "navaja", "multiherramienta", "llave", "linterna", "lámpara"],
+    eco: ["ecológico", "bambú", "reciclado", "sustentable", "verde"],
+    premium: ["premium", "ejecutivo", "lujo", "exclusivo", "sofisticado"],
+  }
+
+  const activeCategories = Object.entries(keywordMap)
+    .filter(([, terms]) => terms.some((t) => text.includes(t)))
+    .map(([cat]) => cat)
+
+  if (activeCategories.length === 0) {
+    // Sin contexto específico: devolver muestra variada
+    return catalog.slice(0, limit)
+  }
+
+  const scored = catalog.map((p) => {
+    const haystack = `${p.name} ${p.category} ${p.description ?? ""}`.toLowerCase()
+    const score = activeCategories.reduce((acc, cat) => {
+      const terms = keywordMap[cat]!
+      return acc + terms.reduce((s, t) => s + (haystack.includes(t) ? 3 : 0), 0)
+    }, 0)
+    return { p, score }
+  })
+
+  const relevant = scored
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.p)
+
+  return relevant.length >= 8 ? relevant : catalog.slice(0, limit)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY
@@ -58,50 +108,51 @@ export async function POST(request: NextRequest) {
       messages: { role: "user" | "assistant"; content: string }[]
     }
 
-    const catalog = await fetchCatalogFromDB()
+    const allCatalog = await fetchCatalogFromDB()
+    const conversationText = messages.map((m) => m.content).join(" ")
+    const catalog = filterCatalogByRelevance(allCatalog, conversationText, 30)
 
-    // Catálogo con IDs para que la IA pueda referenciarlos exactamente
-    const catalogText =
-      catalog.length > 0
-        ? catalog
-            .map((p) => {
-              const price = p.price != null ? `$${Number(p.price).toFixed(2)} MXN` : "precio a consultar"
-              const desc = p.description ? ` — ${p.description.slice(0, 80)}` : ""
-              return `[ID:${p.id}] ${p.name} | ${p.category} | ${price}${desc}`
-            })
-            .join("\n")
-        : "No hay productos disponibles."
+    const catalogText = catalog
+      .map((p) => {
+        const price = p.price != null ? `$${Number(p.price).toFixed(2)} MXN` : "precio a consultar"
+        const desc = p.description ? ` — ${p.description.slice(0, 60)}` : ""
+        return `[${p.id}] ${p.name} | ${p.category} | ${price}${desc}`
+      })
+      .join("\n")
 
     const systemPrompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana especializada en productos promocionales y branding corporativo.
 
-CATÁLOGO DE PRODUCTOS (con sus IDs):
+CATÁLOGO DISPONIBLE (usa estos IDs exactos):
 ${catalogText}
 
-INSTRUCCIONES:
-- Responde SIEMPRE en formato JSON válido con esta estructura exacta:
-  {"message": "tu respuesta aquí", "productIds": ["id1", "id2", "id3"]}
-- En "message": responde de forma directa, amigable y profesional en español mexicano. Máximo 3-4 oraciones.
-- En "productIds": incluye los IDs de 3-5 productos del catálogo que recomiendes. Si aún no tienes suficiente contexto para recomendar, deja el arreglo vacío [].
-- Recomienda productos en cuanto tengas el contexto básico (tipo de uso, evento o necesidad). No hagas más de 1 pregunta seguida.
-- Si el presupuesto es total (ej: $10,000 para 20 personas), calcula el costo por pieza y filtra los productos en ese rango.
-- No inventes ni menciones productos fuera del catálogo.
-- IMPORTANTE: Responde SOLO con el JSON, sin texto extra antes ni después.`
+FORMATO DE RESPUESTA OBLIGATORIO — dos secciones separadas por "---":
+Línea 1 a N: tu mensaje conversacional
+---
+id1,id2,id3
 
-    const conversationText = messages
+Ejemplo:
+¡Hola! Para tu evento te recomiendo estas opciones prácticas y llamativas que encajan perfecto con tu presupuesto.
+---
+abc-123,def-456,ghi-789
+
+REGLAS:
+- El mensaje debe ser directo, amigable y en español mexicano. Máximo 3-4 oraciones.
+- Recomienda 3-5 productos en cuanto tengas contexto básico (uso, ocasión o necesidad). No hagas más de 1 pregunta seguida.
+- Solo incluye IDs del catálogo. Si no hay productos relevantes o aún no hay suficiente contexto, escribe [] después del ---.
+- Si el presupuesto es total (ej: $10,000 para 20 personas = $500/pieza), calcula el costo por pieza y filtra por ese rango.`
+
+    const chatLines = messages
       .map((m) => `${m.role === "user" ? "Cliente" : "Asistente"}: ${m.content}`)
       .join("\n")
 
-    const fullPrompt = `${systemPrompt}\n\nCONVERSACIÓN:\n${conversationText}\n\nAsistente (responde solo con JSON):`
+    const fullPrompt = `${systemPrompt}\n\nCONVERSACIÓN:\n${chatLines}\n\nAsistente:`
 
     const geminiRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: fullPrompt }] }],
-        generationConfig: {
-          temperature: 0.5,
-          maxOutputTokens: 2048,
-        },
+        generationConfig: { temperature: 0.5, maxOutputTokens: 1024 },
       }),
     })
 
@@ -114,34 +165,26 @@ INSTRUCCIONES:
     const geminiData = await geminiRes.json()
     const rawText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
-    // Parsear la respuesta JSON — Gemini a veces la envuelve en ```json ... ```
-    let message = ""
+    // Parsear el formato "mensaje\n---\nid1,id2,id3"
+    const separatorIdx = rawText.lastIndexOf("---")
+    let message = rawText.trim()
     let productIds: string[] = []
 
-    const extractJSON = (text: string): string => {
-      // Quitar bloques de código markdown si los hay
-      const mdMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
-      if (mdMatch) return mdMatch[1].trim()
-      // Extraer el primer objeto JSON del texto
-      const objMatch = text.match(/\{[\s\S]*\}/)
-      if (objMatch) return objMatch[0]
-      return text.trim()
-    }
-
-    try {
-      const jsonStr = extractJSON(rawText)
-      const parsed = JSON.parse(jsonStr)
-      message = typeof parsed.message === "string" ? parsed.message.trim() : ""
-      productIds = Array.isArray(parsed.productIds) ? parsed.productIds : []
-    } catch {
-      // Fallback: usar el texto como mensaje sin productos
-      message = rawText.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim()
-      productIds = []
+    if (separatorIdx !== -1) {
+      message = rawText.slice(0, separatorIdx).trim()
+      const idLine = rawText.slice(separatorIdx + 3).trim()
+      if (idLine && idLine !== "[]") {
+        productIds = idLine
+          .replace(/[\[\]]/g, "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
     }
 
     // Buscar los productos completos por ID
     const mentionedProducts = productIds
-      .map((id) => catalog.find((p) => p.id === id))
+      .map((id) => allCatalog.find((p) => p.id === id))
       .filter(Boolean) as CatalogProduct[]
 
     return NextResponse.json({ reply: message, mentionedProducts })
