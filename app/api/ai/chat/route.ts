@@ -1,20 +1,12 @@
 /**
- * API de chat con IA usando Google Gemini.
+ * API de chat con IA usando Google Gemini 2.0 Flash via REST.
  * POST /api/ai/chat
- *
- * Body:
- * {
- *   messages: { role: "user" | "model", text: string }[],
- *   context: {
- *     eventType?: string, audience?: string, objective?: string,
- *     attendees?: string, budget?: string, productPreference?: string
- *   },
- *   catalogSummary: { name: string, category: string, price: number }[]
- * }
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { GoogleGenerativeAI } from "@google/generative-ai"
+
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,81 +18,81 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       messages = [],
-      context = {},
       catalogSummary = [],
     } = body as {
-      messages: { role: "user" | "model"; text: string }[]
-      context: Record<string, string>
-      catalogSummary: { name: string; category: string; price: number | null }[]
+      messages: { role: "user" | "assistant"; content: string }[]
+      catalogSummary: { name: string; category: string; price: number | null; description?: string | null }[]
     }
 
-    // Construir contexto del usuario
-    const contextLines: string[] = []
-    if (context.eventType) contextLines.push(`Tipo de evento: ${context.eventType}`)
-    if (context.audience) contextLines.push(`Audiencia: ${context.audience}`)
-    if (context.objective) contextLines.push(`Objetivo: ${context.objective}`)
-    if (context.attendees) contextLines.push(`Asistentes: ${context.attendees}`)
-    if (context.budget) contextLines.push(`Presupuesto: ${context.budget}`)
-    if (context.productPreference) contextLines.push(`Preferencia de producto: ${context.productPreference}`)
-
-    // Resumen del catálogo (máx 40 productos para no exceder tokens)
+    // Construir resumen del catálogo para el contexto
     const catalogText =
       catalogSummary.length > 0
         ? catalogSummary
-            .slice(0, 40)
-            .map((p) => `- ${p.name} (${p.category || "General"}) — $${Number(p.price ?? 0).toFixed(2)} MXN`)
+            .slice(0, 50)
+            .map((p) => {
+              const price = Number(p.price ?? 0).toFixed(2)
+              const desc = p.description ? ` — ${p.description.slice(0, 80)}` : ""
+              return `• ${p.name} (${p.category || "General"}) $${price} MXN${desc}`
+            })
             .join("\n")
-        : "Catálogo aún cargando."
+        : "El catálogo está cargando."
 
-    // Formatear el historial de conversación como texto plano
-    // (evita restricciones de alternancia estricta del API de startChat)
-    const conversationLines = messages
-      .slice(0, -1)
-      .filter((m) => m.text?.trim())
+    // System prompt completo
+    const systemPrompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana líder en productos promocionales y branding corporativo.
+
+CATÁLOGO ACTUAL DE PRODUCTOS:
+${catalogText}
+
+INSTRUCCIONES:
+- Habla siempre en español mexicano, de forma amigable, cálida y profesional.
+- Tu objetivo es ayudar al cliente a encontrar el producto promocional perfecto para su necesidad.
+- Haz preguntas sobre el tipo de evento, la audiencia, la cantidad aproximada y el presupuesto para dar mejores recomendaciones.
+- Recomienda productos específicos del catálogo cuando sea relevante. Menciona el nombre y precio.
+- Si te preguntan por cotización, diles que pueden hacer clic en el producto para ver detalles o contactar al equipo.
+- Responde de forma concisa (2-4 oraciones). No hagas listas largas a menos que el cliente pida opciones.
+- Cuando sea natural, termina con una pregunta para mantener la conversación.
+- No inventes productos ni precios fuera del catálogo.`
+
+    // Formatear historial como conversación para Gemini
+    const conversationText = messages
       .map((m) => {
-        const speaker = m.role === "user" ? "Cliente" : "Asistente"
-        return `${speaker}: ${m.text.trim()}`
+        const role = m.role === "user" ? "Cliente" : "Asistente"
+        return `${role}: ${m.content}`
       })
       .join("\n")
 
-    const lastUserMessage = messages[messages.length - 1]?.text?.trim() ?? ""
+    const fullPrompt = `${systemPrompt}\n\nCONVERSACIÓN:\n${conversationText}\n\nAsistente:`
 
-    const prompt = `Eres el asistente de ventas de 3A Branding, empresa mexicana especializada en productos promocionales (termos, playeras, gorras, libretas, mochilas, USB, artículos ecológicos, kits corporativos, uniformes, etc.).
+    // Llamada REST directa a Gemini
+    const geminiRes = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 512,
+        },
+      }),
+    })
 
-Tu objetivo es ayudar a encontrar los productos ideales para el evento o necesidad del cliente. Eres amigable, empático, profesional y conciso. Respondes siempre en español mexicano.
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.text()
+      console.error("[AI Chat] Gemini API error:", geminiRes.status, errBody)
+      return NextResponse.json(
+        { error: "Error de Gemini API", detail: errBody },
+        { status: 500 }
+      )
+    }
 
-Reglas:
-- Responde en máximo 3-4 oraciones cortas. Sin listas largas.
-- Usa el contexto del cliente para personalizar la respuesta.
-- Menciona productos o categorías del catálogo cuando sea relevante.
-- Si preguntan por cotización, diles que hagan clic en el producto o contacten al equipo.
-- No inventes precios ni información fuera del catálogo.
-- Máximo 1-2 emojis por respuesta.
-- Termina con una pregunta o invitación a continuar cuando sea natural.
+    const geminiData = await geminiRes.json()
+    const reply = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
 
-=== CONTEXTO DEL CLIENTE ===
-${contextLines.length > 0 ? contextLines.join("\n") : "Sin contexto aún."}
-
-=== CATÁLOGO DISPONIBLE (muestra) ===
-${catalogText}
-
-=== CONVERSACIÓN ANTERIOR ===
-${conversationLines || "(Primera interacción)"}
-
-Cliente: ${lastUserMessage}
-Asistente:`
-
-    const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
-
-    const result = await model.generateContent(prompt)
-    const responseText = result.response.text()
-
-    return NextResponse.json({ reply: responseText })
+    return NextResponse.json({ reply })
   } catch (error: any) {
-    console.error("[AI Chat] Error:", error?.message ?? error)
+    console.error("[AI Chat] Error interno:", error?.message ?? error)
     return NextResponse.json(
-      { error: "Error al procesar la respuesta de IA", detail: error?.message ?? String(error) },
+      { error: "Error interno del servidor", detail: error?.message ?? String(error) },
       { status: 500 }
     )
   }
