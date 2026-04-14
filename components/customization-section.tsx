@@ -17,8 +17,30 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronRight,
+  ScanSearch,
+  Wand2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+interface MockupAnalysis {
+  product: {
+    type: string
+    material: string
+    primaryColor: string
+    hasCurvature: boolean
+    perspective: string
+    placementArea: { xPct: number; yPct: number; wPct: number; hPct: number }
+  }
+  logo: {
+    primaryColor: string
+    recommendedSizePct: number
+  }
+  application: {
+    technique: string
+    blendMode: "normal" | "multiply" | "screen" | "overlay"
+    opacity: number
+  }
+}
 
 interface Product {
   id: string
@@ -36,10 +58,11 @@ const STYLE_OPTIONS: { value: MockupStyle; label: string; desc: string }[] = [
   { value: "flat", label: "Flat lay", desc: "Vista cenital, fondo blanco" },
 ]
 
-// Composición canvas mejorada como fallback cuando Gemini no está disponible
+// Composición canvas inteligente usando el análisis de Gemini Vision
 async function composeOnCanvas(
   productImageUrl: string,
-  logoDataUrl: string
+  logoDataUrl: string,
+  analysis?: MockupAnalysis | null
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const SIZE = 700
@@ -51,48 +74,68 @@ async function composeOnCanvas(
     const productImg = new Image()
     productImg.crossOrigin = "anonymous"
     productImg.onload = () => {
-      // Fondo degradado suave
+      // Fondo según color del producto
+      const bgColor = analysis?.product?.primaryColor ?? "#f0f0f0"
+      const isLight = parseInt(bgColor.replace("#", ""), 16) > 0x888888
       const grad = ctx.createLinearGradient(0, 0, SIZE, SIZE)
-      grad.addColorStop(0, "#f5f5f5")
-      grad.addColorStop(1, "#e8e8e8")
+      grad.addColorStop(0, isLight ? "#f7f7f7" : "#e0e0e0")
+      grad.addColorStop(1, isLight ? "#e5e5e5" : "#d0d0d0")
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, SIZE, SIZE)
 
-      // Sombra del producto
-      ctx.shadowColor = "rgba(0,0,0,0.12)"
-      ctx.shadowBlur = 30
-      ctx.shadowOffsetY = 12
-
+      // Producto con sombra
+      ctx.shadowColor = "rgba(0,0,0,0.14)"
+      ctx.shadowBlur = 32
+      ctx.shadowOffsetY = 14
       const scale = Math.min(580 / productImg.width, 580 / productImg.height)
-      const w = productImg.width * scale
-      const h = productImg.height * scale
-      const px = (SIZE - w) / 2
-      const py = (SIZE - h) / 2
-      ctx.drawImage(productImg, px, py, w, h)
+      const pw = productImg.width * scale
+      const ph = productImg.height * scale
+      const pox = (SIZE - pw) / 2  // origin X del producto en canvas
+      const poy = (SIZE - ph) / 2  // origin Y del producto en canvas
+      ctx.drawImage(productImg, pox, poy, pw, ph)
       ctx.shadowColor = "transparent"
       ctx.shadowBlur = 0
       ctx.shadowOffsetY = 0
 
       const logoImg = new Image()
       logoImg.onload = () => {
-        // Calcular zona central del producto para colocar el logo
-        const maxLogoW = w * 0.38
-        const maxLogoH = h * 0.25
+        // ── Coordenadas de placement informadas por el análisis ────────────
+        const placement = analysis?.product?.placementArea
+        const sizePct = analysis?.logo?.recommendedSizePct ?? 35
+        const blendMode = analysis?.application?.blendMode ?? "multiply"
+        const opacity = analysis?.application?.opacity ?? 0.88
+
+        let logoCenterX: number
+        let logoCenterY: number
+        let maxLogoW: number
+
+        if (placement) {
+          // El análisis indica las coordenadas como % de la imagen original del producto
+          // Hay que mapearlas al espacio del canvas donde el producto está escalado y centrado
+          logoCenterX = pox + (placement.xPct / 100) * pw
+          logoCenterY = poy + (placement.yPct / 100) * ph
+          maxLogoW = (placement.wPct / 100) * pw * (sizePct / 100) * 2.5
+        } else {
+          logoCenterX = pox + pw / 2
+          logoCenterY = poy + ph / 2
+          maxLogoW = pw * 0.38
+        }
+
+        const maxLogoH = maxLogoW * 0.7
         const lScale = Math.min(maxLogoW / logoImg.width, maxLogoH / logoImg.height)
         const lw = logoImg.width * lScale
         const lh = logoImg.height * lScale
-        const lx = px + (w - lw) / 2
-        const ly = py + (h - lh) / 2
+        const lx = logoCenterX - lw / 2
+        const ly = logoCenterY - lh / 2
 
-        // Sombra ligera bajo el logo para que parezca impreso
-        ctx.shadowColor = "rgba(0,0,0,0.25)"
-        ctx.shadowBlur = 6
+        // Sombra ligera bajo el logo para efecto de impresión
+        ctx.shadowColor = "rgba(0,0,0,0.22)"
+        ctx.shadowBlur = 5
         ctx.shadowOffsetX = 1
         ctx.shadowOffsetY = 2
 
-        // Modo multiply para integrar el logo al producto
-        ctx.globalCompositeOperation = "multiply"
-        ctx.globalAlpha = 0.88
+        ctx.globalCompositeOperation = blendMode as GlobalCompositeOperation
+        ctx.globalAlpha = opacity
         ctx.drawImage(logoImg, lx, ly, lw, lh)
 
         ctx.globalCompositeOperation = "source-over"
@@ -124,6 +167,8 @@ export function CustomizationSection() {
 
   const [style, setStyle] = useState<MockupStyle>("professional")
   const [generating, setGenerating] = useState(false)
+  const [genStep, setGenStep] = useState<"idle" | "analyzing" | "generating">("idle")
+  const [analysis, setAnalysis] = useState<MockupAnalysis | null>(null)
   const [mockupUrl, setMockupUrl] = useState<string | null>(null)
   const [mockupMime, setMockupMime] = useState("image/png")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -191,11 +236,17 @@ export function CustomizationSection() {
     }
 
     setGenerating(true)
+    setGenStep("analyzing")
     setMockupUrl(null)
     setErrorMsg(null)
     setUsedFallback(false)
+    setAnalysis(null)
 
     try {
+      // El servidor hace paso 1 (análisis) y paso 2 (generación) internamente
+      // Simulamos la transición visual de etapas con un pequeño delay
+      const timeoutId = setTimeout(() => setGenStep("generating"), 8_000)
+
       const res = await fetch("/api/ai/generate-mockup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -207,24 +258,25 @@ export function CustomizationSection() {
         }),
       })
 
+      clearTimeout(timeoutId)
       const data = await res.json()
+
+      if (data.analysis) setAnalysis(data.analysis)
 
       if (data.success && data.imageBase64) {
         const mime = data.mimeType || "image/png"
         setMockupMime(mime)
         setMockupUrl(`data:${mime};base64,${data.imageBase64}`)
       } else if (data.fallback) {
-        // Fallback canvas mejorado cuando Gemini no está disponible
-        console.warn("[Mockup] Gemini no disponible, usando canvas. Error:", data.error, data.detail)
+        // Canvas inteligente con las coordenadas del análisis
+        console.warn("[Mockup] Generación IA no disponible, usando canvas inteligente. Análisis:", data.analysis)
         try {
-          const composed = await composeOnCanvas(imageUrl, logoDataUrl)
+          const composed = await composeOnCanvas(imageUrl, logoDataUrl, data.analysis ?? null)
           setMockupUrl(composed)
           setMockupMime("image/png")
           setUsedFallback(true)
         } catch {
-          setErrorMsg(
-            "No se pudo generar el mockup. Verifica que la imagen del producto sea accesible."
-          )
+          setErrorMsg("No se pudo generar el mockup. Verifica que la imagen del producto sea accesible.")
         }
       } else {
         setErrorMsg(data.error || "No se pudo generar el mockup.")
@@ -233,6 +285,7 @@ export function CustomizationSection() {
       setErrorMsg("Error de red al generar el mockup.")
     } finally {
       setGenerating(false)
+      setGenStep("idle")
     }
   }
 
@@ -479,16 +532,37 @@ export function CustomizationSection() {
               <Card className="border-0 shadow-xl overflow-hidden">
                 <CardContent className="p-0">
                   {generating && (
-                    <div className="min-h-[320px] flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-primary/5 to-accent/5 p-8">
+                    <div className="min-h-[320px] flex flex-col items-center justify-center gap-5 bg-gradient-to-br from-primary/5 to-accent/5 p-8">
                       <div className="relative">
                         <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                        <Sparkles className="absolute inset-0 m-auto h-6 w-6 text-primary" />
+                        {genStep === "analyzing"
+                          ? <ScanSearch className="absolute inset-0 m-auto h-6 w-6 text-primary" />
+                          : <Wand2 className="absolute inset-0 m-auto h-6 w-6 text-primary" />
+                        }
                       </div>
-                      <div className="text-center space-y-1">
-                        <p className="font-semibold">Generando mockup…</p>
-                        <p className="text-sm text-muted-foreground">
-                          La IA está aplicando tu logo al producto. Puede tardar hasta 30 segundos.
+                      <div className="text-center space-y-2">
+                        <p className="font-semibold">
+                          {genStep === "analyzing" ? "Analizando producto y logo…" : "Generando mockup con IA…"}
                         </p>
+                        <p className="text-sm text-muted-foreground max-w-xs">
+                          {genStep === "analyzing"
+                            ? "La IA está entendiendo el producto, su material, perspectiva y dónde aplicar el logo."
+                            : "Aplicando el logo con la técnica y posición correctas. Puede tardar hasta 30 segundos."}
+                        </p>
+                        {/* Indicador de pasos */}
+                        <div className="flex items-center justify-center gap-2 pt-1">
+                          <div className={cn("flex items-center gap-1 text-xs px-2 py-1 rounded-full", genStep === "analyzing" ? "bg-primary/10 text-primary" : "bg-green-100 text-green-700")}>
+                            {genStep === "analyzing"
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <CheckCircle2 className="h-3 w-3" />}
+                            Análisis
+                          </div>
+                          <div className="h-px w-4 bg-border" />
+                          <div className={cn("flex items-center gap-1 text-xs px-2 py-1 rounded-full", genStep === "generating" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+                            {genStep === "generating" && <Loader2 className="h-3 w-3 animate-spin" />}
+                            Generación
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -514,14 +588,14 @@ export function CustomizationSection() {
                         />
                         {usedFallback && (
                           <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-md">
-                            Vista previa básica
+                            Composición IA
                           </div>
                         )}
                       </div>
                       <div className="p-4 flex items-center justify-between bg-muted/20 border-t">
                         <div>
                           <p className="text-sm font-semibold">
-                            {usedFallback ? "Vista previa generada" : "Mockup generado con IA"}
+                            {usedFallback ? "Composición guiada por IA" : "Mockup generado con IA"}
                           </p>
                           <p className="text-xs text-muted-foreground">{selectedProduct?.name}</p>
                         </div>
@@ -536,6 +610,23 @@ export function CustomizationSection() {
                           </Button>
                         </div>
                       </div>
+                      {/* Ficha de análisis de la IA */}
+                      {analysis && (
+                        <div className="px-4 pb-4 pt-1 bg-muted/10 border-t grid grid-cols-3 gap-3">
+                          <div className="text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Producto</p>
+                            <p className="text-xs font-medium mt-0.5 capitalize">{analysis.product.type}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Técnica</p>
+                            <p className="text-xs font-medium mt-0.5 capitalize">{analysis.application.technique.replace(/_/g, " ")}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Material</p>
+                            <p className="text-xs font-medium mt-0.5 capitalize">{analysis.product.material}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
