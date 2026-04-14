@@ -58,94 +58,161 @@ const STYLE_OPTIONS: { value: MockupStyle; label: string; desc: string }[] = [
   { value: "flat", label: "Flat lay", desc: "Vista cenital, fondo blanco" },
 ]
 
-// Composición canvas inteligente usando el análisis de Gemini Vision
+// Elimina el fondo del logo muestreando los 4 bordes (para logos con fondo sólido)
+function removeLogoBackground(img: HTMLImageElement, tolerance = 40): HTMLCanvasElement {
+  const c = document.createElement("canvas")
+  c.width = img.naturalWidth || img.width
+  c.height = img.naturalHeight || img.height
+  const ctx = c.getContext("2d")!
+  ctx.drawImage(img, 0, 0)
+  const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height)
+
+  // Muestra el color de los 4 bordes para detectar el fondo
+  const samples = [
+    [data[0], data[1], data[2]],
+    [data[(width - 1) * 4], data[(width - 1) * 4 + 1], data[(width - 1) * 4 + 2]],
+    [data[(height - 1) * width * 4], data[(height - 1) * width * 4 + 1], data[(height - 1) * width * 4 + 2]],
+    [data[((height - 1) * width + width - 1) * 4], data[((height - 1) * width + width - 1) * 4 + 1], data[((height - 1) * width + width - 1) * 4 + 2]],
+  ]
+  const bgR = Math.round(samples.reduce((s, px) => s + px[0], 0) / 4)
+  const bgG = Math.round(samples.reduce((s, px) => s + px[1], 0) / 4)
+  const bgB = Math.round(samples.reduce((s, px) => s + px[2], 0) / 4)
+
+  const id = ctx.getImageData(0, 0, c.width, c.height)
+  const d = id.data
+  for (let i = 0; i < d.length; i += 4) {
+    const diff = Math.abs(d[i] - bgR) + Math.abs(d[i + 1] - bgG) + Math.abs(d[i + 2] - bgB)
+    if (diff < tolerance * 3) d[i + 3] = 0  // hacer transparente
+  }
+  ctx.putImageData(id, 0, 0)
+  return c
+}
+
+// Añade grano de impresión para simular serigrafía o digital print
+function addPrintTexture(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, intensity = 0.04) {
+  const id = ctx.getImageData(x, y, w, h)
+  const d = id.data
+  for (let i = 0; i < d.length; i += 4) {
+    const noise = (Math.random() - 0.5) * intensity * 255
+    d[i]   = Math.min(255, Math.max(0, d[i]   + noise))
+    d[i+1] = Math.min(255, Math.max(0, d[i+1] + noise))
+    d[i+2] = Math.min(255, Math.max(0, d[i+2] + noise))
+  }
+  ctx.putImageData(id, x, y)
+}
+
+// Composición canvas profesional usando el análisis de Gemini Vision
 async function composeOnCanvas(
   productImageUrl: string,
   logoDataUrl: string,
   analysis?: MockupAnalysis | null
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const SIZE = 700
+    const SIZE = 800
     const canvas = document.createElement("canvas")
     canvas.width = SIZE
     canvas.height = SIZE
-    const ctx = canvas.getContext("2d")!
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!
 
     const productImg = new Image()
     productImg.crossOrigin = "anonymous"
     productImg.onload = () => {
-      // Fondo según color del producto
-      const bgColor = analysis?.product?.primaryColor ?? "#f0f0f0"
-      const isLight = parseInt(bgColor.replace("#", ""), 16) > 0x888888
-      const grad = ctx.createLinearGradient(0, 0, SIZE, SIZE)
-      grad.addColorStop(0, isLight ? "#f7f7f7" : "#e0e0e0")
-      grad.addColorStop(1, isLight ? "#e5e5e5" : "#d0d0d0")
+      // ── Fondo profesional ─────────────────────────────────────────
+      const isFlat = analysis?.product?.perspective === "top"
+      const grad = ctx.createRadialGradient(SIZE / 2, SIZE / 2, 0, SIZE / 2, SIZE / 2, SIZE * 0.7)
+      grad.addColorStop(0, "#ffffff")
+      grad.addColorStop(1, isFlat ? "#f0f0f0" : "#e4e4e4")
       ctx.fillStyle = grad
       ctx.fillRect(0, 0, SIZE, SIZE)
 
-      // Producto con sombra
-      ctx.shadowColor = "rgba(0,0,0,0.14)"
-      ctx.shadowBlur = 32
-      ctx.shadowOffsetY = 14
-      const scale = Math.min(580 / productImg.width, 580 / productImg.height)
+      // ── Producto con sombra realista ──────────────────────────────
+      ctx.shadowColor = "rgba(0,0,0,0.18)"
+      ctx.shadowBlur = 40
+      ctx.shadowOffsetY = 18
+      const scale = Math.min(680 / productImg.width, 680 / productImg.height)
       const pw = productImg.width * scale
       const ph = productImg.height * scale
-      const pox = (SIZE - pw) / 2  // origin X del producto en canvas
-      const poy = (SIZE - ph) / 2  // origin Y del producto en canvas
+      const pox = (SIZE - pw) / 2
+      const poy = (SIZE - ph) / 2
       ctx.drawImage(productImg, pox, poy, pw, ph)
-      ctx.shadowColor = "transparent"
-      ctx.shadowBlur = 0
-      ctx.shadowOffsetY = 0
+      ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0
 
       const logoImg = new Image()
       logoImg.onload = () => {
-        // ── Coordenadas de placement informadas por el análisis ────────────
+        const technique = analysis?.application?.technique ?? "digital_print"
+        const blendMode = analysis?.application?.blendMode ?? "source-over"
+        const opacity   = analysis?.application?.opacity   ?? 0.9
         const placement = analysis?.product?.placementArea
-        const sizePct = analysis?.logo?.recommendedSizePct ?? 35
-        const blendMode = analysis?.application?.blendMode ?? "multiply"
-        const opacity = analysis?.application?.opacity ?? 0.88
+        const sizePct   = analysis?.logo?.recommendedSizePct ?? 32
 
-        let logoCenterX: number
-        let logoCenterY: number
-        let maxLogoW: number
-
+        // ── Calcular posición de placement ────────────────────────────
+        let cx: number, cy: number, maxLW: number
         if (placement) {
-          // El análisis indica las coordenadas como % de la imagen original del producto
-          // Hay que mapearlas al espacio del canvas donde el producto está escalado y centrado
-          logoCenterX = pox + (placement.xPct / 100) * pw
-          logoCenterY = poy + (placement.yPct / 100) * ph
-          maxLogoW = (placement.wPct / 100) * pw * (sizePct / 100) * 2.5
+          cx    = pox + (placement.xPct / 100) * pw
+          cy    = poy + (placement.yPct / 100) * ph
+          maxLW = (placement.wPct / 100) * pw * (sizePct / 35)  // escalar por recomendación
         } else {
-          logoCenterX = pox + pw / 2
-          logoCenterY = poy + ph / 2
-          maxLogoW = pw * 0.38
+          cx = pox + pw / 2; cy = poy + ph / 2; maxLW = pw * 0.36
+        }
+        const maxLH = maxLW * 0.65
+
+        // ── Eliminar fondo del logo si tiene fondo sólido ─────────────
+        const hasBackground = analysis?.logo?.hasBackground ?? true
+        let logoSource: HTMLCanvasElement | HTMLImageElement = logoImg
+        if (hasBackground) {
+          logoSource = removeLogoBackground(logoImg, 45)
         }
 
-        const maxLogoH = maxLogoW * 0.7
-        const lScale = Math.min(maxLogoW / logoImg.width, maxLogoH / logoImg.height)
-        const lw = logoImg.width * lScale
-        const lh = logoImg.height * lScale
-        const lx = logoCenterX - lw / 2
-        const ly = logoCenterY - lh / 2
+        const lScale = Math.min(maxLW / (logoSource.width || logoImg.width), maxLH / (logoSource.height || logoImg.height))
+        const lw = (logoSource.width || logoImg.width) * lScale
+        const lh = (logoSource.height || logoImg.height) * lScale
+        const lx = cx - lw / 2
+        const ly = cy - lh / 2
 
-        // Sombra ligera bajo el logo para efecto de impresión
-        ctx.shadowColor = "rgba(0,0,0,0.22)"
-        ctx.shadowBlur = 5
-        ctx.shadowOffsetX = 1
-        ctx.shadowOffsetY = 2
-
-        ctx.globalCompositeOperation = blendMode as GlobalCompositeOperation
-        ctx.globalAlpha = opacity
-        ctx.drawImage(logoImg, lx, ly, lw, lh)
+        // ── Técnica de impresión ──────────────────────────────────────
+        if (technique === "laser_engraving" || technique === "debossing") {
+          // Grabado: el logo aparece oscureciendo el material
+          ctx.globalCompositeOperation = "multiply"
+          ctx.globalAlpha = 0.72
+          ctx.shadowColor = "rgba(0,0,0,0.3)"
+          ctx.shadowBlur = 2
+          ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 1
+          ctx.drawImage(logoSource, lx, ly, lw, lh)
+          // Segunda pasada ligeramente desplazada para profundidad
+          ctx.globalAlpha = 0.3
+          ctx.drawImage(logoSource, lx + 0.8, ly + 0.8, lw, lh)
+        } else if (technique === "embroidery") {
+          // Bordado: bordes suaves, ligera textura
+          ctx.filter = "blur(0.5px)"
+          ctx.globalCompositeOperation = "source-over"
+          ctx.globalAlpha = 0.92
+          ctx.shadowColor = "rgba(0,0,0,0.4)"
+          ctx.shadowBlur = 3
+          ctx.drawImage(logoSource, lx, ly, lw, lh)
+          ctx.filter = "none"
+        } else {
+          // Serigrafía / digital print: nítido, con sombra de profundidad
+          ctx.shadowColor = "rgba(0,0,0,0.28)"
+          ctx.shadowBlur = 6
+          ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 2
+          ctx.globalCompositeOperation = blendMode as GlobalCompositeOperation
+          ctx.globalAlpha = opacity
+          ctx.drawImage(logoSource, lx, ly, lw, lh)
+        }
 
         ctx.globalCompositeOperation = "source-over"
         ctx.globalAlpha = 1
-        ctx.shadowColor = "transparent"
-        ctx.shadowBlur = 0
-        ctx.shadowOffsetX = 0
-        ctx.shadowOffsetY = 0
+        ctx.shadowColor = "transparent"; ctx.shadowBlur = 0
+        ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0
 
-        resolve(canvas.toDataURL("image/png", 0.95))
+        // ── Grano de impresión sutil ──────────────────────────────────
+        if (technique === "serigraphy" || technique === "digital_print") {
+          try {
+            addPrintTexture(ctx, Math.floor(lx), Math.floor(ly), Math.ceil(lw), Math.ceil(lh), 0.025)
+          } catch { /* no-op si el canvas está tainted */ }
+        }
+
+        resolve(canvas.toDataURL("image/jpeg", 0.95))
       }
       logoImg.onerror = () => reject(new Error("No se pudo cargar el logo"))
       logoImg.src = logoDataUrl
@@ -267,6 +334,7 @@ export function CustomizationSection() {
         const mime = data.mimeType || "image/png"
         setMockupMime(mime)
         setMockupUrl(`data:${mime};base64,${data.imageBase64}`)
+        // si fue Imagen 3 (texto→imagen), marcar como generado por IA pero sin edición
       } else if (data.fallback) {
         // Canvas inteligente con las coordenadas del análisis
         console.warn("[Mockup] Generación IA no disponible, usando canvas inteligente. Análisis:", data.analysis)
@@ -595,7 +663,7 @@ export function CustomizationSection() {
                       <div className="p-4 flex items-center justify-between bg-muted/20 border-t">
                         <div>
                           <p className="text-sm font-semibold">
-                            {usedFallback ? "Composición guiada por IA" : "Mockup generado con IA"}
+                            {usedFallback ? "Composición inteligente" : "Mockup generado con IA"}
                           </p>
                           <p className="text-xs text-muted-foreground">{selectedProduct?.name}</p>
                         </div>

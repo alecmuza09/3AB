@@ -1,28 +1,29 @@
 /**
  * POST /api/ai/generate-mockup
  *
- * Pipeline de dos llamadas Gemini:
- *   1. gemini-2.5-flash (visión + texto) analiza el producto y el logo →
- *      devuelve JSON con área de impresión, perspectiva, técnica, blend mode
- *      y un prompt de generación personalizado en inglés.
- *   2. gemini-2.0-flash-preview-image-generation recibe ese prompt + las dos
- *      imágenes y produce el mockup fotorrealista.
+ * Pipeline de 3 etapas:
+ *   1. Gemini Vision (gemini-2.5-flash) — analiza producto + logo → JSON estructurado
+ *      con tipo, material, área de placement, perspectiva, técnica y prompt a medida.
+ *   2. Gemini Image Generation — intenta generar mockup con imagen de entrada.
+ *   3. Imagen 3 (imagen-3.0-generate-001) — si la etapa 2 falla, genera un mockup
+ *      fotorrealista a partir del prompt de texto generado en la etapa 1.
  *
- * Si la generación de imagen falla, el servidor devuelve el análisis JSON para
- * que el cliente realice una composición canvas inteligente.
+ * Si todas las etapas IA fallan, devuelve analysis + fallback:true para que el
+ * cliente haga composición canvas inteligente.
  *
- * Campos JSON importantes:  SIEMPRE camelCase en la REST API de Gemini.
+ * IMPORTANTE: La API REST de Gemini usa camelCase (inlineData / mimeType).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
-const VISION_MODEL = 'gemini-2.5-flash'
-const IMAGE_MODELS = [
+const VISION_MODEL  = 'gemini-2.5-flash'
+const IMAGE_MODELS  = [
   'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-exp',
 ]
+const IMAGEN3_MODEL = 'imagen-3.0-generate-001'
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -35,27 +36,22 @@ export interface MockupAnalysis {
     hasCurvature: boolean
     curvatureAxis: 'horizontal' | 'vertical' | 'none'
     perspective: 'frontal' | '3quarter' | 'top' | 'angled'
-    placementArea: {
-      xPct: number  // centro X del área imprimible, 0-100
-      yPct: number  // centro Y del área imprimible, 0-100
-      wPct: number  // ancho del área como % del total de la imagen
-      hPct: number  // alto del área como % del total de la imagen
-    }
+    placementArea: { xPct: number; yPct: number; wPct: number; hPct: number }
   }
   logo: {
     hasBackground: boolean
     primaryColor: string
     style: 'icon_only' | 'text_only' | 'icon_and_text' | 'complex'
-    recommendedSizePct: number  // % del ancho del producto que debe ocupar el logo
+    recommendedSizePct: number
   }
   application: {
     technique: 'serigraphy' | 'digital_print' | 'laser_engraving' | 'embroidery' | 'debossing'
-    logoColorAdjustment: string   // e.g. "white on dark product", "original colors"
+    logoColorAdjustment: string
     blendMode: 'normal' | 'multiply' | 'screen' | 'overlay'
-    opacity: number               // 0.6 – 1.0
-    perspectiveSkew: boolean      // si hay que aplicar distorsión perspectiva al logo
+    opacity: number
+    perspectiveSkew: boolean
   }
-  generationPrompt: string        // prompt en inglés, ultra-específico, listo para usar
+  generationPrompt: string
 }
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
@@ -67,8 +63,8 @@ async function urlToBase64(url: string): Promise<{ data: string; mimeType: strin
   })
   if (!res.ok) throw new Error(`HTTP ${res.status} al descargar imagen`)
   const buf = await res.arrayBuffer()
-  const ct = res.headers.get('content-type') ?? 'image/jpeg'
-  return { data: Buffer.from(buf).toString('base64'), mimeType: ct.split(';')[0].trim() }
+  const ct = (res.headers.get('content-type') ?? 'image/jpeg').split(';')[0].trim()
+  return { data: Buffer.from(buf).toString('base64'), mimeType: ct }
 }
 
 function parseLogoDataUrl(input: string): { data: string; mimeType: string } {
@@ -76,106 +72,101 @@ function parseLogoDataUrl(input: string): { data: string; mimeType: string } {
   return m ? { mimeType: m[1], data: m[2] } : { mimeType: 'image/png', data: input }
 }
 
-function inlineImg(mimeType: string, data: string) {
-  return { inlineData: { mimeType, data } }  // camelCase obligatorio en Gemini REST
-}
+// camelCase obligatorio en Gemini REST API
+const inlineImg = (mimeType: string, data: string) => ({ inlineData: { mimeType, data } })
 
-// ── Paso 1: Análisis de visión ────────────────────────────────────────────────
+// ── Etapa 1: Análisis de visión ───────────────────────────────────────────────
 
 async function analyzeImages(
   apiKey: string,
-  productMime: string,
-  productData: string,
-  logoMime: string,
-  logoData: string,
-  productName: string,
-  style: string,
+  productMime: string, productData: string,
+  logoMime: string, logoData: string,
+  productName: string, style: string,
 ): Promise<MockupAnalysis | null> {
-  const analysisPrompt = `You are an expert product mockup designer. Analyze the two images:
-- Image 1: a product called "${productName}"
-- Image 2: a brand logo
 
-Return ONLY a valid JSON object (no markdown, no explanation) with this exact structure:
+  const styleNote = style === 'lifestyle'
+    ? 'lifestyle photography in modern office, natural light'
+    : style === 'flat'
+    ? 'flat lay top-down view on white surface'
+    : 'professional product photography on neutral background with soft shadows'
+
+  const prompt = `You are an expert product mockup designer and photographer.
+Analyze the TWO images provided:
+- Image 1: product called "${productName}"
+- Image 2: brand logo
+
+Return ONLY a valid JSON object (no markdown, no explanation). Use this EXACT schema:
 {
   "product": {
-    "type": "<concise product type, e.g. Swiss Army knife, ceramic mug, cotton t-shirt>",
-    "material": "<main material, e.g. stainless steel, ceramic, cotton, plastic>",
-    "mainSurface": "<describe the main printable/imprintable surface in one sentence>",
-    "primaryColor": "<dominant hex color of the product, e.g. #2c2c2c>",
-    "hasCurvature": <true if surface is curved, false if flat>,
+    "type": "<e.g. Swiss Army knife, ceramic mug, cotton tote bag>",
+    "material": "<main material>",
+    "mainSurface": "<one sentence describing the main printable surface>",
+    "primaryColor": "<dominant hex color>",
+    "hasCurvature": <boolean>,
     "curvatureAxis": "<horizontal|vertical|none>",
     "perspective": "<frontal|3quarter|top|angled>",
     "placementArea": {
-      "xPct": <center X of best logo placement area as % of image width, 0-100>,
-      "yPct": <center Y of best logo placement area as % of image height, 0-100>,
+      "xPct": <center X of best logo area as % of image width, 0-100>,
+      "yPct": <center Y of best logo area as % of image height, 0-100>,
       "wPct": <width of placement zone as % of image width>,
       "hPct": <height of placement zone as % of image height>
     }
   },
   "logo": {
-    "hasBackground": <true if logo has a solid/colored background, false if transparent/cutout>,
-    "primaryColor": "<dominant hex color of the logo>",
+    "hasBackground": <true if logo has solid/colored background>,
+    "primaryColor": "<dominant hex color of logo graphics>",
     "style": "<icon_only|text_only|icon_and_text|complex>",
-    "recommendedSizePct": <recommended logo width as % of product width, typically 20-45>
+    "recommendedSizePct": <logo width as % of product width, 15-45>
   },
   "application": {
-    "technique": "<serigraphy|digital_print|laser_engraving|embroidery|debossing — best for this product/logo combo>",
-    "logoColorAdjustment": "<e.g. 'use white logo on dark product', 'original colors work well', 'invert colors for laser engraving'>",
-    "blendMode": "<normal|multiply|screen|overlay — best for realistic integration>",
-    "opacity": <0.75-1.0>,
-    "perspectiveSkew": <true if logo should be distorted to match product perspective>
+    "technique": "<serigraphy|digital_print|laser_engraving|embroidery|debossing>",
+    "logoColorAdjustment": "<e.g. 'use white logo on dark product', 'original colors'>",
+    "blendMode": "<normal|multiply|screen|overlay>",
+    "opacity": <0.7-1.0>,
+    "perspectiveSkew": <true if logo needs perspective distortion>
   },
-  "generationPrompt": "<A detailed image generation prompt in English (100-150 words) describing exactly how to place this specific logo on this specific product. Include: product material, logo placement location, imprint technique, lighting style '${style === 'lifestyle' ? 'lifestyle photography in modern office' : style === 'flat' ? 'flat lay top view on white surface' : 'professional product photography on neutral background'}', photorealistic quality.>"
+  "generationPrompt": "<120-word English prompt for a text-to-image model to generate a photorealistic mockup. Include: exact product type, material, color, logo placement location on product surface, printing technique (${styleNote}), the logo design described visually, lighting, camera angle. Do NOT use the word 'logo' — describe the printed/engraved mark visually.>"
 }`
 
-  const url = `${GEMINI_BASE}/${VISION_MODEL}:generateContent?key=${apiKey}`
-  const body = {
-    contents: [{
-      role: 'user',
-      parts: [
-        { text: analysisPrompt },
-        inlineImg(productMime, productData),
-        inlineImg(logoMime, logoData),
-      ],
-    }],
-    generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
-  }
-
   try {
-    const res = await fetch(url, {
+    const res = await fetch(`${GEMINI_BASE}/${VISION_MODEL}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: prompt },
+            inlineImg(productMime, productData),
+            inlineImg(logoMime, logoData),
+          ],
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1200 },
+      }),
       signal: AbortSignal.timeout(30_000),
     })
     const data = await res.json()
-    if (!res.ok) {
-      console.error('[mockup/analysis] Gemini Vision error:', res.status, data?.error?.message)
-      return null
-    }
+    if (!res.ok) { console.error('[mockup/analysis] error:', data?.error?.message); return null }
+
     let raw: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    // Limpiar posibles bloques markdown ```json … ```
     raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     const analysis: MockupAnalysis = JSON.parse(raw)
-    console.log('[mockup/analysis] Análisis OK:', analysis.product.type, '|', analysis.application.technique)
+    console.log('[mockup/analysis] OK →', analysis.product.type, '|', analysis.application.technique)
     return analysis
   } catch (e: any) {
-    console.error('[mockup/analysis] Parse/fetch error:', e?.message)
+    console.error('[mockup/analysis] parse/fetch:', e?.message)
     return null
   }
 }
 
-// ── Paso 2: Generación de imagen ──────────────────────────────────────────────
+// ── Etapa 2: Gemini image generation (imagen entrada → imagen salida) ─────────
 
-async function generateImage(
+async function tryGeminiImageGen(
   apiKey: string,
   analysis: MockupAnalysis | null,
-  productMime: string,
-  productData: string,
-  logoMime: string,
-  logoData: string,
-  productName: string,
-  style: string,
+  productMime: string, productData: string,
+  logoMime: string, logoData: string,
+  productName: string, style: string,
 ): Promise<{ imageBase64: string; mimeType: string; model: string } | null> {
 
   const styleMap: Record<string, string> = {
@@ -184,66 +175,113 @@ async function generateImage(
     flat: 'flat lay top-down view on clean white surface',
   }
 
-  const basePrompt = analysis?.generationPrompt
-    ?? `Create a photorealistic product mockup of "${productName}" with the brand logo from the second image applied directly onto the product's main surface. The logo should look imprinted, not floating. Style: ${styleMap[style] ?? styleMap.professional}. High quality, sharp details.`
+  const prompt = `${analysis?.generationPrompt ?? `Photorealistic mockup of "${productName}" with brand logo applied on its main surface.`}
 
-  const fullPrompt = `${basePrompt}
-
-CRITICAL REQUIREMENTS:
-- Logo must be physically applied to the product surface (imprinted/printed/engraved), NOT as a floating overlay
-- Maintain the product's exact shape, color (${analysis?.product.primaryColor ?? 'original'}), material (${analysis?.product.material ?? 'original'}) and perspective
-- Application technique: ${analysis?.application.technique ?? 'digital print'}
-- ${analysis?.application.logoColorAdjustment ?? 'Use logo colors as-is'}
-- Background style: ${styleMap[style] ?? styleMap.professional}
-- Output: only the product, no text, no frames, photorealistic quality`
-
-  const parts = [
-    { text: fullPrompt },
-    inlineImg(productMime, productData),
-    inlineImg(logoMime, logoData),
-  ]
+RULES:
+- Logo physically applied to product surface (imprinted/printed/engraved), NOT floating
+- Product color: ${analysis?.product.primaryColor ?? 'original'}, material: ${analysis?.product.material ?? 'original'}
+- Technique: ${analysis?.application.technique ?? 'digital print'}
+- ${analysis?.application.logoColorAdjustment ?? 'Use logo colors naturally'}
+- Photography style: ${styleMap[style] ?? styleMap.professional}
+- Output only the product image, no text, no frame`
 
   for (const model of IMAGE_MODELS) {
-    console.log('[mockup/gen] Intentando modelo:', model)
     try {
-      const url = `${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`
-      const res = await fetch(url, {
+      const res = await fetch(`${GEMINI_BASE}/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ role: 'user', parts }],
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-            temperature: 0.3,
-          },
+          contents: [{
+            role: 'user',
+            parts: [
+              { text: prompt },
+              inlineImg(productMime, productData),
+              inlineImg(logoMime, logoData),
+            ],
+          }],
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], temperature: 0.3 },
         }),
         signal: AbortSignal.timeout(90_000),
       })
       const data = await res.json()
       if (!res.ok) {
         const msg = data?.error?.message ?? `HTTP ${res.status}`
-        console.warn(`[mockup/gen] ${model}: ${msg}`)
-        if (res.status === 404 || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('deprecated')) continue
-        break
-      }
-      const responseParts: any[] = data?.candidates?.[0]?.content?.parts ?? []
-      const imgPart = responseParts.find(
-        (p: any) => p.inlineData?.data && p.inlineData?.mimeType?.startsWith('image/')
-      )
-      if (!imgPart) {
-        const text = responseParts.find((p: any) => p.text)?.text ?? ''
-        console.warn(`[mockup/gen] ${model} no devolvió imagen. Texto: ${text.slice(0, 150)}`)
+        console.warn(`[mockup/gemini-img] ${model}: ${msg.slice(0, 120)}`)
         continue
       }
-      return { imageBase64: imgPart.inlineData.data, mimeType: imgPart.inlineData.mimeType, model }
+      const parts: any[] = data?.candidates?.[0]?.content?.parts ?? []
+      const img = parts.find((p: any) => p.inlineData?.data && p.inlineData?.mimeType?.startsWith('image/'))
+      if (!img) { console.warn(`[mockup/gemini-img] ${model} no devolvió imagen`); continue }
+      return { imageBase64: img.inlineData.data, mimeType: img.inlineData.mimeType, model }
     } catch (e: any) {
-      console.error(`[mockup/gen] ${model} error:`, e?.message)
+      console.error(`[mockup/gemini-img] ${model}:`, e?.message)
     }
   }
   return null
 }
 
-// ── Handler principal ─────────────────────────────────────────────────────────
+// ── Etapa 3: Imagen 3 — generación texto→imagen ───────────────────────────────
+
+async function tryImagen3(
+  apiKey: string,
+  analysis: MockupAnalysis | null,
+  productName: string,
+  style: string,
+): Promise<{ imageBase64: string; mimeType: string; model: string } | null> {
+
+  if (!analysis?.generationPrompt) {
+    console.warn('[mockup/imagen3] Sin analysis.generationPrompt, saltando')
+    return null
+  }
+
+  const styleMap: Record<string, string> = {
+    professional: 'Professional product photography, neutral white/grey background, studio lighting, soft shadows, 4K quality',
+    lifestyle: 'Lifestyle product photography in a modern office setting, natural window light, shallow depth of field',
+    flat: 'Flat lay product photography, overhead view, clean white background, minimal composition',
+  }
+
+  const fullPrompt = `${analysis.generationPrompt}. ${styleMap[style] ?? styleMap.professional}. Photorealistic, high resolution, commercial quality product mockup.`
+
+  console.log('[mockup/imagen3] Prompt:', fullPrompt.slice(0, 200))
+
+  try {
+    const res = await fetch(`${GEMINI_BASE}/${IMAGEN3_MODEL}:predict?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instances: [{ prompt: fullPrompt }],
+        parameters: {
+          sampleCount: 1,
+          aspectRatio: '1:1',
+          personGeneration: 'dont_allow',
+          safetySetting: 'block_some',
+        },
+      }),
+      signal: AbortSignal.timeout(60_000),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      console.warn('[mockup/imagen3] Error:', data?.error?.message ?? res.status)
+      return null
+    }
+    const pred = data?.predictions?.[0]
+    if (!pred?.bytesBase64Encoded) {
+      console.warn('[mockup/imagen3] Sin imagen en respuesta:', JSON.stringify(data).slice(0, 300))
+      return null
+    }
+    console.log('[mockup/imagen3] Imagen generada OK')
+    return {
+      imageBase64: pred.bytesBase64Encoded,
+      mimeType: pred.mimeType ?? 'image/png',
+      model: IMAGEN3_MODEL,
+    }
+  } catch (e: any) {
+    console.error('[mockup/imagen3]', e?.message)
+    return null
+  }
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
@@ -252,56 +290,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'GEMINI_API_KEY no configurada' }, { status: 500 })
     }
 
-    const body = await request.json()
-    const {
-      productImageUrl,
-      logoBase64,
-      productName = 'producto promocional',
-      style = 'professional',
-    } = body
+    const { productImageUrl, logoBase64, productName = 'producto promocional', style = 'professional' } = await request.json()
 
     if (!productImageUrl || !logoBase64) {
-      return NextResponse.json({ success: false, error: 'Se requiere productImageUrl y logoBase64' }, { status: 400 })
+      return NextResponse.json({ success: false, error: 'Faltan productImageUrl o logoBase64' }, { status: 400 })
     }
 
     // Descargar imagen del producto
     let productData: string, productMime: string
     try {
       const r = await urlToBase64(productImageUrl)
-      productData = r.data
-      productMime = r.mimeType
+      productData = r.data; productMime = r.mimeType
       if (productMime === 'image/svg+xml') {
-        return NextResponse.json({ success: false, error: 'La imagen del producto es SVG; usa PNG o JPEG.', fallback: true })
+        return NextResponse.json({ success: false, error: 'Imagen SVG no compatible; usa PNG/JPEG.', fallback: true })
       }
     } catch (e: any) {
-      return NextResponse.json({ success: false, error: `No se pudo descargar la imagen del producto: ${e?.message}`, fallback: true })
+      return NextResponse.json({ success: false, error: `No se pudo descargar la imagen: ${e?.message}`, fallback: true })
     }
 
     const { data: logoData, mimeType: logoMime } = parseLogoDataUrl(logoBase64)
 
-    // ── Paso 1: Análisis ────────────────────────────────────────────────────
+    // ── Etapa 1: Análisis ────────────────────────────────────────────
     const analysis = await analyzeImages(apiKey, productMime, productData, logoMime, logoData, productName, style)
 
-    // ── Paso 2: Generación ──────────────────────────────────────────────────
-    const generated = await generateImage(apiKey, analysis, productMime, productData, logoMime, logoData, productName, style)
-
-    if (generated) {
-      return NextResponse.json({
-        success: true,
-        imageBase64: generated.imageBase64,
-        mimeType: generated.mimeType,
-        model: generated.model,
-        analysis,
-      })
+    // ── Etapa 2: Gemini imagen ───────────────────────────────────────
+    const geminiResult = await tryGeminiImageGen(apiKey, analysis, productMime, productData, logoMime, logoData, productName, style)
+    if (geminiResult) {
+      return NextResponse.json({ success: true, ...geminiResult, analysis, stage: 'gemini-image-gen' })
     }
 
-    // Imagen no generada → devolver análisis para canvas inteligente en cliente
-    return NextResponse.json({
-      success: false,
-      error: 'Los modelos de generación de imagen no están disponibles en este momento.',
-      fallback: true,
-      analysis,
-    })
+    // ── Etapa 3: Imagen 3 ────────────────────────────────────────────
+    const imagen3Result = await tryImagen3(apiKey, analysis, productName, style)
+    if (imagen3Result) {
+      return NextResponse.json({ success: true, ...imagen3Result, analysis, stage: 'imagen3' })
+    }
+
+    // ── Fallback canvas ──────────────────────────────────────────────
+    console.warn('[generate-mockup] Todas las etapas IA fallaron → canvas en cliente')
+    return NextResponse.json({ success: false, error: 'Modelos IA no disponibles con esta API key.', fallback: true, analysis })
+
   } catch (error: any) {
     console.error('[generate-mockup] Error interno:', error?.message)
     return NextResponse.json({ success: false, error: error?.message ?? 'Error interno', fallback: true }, { status: 200 })
