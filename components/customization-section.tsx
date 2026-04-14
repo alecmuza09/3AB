@@ -36,36 +36,73 @@ const STYLE_OPTIONS: { value: MockupStyle; label: string; desc: string }[] = [
   { value: "flat", label: "Flat lay", desc: "Vista cenital, fondo blanco" },
 ]
 
-// Composición canvas como fallback cuando Gemini no genera imagen
+// Composición canvas mejorada como fallback cuando Gemini no está disponible
 async function composeOnCanvas(
   productImageUrl: string,
   logoDataUrl: string
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    const SIZE = 700
     const canvas = document.createElement("canvas")
-    canvas.width = 600
-    canvas.height = 600
+    canvas.width = SIZE
+    canvas.height = SIZE
     const ctx = canvas.getContext("2d")!
 
     const productImg = new Image()
     productImg.crossOrigin = "anonymous"
     productImg.onload = () => {
-      ctx.fillStyle = "#f8f8f8"
-      ctx.fillRect(0, 0, 600, 600)
-      const scale = Math.min(500 / productImg.width, 500 / productImg.height)
+      // Fondo degradado suave
+      const grad = ctx.createLinearGradient(0, 0, SIZE, SIZE)
+      grad.addColorStop(0, "#f5f5f5")
+      grad.addColorStop(1, "#e8e8e8")
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, SIZE, SIZE)
+
+      // Sombra del producto
+      ctx.shadowColor = "rgba(0,0,0,0.12)"
+      ctx.shadowBlur = 30
+      ctx.shadowOffsetY = 12
+
+      const scale = Math.min(580 / productImg.width, 580 / productImg.height)
       const w = productImg.width * scale
       const h = productImg.height * scale
-      ctx.drawImage(productImg, (600 - w) / 2, (600 - h) / 2, w, h)
+      const px = (SIZE - w) / 2
+      const py = (SIZE - h) / 2
+      ctx.drawImage(productImg, px, py, w, h)
+      ctx.shadowColor = "transparent"
+      ctx.shadowBlur = 0
+      ctx.shadowOffsetY = 0
 
       const logoImg = new Image()
       logoImg.onload = () => {
-        ctx.globalAlpha = 0.85
-        const lScale = Math.min(180 / logoImg.width, 100 / logoImg.height)
+        // Calcular zona central del producto para colocar el logo
+        const maxLogoW = w * 0.38
+        const maxLogoH = h * 0.25
+        const lScale = Math.min(maxLogoW / logoImg.width, maxLogoH / logoImg.height)
         const lw = logoImg.width * lScale
         const lh = logoImg.height * lScale
-        ctx.drawImage(logoImg, (600 - lw) / 2, (600 - lh) / 2, lw, lh)
+        const lx = px + (w - lw) / 2
+        const ly = py + (h - lh) / 2
+
+        // Sombra ligera bajo el logo para que parezca impreso
+        ctx.shadowColor = "rgba(0,0,0,0.25)"
+        ctx.shadowBlur = 6
+        ctx.shadowOffsetX = 1
+        ctx.shadowOffsetY = 2
+
+        // Modo multiply para integrar el logo al producto
+        ctx.globalCompositeOperation = "multiply"
+        ctx.globalAlpha = 0.88
+        ctx.drawImage(logoImg, lx, ly, lw, lh)
+
+        ctx.globalCompositeOperation = "source-over"
         ctx.globalAlpha = 1
-        resolve(canvas.toDataURL("image/png"))
+        ctx.shadowColor = "transparent"
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = 0
+
+        resolve(canvas.toDataURL("image/png", 0.95))
       }
       logoImg.onerror = () => reject(new Error("No se pudo cargar el logo"))
       logoImg.src = logoDataUrl
@@ -177,14 +214,17 @@ export function CustomizationSection() {
         setMockupMime(mime)
         setMockupUrl(`data:${mime};base64,${data.imageBase64}`)
       } else if (data.fallback) {
-        // Fallback: composición en canvas
+        // Fallback canvas mejorado cuando Gemini no está disponible
+        console.warn("[Mockup] Gemini no disponible, usando canvas. Error:", data.error, data.detail)
         try {
           const composed = await composeOnCanvas(imageUrl, logoDataUrl)
           setMockupUrl(composed)
           setMockupMime("image/png")
           setUsedFallback(true)
-        } catch (canvasErr) {
-          setErrorMsg("No se pudo generar el mockup. Verifica que la imagen del producto sea accesible.")
+        } catch {
+          setErrorMsg(
+            "No se pudo generar el mockup. Verifica que la imagen del producto sea accesible."
+          )
         }
       } else {
         setErrorMsg(data.error || "No se pudo generar el mockup.")
