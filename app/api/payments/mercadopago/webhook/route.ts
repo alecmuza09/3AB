@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import MercadoPago, { Payment } from 'mercadopago'
 import { createClient } from '@supabase/supabase-js'
+import { notifyPaymentUpdate } from '@/lib/admin-notifications'
 
 /**
  * Verifica la firma HMAC-SHA256 de Mercado Pago.
@@ -144,6 +145,18 @@ export async function POST(request: NextRequest) {
     } else {
       console.log('[MP Webhook] Pedido actualizado:', orderId, '→', orderStatus)
     }
+
+    // Notificar a Andrea sobre el pago (no bloqueante)
+    notifyPaymentUpdate({
+      orderId,
+      paymentId: paymentId,
+      paymentStatus: paymentData.status,
+      amount: paymentData.transaction_amount,
+      payerEmail: paymentData.payer?.email,
+      payerName: paymentData.payer?.first_name
+        ? `${paymentData.payer.first_name} ${paymentData.payer.last_name || ''}`.trim()
+        : undefined,
+    }).catch((e: unknown) => console.warn('[MP Webhook] Error al notificar a Andrea:', e))
 
     return NextResponse.json({ received: true })
   } catch (error) {

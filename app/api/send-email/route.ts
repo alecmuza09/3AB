@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 const FROM_EMAIL = process.env.EMAIL_FROM || 'noreply@3abranding.com'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'factura@3abranding.com'
 const OPS_EMAIL = process.env.OPS_EMAIL || 'operaciones@3abranding.com'
+const ANDREA_EMAIL = 'andrea@3abranding.com'
 
 function formatCurrency(value: number) {
   return `$${(value || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
         }),
         resend.emails.send({
           from: FROM_EMAIL,
-          to: [ADMIN_EMAIL],
+          to: [ADMIN_EMAIL, ANDREA_EMAIL],
           subject: `[Nuevo Pedido] ${order.id} — ${order.contact?.contactName || 'Cliente'}`,
           html: buildAdminNotificationEmail(order),
         }),
@@ -327,7 +328,7 @@ export async function POST(request: NextRequest) {
       sendPromises.push(
         resend.emails.send({
           from: FROM_EMAIL,
-          to: [OPS_EMAIL],
+          to: [OPS_EMAIL, ANDREA_EMAIL],
           subject: `[Nueva Cotización] ${quotationNumber} — ${contactName}`,
           html: quotationAdminHtml,
         })

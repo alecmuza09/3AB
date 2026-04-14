@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notifyOrderStatusChange } from '@/lib/admin-notifications'
 
 // Crear cliente de Supabase con service role para bypassing RLS
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -271,6 +272,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     console.log('✅ Pedido actualizado:', data.order_number)
+
+    // Notificar a Andrea sobre el cambio de estado (no bloqueante)
+    notifyOrderStatusChange({
+      id: data.id,
+      order_number: data.order_number,
+      status,
+      total: data.total,
+      contact_info: data.contact_info,
+      previousStatus: body.previousStatus,
+    }).catch((e: unknown) => console.warn('[orders PATCH] Error al notificar:', e))
 
     return NextResponse.json({
       success: true,
