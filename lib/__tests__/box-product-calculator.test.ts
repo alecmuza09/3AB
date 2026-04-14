@@ -2,7 +2,7 @@
  * Tests para el calculador de productos por caja
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 import { BoxProductCalculator, ShippingCalculator } from '../box-product-calculator';
 import type { BoxProduct } from '../types/box-product';
 

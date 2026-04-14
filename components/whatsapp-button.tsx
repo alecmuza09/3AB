@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button"
 
 export function WhatsappButton() {
   const handleWhatsAppClick = () => {
-    const phoneNumber = "525567919161" // WhatsApp: 5567919161
+    // Usa la variable de entorno pública; si no está definida, cae al número de producción
+    const rawPhone =
+      process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER || "+525567919161"
+    // Eliminar caracteres no numéricos para wa.me
+    const phoneNumber = rawPhone.replace(/[^\d]/g, "")
     const message = "Hola, me interesa conocer más sobre sus productos promocionales"
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`
     window.open(whatsappUrl, "_blank")

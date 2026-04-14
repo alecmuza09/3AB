@@ -747,6 +747,36 @@ export default function AdminPage() {
     }
   }
 
+  // Probar conexión con API de 4Promotional
+  const [testing4Promotional, setTesting4Promotional] = useState(false)
+  const handleTest4Promotional = async () => {
+    setTesting4Promotional(true)
+    try {
+      const res = await fetch('/api/sync-products/test')
+      const data = await res.json()
+      const conn = data.connection
+      if (conn.success) {
+        const schema = data.schema
+        alert(
+          `✅ Conexión exitosa con 4Promotional\n\n` +
+          `Variantes crudas: ${conn.totalRawVariants}\n` +
+          `Productos agrupados: ${conn.totalGroupedProducts}\n` +
+          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n\n` +
+          `Producto de ejemplo: ${conn.sampleRawProduct?.nombre_articulo ?? 'N/A'}\n` +
+          `SKU: ${conn.sampleRawProduct?.id_articulo ?? 'N/A'}\n\n` +
+          `Campos disponibles en API:\n${schema?.availableFields?.join(', ') || 'N/A'}\n\n` +
+          `Categorías (${schema?.totalCategories}): ${schema?.categories?.slice(0, 5).join(', ')}...`
+        )
+      } else {
+        alert(`❌ Error de conexión 4Promotional:\n${conn.error}\n\nURL configurada: ${data.config?.baseUrl || 'no configurada'}`)
+      }
+    } catch (err) {
+      alert(`Error al probar la conexión: ${err}`)
+    } finally {
+      setTesting4Promotional(false)
+    }
+  }
+
   // Probar conexión con API de 3A Promoción
   const [testingPromocion, setTestingPromocion] = useState(false)
   const handleTestPromocion = async () => {
@@ -1471,6 +1501,62 @@ export default function AdminPage() {
     loadAdminQuotations()
   }
 
+  const [sendingQuotationEmail, setSendingQuotationEmail] = useState<string | null>(null)
+  const [sendingQuotationWA, setSendingQuotationWA] = useState<string | null>(null)
+
+  const handleSendQuotationEmail = async (q: any) => {
+    setSendingQuotationEmail(q.id)
+    try {
+      const res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'quotation_admin', order: q }),
+      })
+      const data = await res.json()
+      if (data.success || res.ok) {
+        alert(`✅ Cotización ${q.quotation_number} enviada por email a ${q.contact_info?.email || 'cliente'}`)
+        updateQuotationStatus(q.id, 'sent')
+      } else {
+        alert(`❌ Error al enviar: ${data.error || 'Error desconocido'}`)
+      }
+    } catch (e) {
+      alert(`Error: ${e}`)
+    } finally {
+      setSendingQuotationEmail(null)
+    }
+  }
+
+  const handleSendQuotationWA = async (q: any) => {
+    const phone = q.contact_info?.phone
+    if (!phone) {
+      alert('Esta cotización no tiene teléfono de contacto registrado.')
+      return
+    }
+    setSendingQuotationWA(q.id)
+    try {
+      const res = await fetch('/api/webhooks/whatsapp/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: phone,
+          quotationNumber: q.quotation_number,
+          contactName: q.contact_info?.contactName || 'Cliente',
+          total: q.total || 0,
+        }),
+      })
+      if (res.ok) {
+        alert(`✅ Mensaje de WhatsApp enviado a ${phone}`)
+      } else {
+        const data = await res.json()
+        alert(`❌ Error al enviar WhatsApp: ${data.error || 'API no configurada'}`)
+      }
+    } catch (e) {
+      alert(`Error: ${e}`)
+    } finally {
+      setSendingQuotationWA(null)
+    }
+  }
+
   // Cargar datos cuando cambia la sección activa
   useEffect(() => {
     if (activeSection === "orders" || activeSection === "dashboard") {
@@ -2129,6 +2215,15 @@ export default function AdminPage() {
                             For Promotional
                           </>
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleTest4Promotional}
+                        disabled={testing4Promotional}
+                        title="Probar conexión y schema de API de 4Promotional"
+                      >
+                        {testing4Promotional ? "Probando..." : "🔍 Test API 4Promotional"}
                       </Button>
                       <Button 
                         variant="outline" 
@@ -3980,8 +4075,31 @@ export default function AdminPage() {
                                       <SelectItem value="rejected">Rechazada</SelectItem>
                                       <SelectItem value="expired">Expirada</SelectItem>
                                       <SelectItem value="converted">Convertida</SelectItem>
+                                      <SelectItem value="under_review">En revisión</SelectItem>
                                     </SelectContent>
                                   </Select>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs"
+                                    disabled={sendingQuotationEmail === q.id}
+                                    onClick={() => handleSendQuotationEmail(q)}
+                                    title={`Enviar cotización por email a ${q.contact_info?.email || 'cliente'}`}
+                                  >
+                                    <Mail className="h-3 w-3 mr-1" />
+                                    {sendingQuotationEmail === q.id ? 'Enviando...' : 'Email'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-xs text-green-700 border-green-300 hover:bg-green-50"
+                                    disabled={sendingQuotationWA === q.id}
+                                    onClick={() => handleSendQuotationWA(q)}
+                                    title={`Enviar por WhatsApp a ${q.contact_info?.phone || 'sin teléfono'}`}
+                                  >
+                                    <Phone className="h-3 w-3 mr-1" />
+                                    {sendingQuotationWA === q.id ? 'Enviando...' : 'WhatsApp'}
+                                  </Button>
                                 </div>
                               </div>
                             </div>

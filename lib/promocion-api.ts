@@ -242,6 +242,42 @@ const STOCK_QUERY = `
   }
 `
 
+const ITEMS_QUERY = `
+  query GetItems {
+    items {
+      id
+      sku
+      name
+      nombre
+      description
+      descripcion
+      price
+      precio
+      stock
+      inventario
+      category
+      categoria
+      image_url
+      imagen
+    }
+  }
+`
+
+const INVENTORY_QUERY = `
+  query GetInventory {
+    inventory {
+      id
+      sku
+      name
+      description
+      price
+      stock
+      category
+      image_url
+    }
+  }
+`
+
 /** Paths posibles donde puede venir la lista en la respuesta (primer que exista) */
 const PRODUCTS_DATA_PATHS = [
   'products',
@@ -249,6 +285,8 @@ const PRODUCTS_DATA_PATHS = [
   'stock',
   'inventory',
   'items',
+  'catalogo',
+  'productos',
 ] as const
 
 function extractProductList(data: Record<string, unknown>): PromocionProductRaw[] {
@@ -261,18 +299,25 @@ function extractProductList(data: Record<string, unknown>): PromocionProductRaw[
 
 /**
  * Intenta obtener productos con varias queries posibles.
+ * Devuelve el resultado de la primera query que retorne datos.
  */
 async function fetchProductsRaw(): Promise<PromocionProductRaw[]> {
-  const queries = [PRODUCTS_QUERY, ARTICULOS_QUERY, STOCK_QUERY]
+  const queries = [PRODUCTS_QUERY, ARTICULOS_QUERY, STOCK_QUERY, ITEMS_QUERY, INVENTORY_QUERY]
 
+  const errors: string[] = []
   for (const query of queries) {
     try {
       const data = await promocionGraphQL<Record<string, unknown>>(query)
       const list = extractProductList(data)
       if (list.length > 0) return list
-    } catch {
+    } catch (err) {
+      errors.push(String(err))
       continue
     }
+  }
+
+  if (errors.length > 0) {
+    console.warn('3A Promoción: todas las queries fallaron.', errors.join(' | '))
   }
 
   return []
@@ -414,8 +459,11 @@ export async function testPromocionConnection(): Promise<{
     { name: 'products', query: PRODUCTS_QUERY },
     { name: 'articulos', query: ARTICULOS_QUERY },
     { name: 'stock', query: STOCK_QUERY },
+    { name: 'items', query: ITEMS_QUERY },
+    { name: 'inventory', query: INVENTORY_QUERY },
   ]
 
+  const queryErrors: string[] = []
   for (const { name, query } of queries) {
     try {
       const data = await promocionGraphQL<Record<string, unknown>>(query)
@@ -429,12 +477,17 @@ export async function testPromocionConnection(): Promise<{
           queryUsed: name,
         }
       }
-    } catch {
+    } catch (err) {
+      queryErrors.push(`${name}: ${err}`)
       continue
     }
   }
 
-  return { success: false, loginOk: true, error: 'Ninguna query devolvió productos. Verifica el schema de la API.' }
+  return {
+    success: false,
+    loginOk: true,
+    error: `Ninguna query devolvió productos. Errores: ${queryErrors.join(' | ')}. Ejecuta el endpoint de introspección para ver el schema real.`,
+  }
 }
 
 export { getPromocionConfig }

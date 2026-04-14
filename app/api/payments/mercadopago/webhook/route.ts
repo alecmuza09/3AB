@@ -13,6 +13,51 @@ import { NextRequest, NextResponse } from 'next/server'
 import MercadoPago, { Payment } from 'mercadopago'
 import { createClient } from '@supabase/supabase-js'
 
+/**
+ * Verifica la firma HMAC-SHA256 de Mercado Pago.
+ * Docs: https://www.mercadopago.com.mx/developers/es/docs/your-integrations/notifications/webhooks
+ */
+async function verifyMercadoPagoSignature(request: NextRequest, rawBody: string): Promise<boolean> {
+  const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET
+  if (!webhookSecret) return true // Sin secreto configurado, aceptar todas (modo dev)
+
+  const xSignature = request.headers.get('x-signature')
+  const xRequestId = request.headers.get('x-request-id')
+  const urlParams = new URL(request.url).searchParams
+  const dataId = urlParams.get('data.id')
+
+  if (!xSignature) return false
+
+  const parts = xSignature.split(',')
+  const tsEntry = parts.find((p) => p.startsWith('ts='))
+  const v1Entry = parts.find((p) => p.startsWith('v1='))
+
+  if (!tsEntry || !v1Entry) return false
+
+  const ts = tsEntry.split('=')[1]
+  const v1 = v1Entry.split('=')[1]
+
+  const manifest = `id:${dataId || ''};request-id:${xRequestId || ''};ts:${ts};`
+
+  try {
+    const encoder = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(webhookSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    )
+    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(manifest))
+    const hashHex = Array.from(new Uint8Array(signature))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+    return hashHex === v1
+  } catch {
+    return false
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN
@@ -24,7 +69,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Configuración incompleta' }, { status: 500 })
     }
 
-    const body = await request.json()
+    const rawBody = await request.text()
+    const signatureValid = await verifyMercadoPagoSignature(request, rawBody)
+    if (!signatureValid) {
+      console.warn('[MP Webhook] Firma inválida — request rechazada')
+      return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+    }
+
+    const body = JSON.parse(rawBody)
     console.log('[MP Webhook] Evento recibido:', body.type, body.data?.id)
 
     // Mercado Pago envía topic=payment o type=payment
@@ -39,7 +91,8 @@ export async function POST(request: NextRequest) {
 
     const client = new MercadoPago({ accessToken })
     const paymentApi = new Payment(client)
-    const { body: paymentData } = await paymentApi.get({ id: paymentId })
+    const paymentResponse: any = await paymentApi.get({ id: paymentId })
+    const paymentData = paymentResponse?.body ?? paymentResponse
 
     console.log('[MP Webhook] Pago:', paymentId, 'Status:', paymentData.status)
 

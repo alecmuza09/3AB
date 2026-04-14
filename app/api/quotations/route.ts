@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notifyQuotationReceived } from '@/lib/whatsapp-api'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -93,7 +94,63 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Insertar ítems reales en quotation_items (product_id es nullable tras migración)
+    if (quoteItems && quoteItems.length > 0) {
+      const itemRecords = (quoteItems as any[]).map((item: any) => ({
+        quotation_id: quotation.id,
+        product_id: item.productId || null,
+        product_name: item.product || item.name || 'Producto personalizado',
+        quantity: item.quantity || 1,
+        unit_price: item.unitPrice || 0,
+        subtotal: item.total || (item.unitPrice || 0) * (item.quantity || 1),
+        customization: item.customization || null,
+        image_url: null,
+        customization_data: item.customizationData || {},
+      }))
+
+      const { error: itemsError } = await supabase.from('quotation_items').insert(itemRecords)
+      if (itemsError) {
+        console.warn('⚠️ Error al insertar quotation_items:', itemsError.message)
+        // No falla la cotización, solo logueamos
+      }
+    }
+
     console.log('✅ Cotización creada:', quotation.quotation_number)
+
+    // Enviar email y WhatsApp de forma no bloqueante
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const contactEmail = formData.email
+    const contactName = formData.contactName || 'Cliente'
+    const contactPhone = formData.phone || ''
+
+    fetch(`${appUrl}/api/send-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'quotation',
+        order: {
+          ...quotation,
+          quotation_items: (quoteItems || []).map((item: any) => ({
+            product_name: item.product || item.name,
+            quantity: item.quantity,
+            subtotal: item.total || item.unitPrice * item.quantity || 0,
+          })),
+          contact_info: {
+            email: contactEmail,
+            contactName,
+            companyName: formData.companyName || '',
+            phone: contactPhone,
+          },
+        },
+      }),
+    }).catch((e) => console.warn('[quotations] Email send error:', e))
+
+    if (contactPhone) {
+      notifyQuotationReceived(contactPhone, quotation.quotation_number, contactName, total || 0).catch(
+        (e) => console.warn('[quotations] WhatsApp send error:', e)
+      )
+    }
+
     return NextResponse.json(
       { success: true, quotation, message: 'Cotización creada exitosamente' },
       { status: 201 }
@@ -112,7 +169,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('quotations')
-      .select('*')
+      .select('*, quotation_items(*)')
       .order('created_at', { ascending: false })
 
     if (userId) {

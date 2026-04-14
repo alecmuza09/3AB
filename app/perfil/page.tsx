@@ -47,7 +47,7 @@ import {
 } from "lucide-react"
 import { useOrders } from "@/contexts/orders-context"
 import { useAuth } from "@/contexts/auth-context"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const formatCurrency = (value: number) =>
   `$${(value || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -63,6 +63,8 @@ export default function PerfilPage() {
   const { orders } = useOrders()
   const { user, profile, signIn, signUp, updateProfile, loading: authLoadingContext, isAdmin } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const defaultTab = searchParams.get('tab') || 'perfil'
   
   // Estados para autenticación
   const [authTab, setAuthTab] = useState<"login" | "register">("login")
@@ -85,6 +87,41 @@ export default function PerfilPage() {
   const [editError, setEditError] = useState<string | null>(null)
   const [editSuccess, setEditSuccess] = useState<string | null>(null)
   const [editLoading, setEditLoading] = useState(false)
+
+  // Estado para cotizaciones
+  const [quotations, setQuotations] = useState<any[]>([])
+  const [loadingQuotations, setLoadingQuotations] = useState(false)
+
+  // Cargar cotizaciones del cliente desde Supabase
+  useEffect(() => {
+    if (!user?.id) return
+    setLoadingQuotations(true)
+    fetch(`/api/customer/history?userId=${user.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.quotations) setQuotations(data.quotations)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingQuotations(false))
+  }, [user?.id])
+
+  // Solicitar revisión de una cotización
+  const handleRequestReview = async (quotationId: string) => {
+    try {
+      const res = await fetch('/api/quotations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quotationId, status: 'under_review' }),
+      })
+      if (res.ok) {
+        setQuotations((prev) =>
+          prev.map((q) => (q.id === quotationId ? { ...q, status: 'under_review' } : q))
+        )
+      }
+    } catch {
+      // silencioso
+    }
+  }
 
   // Inicializar valores de edición cuando el perfil se carga
   useEffect(() => {
@@ -179,21 +216,7 @@ export default function PerfilPage() {
     }
   }
 
-  const fallbackHistory = [
-    {
-      id: "ORD-2024-001",
-      createdAt: "2024-01-15T10:00:00Z",
-      status: "Entregado",
-      total: 45000,
-      items: [
-        { name: "Tazas Promocionales", quantity: 100, subtotal: 15000 },
-        { name: "Bolígrafos Premium", quantity: 200, subtotal: 16000 },
-        { name: "Gorras Bordadas", quantity: 50, subtotal: 14000 },
-      ],
-    },
-  ]
-
-  const history = orders.length > 0 ? orders : fallbackHistory
+  const history = orders
 
   const upcomingReminders = [
     {
@@ -239,7 +262,7 @@ export default function PerfilPage() {
     }
   }
 
-  const totalSpent = history.reduce((sum, order) => sum + (order.total || 0), 0)
+  const totalSpent = history.reduce((sum: number, order: any) => sum + (order.total || 0), 0)
 
   // Si no está autenticado, mostrar formulario de registro/login
   if (!user && !authLoadingContext && !authLoading) {
@@ -452,10 +475,11 @@ export default function PerfilPage() {
             </p>
           </div>
 
-          <Tabs defaultValue="perfil" className="space-y-6">
-            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <Tabs defaultValue={defaultTab} className="space-y-6">
+            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger value="perfil">Información Personal</TabsTrigger>
               <TabsTrigger value="historial">Historial de Compras</TabsTrigger>
+              <TabsTrigger value="cotizaciones">Mis Cotizaciones</TabsTrigger>
               <TabsTrigger value="recordatorios">Recordatorios</TabsTrigger>
               {isAdmin && (
                 <TabsTrigger value="administracion" className="flex items-center gap-2">
@@ -615,16 +639,28 @@ export default function PerfilPage() {
 
             <TabsContent value="historial" className="space-y-6">
               <div className="space-y-4">
-                {history.map((order: any) => (
+                {history.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Aún no tienes pedidos</h3>
+                      <p className="text-muted-foreground mb-4">Explora nuestro catálogo y realiza tu primer pedido.</p>
+                      <Button onClick={() => router.push('/productos')} className="bg-primary hover:bg-primary/90">
+                        Ver productos
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  history.map((order: any) => (
                   <Card key={order.id}>
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <div>
-                            <CardTitle className="text-lg">Pedido {order.id}</CardTitle>
+                            <CardTitle className="text-lg">Pedido {order.id || order.order_number}</CardTitle>
                             <div className="flex items-center space-x-2 mt-1 text-sm text-muted-foreground">
                               <Clock className="h-4 w-4" />
-                              <span>{formatDate(order.createdAt)}</span>
+                              <span>{formatDate(order.createdAt || order.created_at)}</span>
                             </div>
                           </div>
                           <Badge className={getStatusColor(order.status || "")}>{order.status || "En revisión"}</Badge>
@@ -632,11 +668,7 @@ export default function PerfilPage() {
                         <div className="text-right">
                           <p className="text-2xl font-bold text-primary">{formatCurrency(order.total || 0)}</p>
                           <div className="flex space-x-2 mt-2">
-                            <Button size="sm" variant="outline">
-                              <Eye className="h-3 w-3 mr-1" />
-                              Ver
-                            </Button>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => window.print()}>
                               <Download className="h-3 w-3 mr-1" />
                               PDF
                             </Button>
@@ -647,25 +679,26 @@ export default function PerfilPage() {
                     <CardContent>
                       <div className="space-y-2">
                         <h4 className="font-semibold text-sm text-muted-foreground mb-3">PRODUCTOS:</h4>
-                        {(order.items || []).map((item: any, index: number) => (
+                        {(order.items || order.order_items || []).map((item: any, index: number) => (
                           <div
                             key={`${order.id}-${index}`}
                             className="flex justify-between items-center py-2 border-b border-border/50 last:border-0"
                           >
                             <div className="flex items-center space-x-3">
                               <ShoppingBag className="h-4 w-4 text-muted-foreground" />
-                              <span className="font-medium">{item.name}</span>
+                              <span className="font-medium">{item.name || item.product_name}</span>
                               <Badge variant="outline" className="text-xs">
                                 Qty: {item.quantity}
                               </Badge>
                             </div>
-                            <span className="font-semibold">{formatCurrency(item.subtotal || (item.price || item.unitPrice || 0))}</span>
+                            <span className="font-semibold">{formatCurrency(item.subtotal || item.unit_price || 0)}</span>
                           </div>
                         ))}
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                  ))
+                )}
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
@@ -691,6 +724,122 @@ export default function PerfilPage() {
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="cotizaciones" className="space-y-6">
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold text-foreground mb-2">Mis Cotizaciones</h3>
+                <p className="text-muted-foreground">
+                  Aquí puedes consultar el historial de cotizaciones que has solicitado.
+                </p>
+              </div>
+
+              {loadingQuotations ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+                    <p className="text-muted-foreground">Cargando cotizaciones...</p>
+                  </CardContent>
+                </Card>
+              ) : quotations.length === 0 ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Aún no tienes cotizaciones</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Solicita una cotización personalizada para tu empresa o evento.
+                    </p>
+                    <Button onClick={() => router.push('/cotizaciones')} className="bg-primary hover:bg-primary/90">
+                      Solicitar cotización
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {quotations.map((q: any) => {
+                    const contactInfo = q.contact_info || {}
+                    const items: any[] = q.quotation_items || []
+                    const quotationStatus: Record<string, string> = {
+                      draft: 'Borrador',
+                      sent: 'Enviada',
+                      accepted: 'Aceptada',
+                      rejected: 'Rechazada',
+                      expired: 'Vencida',
+                      under_review: 'En revisión',
+                    }
+                    const statusBadge: Record<string, string> = {
+                      draft: 'bg-gray-500',
+                      sent: 'bg-blue-500',
+                      accepted: 'bg-green-500',
+                      rejected: 'bg-red-500',
+                      expired: 'bg-orange-500',
+                      under_review: 'bg-yellow-500',
+                    }
+                    return (
+                      <Card key={q.id}>
+                        <CardHeader>
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <CardTitle className="text-lg">{q.quotation_number}</CardTitle>
+                              <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                                <Clock className="h-4 w-4" />
+                                <span>{formatDate(q.created_at)}</span>
+                                {q.valid_until && (
+                                  <span className="text-xs">· Válida hasta: {formatDate(q.valid_until)}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Badge className={statusBadge[q.status] || 'bg-gray-500'}>
+                                {quotationStatus[q.status] || q.status}
+                              </Badge>
+                              <p className="text-xl font-bold text-primary">{formatCurrency(q.total || 0)}</p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          {contactInfo.companyName && (
+                            <p className="text-sm text-muted-foreground mb-3">
+                              <span className="font-medium">Empresa:</span> {contactInfo.companyName}
+                            </p>
+                          )}
+                          {items.length > 0 && (
+                            <div className="space-y-2 mb-4">
+                              <h4 className="font-semibold text-sm text-muted-foreground">PRODUCTOS:</h4>
+                              {items.map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center py-1 border-b border-border/50 last:border-0 text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Package className="h-3 w-3 text-muted-foreground" />
+                                    <span>{item.product_name || item.product || 'Producto'}</span>
+                                    <Badge variant="outline" className="text-xs">Qty: {item.quantity}</Badge>
+                                  </div>
+                                  <span className="font-medium">{formatCurrency(item.subtotal || item.unit_price || 0)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2 flex-wrap">
+                            <Button size="sm" variant="outline" onClick={() => window.print()}>
+                              <Download className="h-3 w-3 mr-1" />
+                              PDF
+                            </Button>
+                            {q.status !== 'under_review' && q.status !== 'accepted' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRequestReview(q.id)}
+                              >
+                                <FileText className="h-3 w-3 mr-1" />
+                                Solicitar revisión
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="recordatorios" className="space-y-6">

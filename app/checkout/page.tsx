@@ -213,16 +213,18 @@ function CheckoutContent() {
         throw new Error(errorMessage)
       }
 
-      console.log('✅ Pedido creado exitosamente:', result.order?.order_number)
+      // Usar el order_number devuelto por Supabase (server-authoritative)
+      const confirmedNumber = result.order?.order_number || orderId
+      console.log('✅ Pedido creado exitosamente:', confirmedNumber)
 
       // También guardar en contexto (que ahora sincroniza con Supabase)
-      addOrder(orderData)
+      addOrder({ ...orderData, id: confirmedNumber } as any)
 
       // Enviar correo de confirmación (no bloqueante)
       fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: orderData, type: 'confirmation' }),
+        body: JSON.stringify({ order: { ...orderData, id: confirmedNumber }, type: 'confirmation' }),
       }).catch((err) => console.warn('⚠️ No se pudo enviar el correo de confirmación:', err))
 
       // Para compras (no cotizaciones), intentar redirigir a Mercado Pago
@@ -232,11 +234,10 @@ function CheckoutContent() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              orderId,
-              orderNumber: result.order?.order_number || orderId,
+              orderId: confirmedNumber,
+              orderNumber: confirmedNumber,
               items: orderData.items,
               contactEmail: contactData.email,
-              total: grandTotal,
             }),
           })
 
@@ -246,7 +247,6 @@ function CheckoutContent() {
               ? mpData.initPoint
               : (mpData.sandboxInitPoint || mpData.initPoint)
             if (mpUrl) {
-              // Limpiar carrito y redirigir al pago
               setOrderCompleted(true)
               clearCart()
               setIsSubmitting(false)
@@ -255,7 +255,6 @@ function CheckoutContent() {
             }
           }
         } catch (mpError) {
-          // Si MP falla, continuar con el flujo de transferencia
           console.warn('⚠️ Mercado Pago no disponible, mostrando instrucciones de transferencia:', mpError)
         }
       }
@@ -265,8 +264,7 @@ function CheckoutContent() {
       clearCart()
       setIsSubmitting(false)
       
-      // Guardar el ID del pedido y mostrar información de pago
-      setConfirmedOrderId(orderId)
+      setConfirmedOrderId(confirmedNumber)
       setShowPaymentInfo(true)
     } catch (error) {
       console.error('❌ Error creating order:', error)

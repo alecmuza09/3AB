@@ -291,9 +291,13 @@ export default function CotizacionesPage() {
                   <p className="text-green-700 dark:text-green-400 mt-1">Número de cotización: <strong>{quoteSuccess}</strong></p>
                   <p className="text-sm text-muted-foreground mt-2">Nuestro equipo revisará tu solicitud y te contactará en menos de 24 horas.</p>
                 </div>
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => { setQuoteSuccess(null); setStep(1); setQuoteItems([]) }}>Nueva cotización</Button>
-                  <Button onClick={() => router.push('/pedidos')}>Ver mis cotizaciones</Button>
+                <div className="flex gap-3 flex-wrap justify-center">
+                  <Button variant="outline" onClick={() => { setQuoteSuccess(null); setStep(1); setQuoteItems([]) }}>
+                    Nueva cotización
+                  </Button>
+                  <Button onClick={() => router.push('/perfil?tab=cotizaciones')}>
+                    Ver mis cotizaciones
+                  </Button>
                 </div>
               </CardContent>
             </Card>
