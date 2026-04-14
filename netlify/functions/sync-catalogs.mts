@@ -6,7 +6,7 @@
  *
  * Para activar, agrega en netlify.toml:
  *   [functions.sync-catalogs]
- *     schedule = "0 */6 * * *"
+ *     schedule = "0 0/6 * * *"
  *
  * Variables de entorno requeridas:
  *   CRON_SECRET     — secreto compartido para autorizar la llamada
