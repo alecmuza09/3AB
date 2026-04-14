@@ -47,7 +47,7 @@ import {
 } from "lucide-react"
 import { useOrders } from "@/contexts/orders-context"
 import { useAuth } from "@/contexts/auth-context"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 const formatCurrency = (value: number) =>
   `$${(value || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -63,8 +63,16 @@ export default function PerfilPage() {
   const { orders } = useOrders()
   const { user, profile, signIn, signUp, updateProfile, loading: authLoadingContext, isAdmin } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const defaultTab = searchParams.get('tab') || 'perfil'
+  const [defaultTab, setDefaultTab] = useState('perfil')
+
+  // Leer ?tab= del URL sin useSearchParams (evita el requisito de Suspense en Next.js 14)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const tab = params.get('tab')
+      if (tab) setDefaultTab(tab)
+    }
+  }, [])
   
   // Estados para autenticación
   const [authTab, setAuthTab] = useState<"login" | "register">("login")
