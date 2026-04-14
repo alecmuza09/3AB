@@ -104,6 +104,18 @@ export default function AdminPage() {
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [coupons, setCoupons] = useState<any[]>([])
   const [loadingCoupons, setLoadingCoupons] = useState(false)
+  const [adminQuotations, setAdminQuotations] = useState<any[]>([])
+  const [loadingAdminQuotations, setLoadingAdminQuotations] = useState(false)
+  const [quotationFilter, setQuotationFilter] = useState("all")
+  const [newQuoteOpen, setNewQuoteOpen] = useState(false)
+  const [newQuoteForm, setNewQuoteForm] = useState({
+    contactName: "", companyName: "", email: "", phone: "",
+    notes: "", validDays: "30",
+  })
+  const [newQuoteItems, setNewQuoteItems] = useState<Array<{
+    id: string; productName: string; quantity: number; unitPrice: number; customization: string
+  }>>([])
+  const [savingNewQuote, setSavingNewQuote] = useState(false)
   const [dashboardStats, setDashboardStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -732,6 +744,26 @@ export default function AdminPage() {
       setSyncResult({ success: false, error: error.message })
     } finally {
       setSyncingProducts(false)
+    }
+  }
+
+  // Probar conexión con API de 3A Promoción
+  const [testingPromocion, setTestingPromocion] = useState(false)
+  const handleTestPromocion = async () => {
+    setTestingPromocion(true)
+    try {
+      const res = await fetch('/api/sync-promocion/test')
+      const data = await res.json()
+      const conn = data.connection
+      if (conn.success) {
+        alert(`✅ Conexión exitosa con 3A Promoción\n\nProductos encontrados: ${conn.productCount}\nQuery usada: ${conn.queryUsed}\nProducto de ejemplo: ${conn.sampleProduct?.nombre ?? conn.sampleProduct?.name ?? 'N/A'}\n\nCampos disponibles en API: ${data.schema?.fields?.join(', ') || 'N/A'}`)
+      } else {
+        alert(`❌ Error de conexión: ${conn.error}\n\nCampos API disponibles: ${data.schema?.fields?.join(', ') || 'No se pudo obtener'}`)
+      }
+    } catch (err) {
+      alert(`Error al probar la conexión: ${err}`)
+    } finally {
+      setTestingPromocion(false)
     }
   }
 
@@ -1384,6 +1416,61 @@ export default function AdminPage() {
     }
   }
 
+  const loadAdminQuotations = async () => {
+    setLoadingAdminQuotations(true)
+    try {
+      const res = await fetch('/api/quotations')
+      const data = await res.json()
+      setAdminQuotations(data.quotations || [])
+    } catch (err) {
+      console.error('Error loading quotations:', err)
+    } finally {
+      setLoadingAdminQuotations(false)
+    }
+  }
+
+  const saveAdminQuote = async () => {
+    if (!newQuoteForm.contactName || !newQuoteForm.email || newQuoteItems.length === 0) return
+    setSavingNewQuote(true)
+    try {
+      const subtotal = newQuoteItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+      const res = await fetch('/api/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          formData: {
+            companyName: newQuoteForm.companyName,
+            contactName: newQuoteForm.contactName,
+            email: newQuoteForm.email,
+            phone: newQuoteForm.phone,
+            specialRequirements: newQuoteForm.notes,
+          },
+          quoteItems: newQuoteItems.map(i => ({
+            ...i, product: i.productName, category: 'Manual', total: i.unitPrice * i.quantity,
+          })),
+          subtotal, discountAmount: 0, volumeDiscount: 0, total: subtotal,
+        }),
+      })
+      if (res.ok) {
+        setNewQuoteOpen(false)
+        setNewQuoteForm({ contactName: '', companyName: '', email: '', phone: '', notes: '', validDays: '30' })
+        setNewQuoteItems([])
+        loadAdminQuotations()
+      }
+    } finally {
+      setSavingNewQuote(false)
+    }
+  }
+
+  const updateQuotationStatus = async (quotationId: string, newStatus: string) => {
+    await fetch('/api/quotations', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quotationId, status: newStatus }),
+    })
+    loadAdminQuotations()
+  }
+
   // Cargar datos cuando cambia la sección activa
   useEffect(() => {
     if (activeSection === "orders" || activeSection === "dashboard") {
@@ -1394,6 +1481,9 @@ export default function AdminPage() {
     }
     if (activeSection === "coupons") {
       loadCoupons()
+    }
+    if (activeSection === "quotations") {
+      loadAdminQuotations()
     }
     if (activeSection === "dashboard") {
       loadDashboardStats()
@@ -1647,6 +1737,16 @@ export default function AdminPage() {
                 Cupones
               </Button>
               
+              {/* Cotizaciones */}
+              <Button
+                variant={activeSection === "quotations" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveSection("quotations")}
+              >
+                <Calculator className="h-4 w-4 mr-3" />
+                Cotizaciones
+              </Button>
+
               {/* Reportes */}
               <Button
                 variant={activeSection === "reports" ? "secondary" : "ghost"}
@@ -2046,6 +2146,15 @@ export default function AdminPage() {
                             Promopción
                           </>
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleTestPromocion}
+                        disabled={testingPromocion}
+                        title="Probar conexión y schema de API de 3A Promoción"
+                      >
+                        {testingPromocion ? "Probando..." : "🔍 Test API Promopción"}
                       </Button>
                       <Button variant="outline">
                         <Download className="h-4 w-4 mr-2" />
@@ -3701,6 +3810,198 @@ export default function AdminPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Quotations */}
+            <TabsContent value="quotations" className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold">Cotizaciones</h2>
+                  <p className="text-muted-foreground">Gestiona y genera cotizaciones para clientes</p>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={quotationFilter} onValueChange={setQuotationFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="draft">Borrador</SelectItem>
+                      <SelectItem value="sent">Enviadas</SelectItem>
+                      <SelectItem value="accepted">Aceptadas</SelectItem>
+                      <SelectItem value="rejected">Rechazadas</SelectItem>
+                      <SelectItem value="expired">Expiradas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Dialog open={newQuoteOpen} onOpenChange={setNewQuoteOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Nueva Cotización
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Nueva Cotización Manual</DialogTitle>
+                        <DialogDescription>Genera una cotización para un cliente</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Nombre del contacto *</Label>
+                            <Input value={newQuoteForm.contactName} onChange={e => setNewQuoteForm(p => ({ ...p, contactName: e.target.value }))} placeholder="Juan Pérez" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Empresa</Label>
+                            <Input value={newQuoteForm.companyName} onChange={e => setNewQuoteForm(p => ({ ...p, companyName: e.target.value }))} placeholder="Corporativo XYZ" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Email *</Label>
+                            <Input type="email" value={newQuoteForm.email} onChange={e => setNewQuoteForm(p => ({ ...p, email: e.target.value }))} placeholder="cliente@empresa.com" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Teléfono</Label>
+                            <Input value={newQuoteForm.phone} onChange={e => setNewQuoteForm(p => ({ ...p, phone: e.target.value }))} placeholder="+52 55 1234 5678" />
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-base font-semibold">Líneas de producto</Label>
+                            <Button size="sm" variant="outline" onClick={() => setNewQuoteItems(prev => [...prev, { id: Date.now().toString(), productName: '', quantity: 100, unitPrice: 0, customization: '' }])}>
+                              <Plus className="h-3 w-3 mr-1" /> Agregar línea
+                            </Button>
+                          </div>
+                          {newQuoteItems.length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-4">Agrega al menos un producto</p>
+                          )}
+                          {newQuoteItems.map((item, idx) => (
+                            <div key={item.id} className="grid grid-cols-12 gap-2 items-end border border-border rounded-lg p-3">
+                              <div className="col-span-4 space-y-1">
+                                <Label className="text-xs">Producto</Label>
+                                <Input value={item.productName} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, productName: e.target.value } : i))} placeholder="Nombre del producto" />
+                              </div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-xs">Cantidad</Label>
+                                <Input type="number" min="1" value={item.quantity} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: parseInt(e.target.value) || 1 } : i))} />
+                              </div>
+                              <div className="col-span-3 space-y-1">
+                                <Label className="text-xs">Precio unit. ($)</Label>
+                                <Input type="number" step="0.01" value={item.unitPrice} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, unitPrice: parseFloat(e.target.value) || 0 } : i))} />
+                              </div>
+                              <div className="col-span-2 space-y-1">
+                                <Label className="text-xs">Total</Label>
+                                <p className="text-sm font-semibold text-primary pt-2">${(item.quantity * item.unitPrice).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                              </div>
+                              <div className="col-span-1 flex justify-end">
+                                <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => setNewQuoteItems(prev => prev.filter(i => i.id !== item.id))}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="col-span-12 space-y-1">
+                                <Input value={item.customization} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, customization: e.target.value } : i))} placeholder="Especificaciones de personalización (opcional)" />
+                              </div>
+                            </div>
+                          ))}
+                          {newQuoteItems.length > 0 && (
+                            <div className="flex justify-end">
+                              <p className="text-lg font-bold text-primary">
+                                Total: ${newQuoteItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Notas adicionales</Label>
+                          <Textarea value={newQuoteForm.notes} onChange={e => setNewQuoteForm(p => ({ ...p, notes: e.target.value }))} placeholder="Condiciones especiales, términos de entrega, etc." rows={3} />
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setNewQuoteOpen(false)}>Cancelar</Button>
+                          <Button onClick={saveAdminQuote} disabled={savingNewQuote || !newQuoteForm.contactName || !newQuoteForm.email || newQuoteItems.length === 0}>
+                            {savingNewQuote ? "Guardando..." : "Guardar Cotización"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+
+              {loadingAdminQuotations ? (
+                <Card>
+                  <CardContent className="py-10 text-center">
+                    <p className="text-muted-foreground">Cargando cotizaciones...</p>
+                  </CardContent>
+                </Card>
+              ) : adminQuotations.filter(q => quotationFilter === 'all' || q.status === quotationFilter).length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center space-y-3">
+                    <Calculator className="h-12 w-12 text-muted-foreground mx-auto" />
+                    <p className="font-medium">No hay cotizaciones {quotationFilter !== 'all' ? `con estado "${quotationFilter}"` : ''}</p>
+                    <p className="text-sm text-muted-foreground">Crea la primera cotización manual con el botón de arriba, o espera a que los clientes envíen solicitudes desde el portal.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {adminQuotations
+                    .filter(q => quotationFilter === 'all' || q.status === quotationFilter)
+                    .map((q) => {
+                      const items = (() => { try { return JSON.parse(q.admin_notes || '[]') } catch { return [] } })()
+                      const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-800', sent: 'bg-blue-100 text-blue-800', accepted: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800', expired: 'bg-amber-100 text-amber-800', converted: 'bg-purple-100 text-purple-800' }
+                      const statusLabels: Record<string, string> = { draft: 'Borrador', sent: 'Enviada', accepted: 'Aceptada', rejected: 'Rechazada', expired: 'Expirada', converted: 'Convertida' }
+                      return (
+                        <Card key={q.id}>
+                          <CardContent className="p-4">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-semibold">{q.quotation_number}</p>
+                                  <Badge className={statusColors[q.status] || 'bg-gray-100 text-gray-800'}>{statusLabels[q.status] || q.status}</Badge>
+                                </div>
+                                <p className="text-sm">{q.contact_info?.contactName} {q.contact_info?.companyName ? `· ${q.contact_info.companyName}` : ''}</p>
+                                <p className="text-xs text-muted-foreground">{q.contact_info?.email} {q.contact_info?.phone ? `· ${q.contact_info.phone}` : ''}</p>
+                                <p className="text-xs text-muted-foreground">{new Date(q.created_at).toLocaleDateString('es-MX')} · {items.length} producto(s)</p>
+                              </div>
+                              <div className="flex flex-col sm:items-end gap-2">
+                                <p className="text-xl font-bold text-primary">${(q.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                                <div className="flex gap-2 flex-wrap">
+                                  <Select defaultValue={q.status} onValueChange={(val) => updateQuotationStatus(q.id, val)}>
+                                    <SelectTrigger className="h-8 text-xs w-36">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="draft">Borrador</SelectItem>
+                                      <SelectItem value="sent">Enviada</SelectItem>
+                                      <SelectItem value="accepted">Aceptada</SelectItem>
+                                      <SelectItem value="rejected">Rechazada</SelectItem>
+                                      <SelectItem value="expired">Expirada</SelectItem>
+                                      <SelectItem value="converted">Convertida</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
+                            {items.length > 0 && (
+                              <div className="mt-3 border-t pt-3 space-y-1">
+                                {items.map((item: any, idx: number) => (
+                                  <div key={idx} className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">{item.product} ({item.category}) × {item.quantity}</span>
+                                    <span>${(item.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {q.notes && <p className="mt-2 text-xs text-muted-foreground border-t pt-2">Notas: {q.notes}</p>}
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                </div>
+              )}
             </TabsContent>
 
             {/* Reports */}

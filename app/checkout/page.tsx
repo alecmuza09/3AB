@@ -151,6 +151,7 @@ function CheckoutContent() {
       taxes,
       shippingCost,
       paymentMethod: methodParam === "quote" ? "quote" : "purchase",
+      userId: user?.id || null,
       contact: contactData,
       shipping: {
         method: shippingMethod,
@@ -214,7 +215,7 @@ function CheckoutContent() {
 
       console.log('✅ Pedido creado exitosamente:', result.order?.order_number)
 
-      // También guardar en localStorage para que el usuario lo vea en /pedidos
+      // También guardar en contexto (que ahora sincroniza con Supabase)
       addOrder(orderData)
 
       // Enviar correo de confirmación (no bloqueante)
@@ -224,7 +225,42 @@ function CheckoutContent() {
         body: JSON.stringify({ order: orderData, type: 'confirmation' }),
       }).catch((err) => console.warn('⚠️ No se pudo enviar el correo de confirmación:', err))
 
-      // Marcar pedido completado ANTES de limpiar el carrito para evitar redirect a /carrito
+      // Para compras (no cotizaciones), intentar redirigir a Mercado Pago
+      if (methodParam === 'purchase') {
+        try {
+          const mpRes = await fetch('/api/payments/mercadopago', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId,
+              orderNumber: result.order?.order_number || orderId,
+              items: orderData.items,
+              contactEmail: contactData.email,
+              total: grandTotal,
+            }),
+          })
+
+          if (mpRes.ok) {
+            const mpData = await mpRes.json()
+            const mpUrl = process.env.NODE_ENV === 'production'
+              ? mpData.initPoint
+              : (mpData.sandboxInitPoint || mpData.initPoint)
+            if (mpUrl) {
+              // Limpiar carrito y redirigir al pago
+              setOrderCompleted(true)
+              clearCart()
+              setIsSubmitting(false)
+              window.location.href = mpUrl
+              return
+            }
+          }
+        } catch (mpError) {
+          // Si MP falla, continuar con el flujo de transferencia
+          console.warn('⚠️ Mercado Pago no disponible, mostrando instrucciones de transferencia:', mpError)
+        }
+      }
+
+      // Flujo fallback: mostrar instrucciones de pago manual (SPEI/transferencia)
       setOrderCompleted(true)
       clearCart()
       setIsSubmitting(false)

@@ -13,10 +13,18 @@ interface AuthContextType {
   loading: boolean
   isAdmin: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, fullName?: string, phone?: string) => Promise<{ error: string | null }>
+  signUp: (
+    email: string,
+    password: string,
+    fullName?: string,
+    phone?: string,
+    companyName?: string,
+    taxId?: string,
+    accountType?: 'personal' | 'business'
+  ) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
-  updateProfile: (data: { full_name?: string; phone?: string; company?: string; address?: string }) => Promise<{ error: string | null }>
+  updateProfile: (data: { full_name?: string; phone?: string; company_name?: string; tax_id?: string }) => Promise<{ error: string | null }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -188,7 +196,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signUp = async (email: string, password: string, fullName?: string, phone?: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName?: string,
+    phone?: string,
+    companyName?: string,
+    taxId?: string,
+    accountType?: 'personal' | 'business'
+  ) => {
     if (!supabase) return { error: "Supabase no está inicializado" }
     
     try {
@@ -213,6 +229,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: data.user.email || "",
           full_name: fullName || null,
           phone: phone || null,
+          company_name: accountType === 'business' ? (companyName || null) : null,
+          tax_id: accountType === 'business' ? (taxId || null) : null,
           role: "customer",
         })
         await loadProfile(data.user.id)
@@ -235,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const updateProfile = async (data: { full_name?: string; phone?: string; company?: string; address?: string }) => {
+  const updateProfile = async (data: { full_name?: string; phone?: string; company_name?: string; tax_id?: string }) => {
     if (!supabase || !user) return { error: "No hay sesión activa" }
     
     try {

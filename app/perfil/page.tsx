@@ -91,8 +91,8 @@ export default function PerfilPage() {
     if (profile) {
       setEditFullName(profile.full_name || "")
       setEditPhone(profile.phone || "")
-      setEditCompany((profile as any).company || "")
-      setEditAddress((profile as any).address || "")
+      setEditCompany(profile.company_name || "")
+      setEditAddress("")
     }
   }, [profile])
 
@@ -162,8 +162,7 @@ export default function PerfilPage() {
     const { error } = await updateProfile({
       full_name: editFullName,
       phone: editPhone || undefined,
-      company: editCompany || undefined,
-      address: editAddress || undefined,
+      company_name: editCompany || undefined,
     })
 
     if (error) {

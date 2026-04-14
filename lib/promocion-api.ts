@@ -351,4 +351,90 @@ export async function getProductsFromPromocionApi(): Promise<PromocionProduct[]>
   return rawList.map((raw, index) => normalizePromocionProduct(raw, `promo-${index}`))
 }
 
+// ============================================
+// DIAGNÓSTICO / INTROSPECCIÓN
+// ============================================
+
+const INTROSPECTION_QUERY = `
+  query IntrospectionQuery {
+    __schema {
+      queryType { fields { name args { name type { name kind ofType { name kind } } } } }
+    }
+  }
+`
+
+/**
+ * Descubre los campos disponibles en la API GraphQL de 3A Promoción.
+ * Útil para depurar y ajustar las queries de productos.
+ */
+export async function introspectPromocionApi(): Promise<{
+  success: boolean
+  fields?: string[]
+  error?: string
+  rawSchema?: unknown
+}> {
+  const config = getPromocionConfig()
+  if (!config.isEnabled()) {
+    return { success: false, error: 'API no configurada (PROMOCION_GRAPHQL_URL, PROMOCION_EMAIL, PROMOCION_PASSWORD)' }
+  }
+
+  try {
+    const token = (await loginPromocion()).accessToken
+    const data = await promocionGraphQL<any>(INTROSPECTION_QUERY, {}, token)
+    const fields = (data?.__schema?.queryType?.fields || []).map((f: any) => f.name)
+    return { success: true, fields, rawSchema: data }
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
+/**
+ * Prueba la conexión y devuelve un sample de los primeros productos disponibles.
+ */
+export async function testPromocionConnection(): Promise<{
+  success: boolean
+  loginOk?: boolean
+  productCount?: number
+  sampleProduct?: PromocionProductRaw
+  error?: string
+  queryUsed?: string
+}> {
+  const config = getPromocionConfig()
+  if (!config.isEnabled()) {
+    return { success: false, error: 'API no configurada' }
+  }
+
+  try {
+    await loginPromocion()
+  } catch (err) {
+    return { success: false, loginOk: false, error: `Error de autenticación: ${err}` }
+  }
+
+  const queries = [
+    { name: 'products', query: PRODUCTS_QUERY },
+    { name: 'articulos', query: ARTICULOS_QUERY },
+    { name: 'stock', query: STOCK_QUERY },
+  ]
+
+  for (const { name, query } of queries) {
+    try {
+      const data = await promocionGraphQL<Record<string, unknown>>(query)
+      const list = extractProductList(data)
+      if (list.length > 0) {
+        return {
+          success: true,
+          loginOk: true,
+          productCount: list.length,
+          sampleProduct: list[0],
+          queryUsed: name,
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return { success: false, loginOk: true, error: 'Ninguna query devolvió productos. Verifica el schema de la API.' }
+}
+
 export { getPromocionConfig }

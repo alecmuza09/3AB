@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { useCart } from "@/contexts/cart-context"
 import { toast } from "sonner"
+import { ProductCustomizationPreview } from "@/components/product-customization-preview"
 import type { SupabaseProduct } from "@/lib/all-products"
 import type { CotizadorService } from "@/lib/cotizador"
 import { generateQuotation, getServiceName } from "@/lib/cotizador"
@@ -1123,6 +1124,24 @@ export default function ProductDetailPage() {
             </div>
           </div>
         </div>
+        {/* Personalización visual por producto */}
+        {product && (
+          <div className="p-6 pt-0 max-w-6xl mx-auto mt-8">
+            <ProductCustomizationPreview
+              product={{
+                id: product.id,
+                name: product.name,
+                image: product.image_url || undefined,
+                price: product.price,
+                minQuantity: product.min_quantity || 25,
+                category: product.category?.name || undefined,
+                attributes: product.attributes,
+              }}
+              onRequestQuote={() => router.push("/cotizaciones")}
+            />
+          </div>
+        )}
+
         {/* Productos relacionados */}
         <div className="mt-12">
           <div className="flex items-center justify-between mb-4">

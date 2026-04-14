@@ -10,6 +10,15 @@ import { promocionConfig } from '@/lib/integrations-config'
 
 export async function POST(request: NextRequest) {
   try {
+    // Verificar CRON_SECRET si está configurado
+    const cronSecret = process.env.CRON_SECRET
+    if (cronSecret) {
+      const authHeader = request.headers.get('x-cron-secret')
+      if (authHeader !== cronSecret) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+      }
+    }
+
     if (!promocionConfig.isEnabled()) {
       return NextResponse.json(
         {

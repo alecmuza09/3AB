@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { TopHeader } from "@/components/top-header"
 import { Footer } from "@/components/footer"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -12,7 +13,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Calculator, FileText, Package, CheckCircle, Plus, Minus, Download, Upload, ImageIcon, X } from "lucide-react"
+import { Calculator, FileText, Package, CheckCircle, Plus, Minus, Download, Upload, ImageIcon, X, Lock, LogIn } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { AuthDialog } from "@/components/auth/auth-dialog"
+import { toast } from "sonner"
 
 interface QuoteItem {
   id: string
@@ -27,6 +31,12 @@ interface QuoteItem {
 }
 
 export default function CotizacionesPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const [authDialogOpen, setAuthDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [quoteSuccess, setQuoteSuccess] = useState<string | null>(null)
+
   const [step, setStep] = useState(1)
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([])
   const [formData, setFormData] = useState({
@@ -185,10 +195,60 @@ export default function CotizacionesPage() {
   const discountAmount = subtotal * volumeDiscount
   const total = subtotal - discountAmount
 
-  const generateQuote = () => {
-    console.log("[v0] Generando cotización:", { formData, quoteItems, total })
-    // Aquí se enviaría la cotización al backend
-    alert("Cotización generada exitosamente. Se enviará por email en breve.")
+  const generateQuote = async () => {
+    if (!user) {
+      setAuthDialogOpen(true)
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await fetch('/api/quotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          formData,
+          quoteItems,
+          subtotal,
+          discountAmount,
+          volumeDiscount,
+          total,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Error al crear la cotización')
+      }
+
+      setQuoteSuccess(data.quotation.quotation_number)
+      toast.success('Cotización enviada exitosamente', {
+        description: `Número de cotización: ${data.quotation.quotation_number}. Te contactaremos pronto.`,
+      })
+
+      // Enviar correo de confirmación en segundo plano
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: { id: data.quotation.quotation_number, contact: formData, items: quoteItems, total }, type: 'quotation' }),
+      }).catch(() => {})
+    } catch (error) {
+      toast.error('Error al generar la cotización', {
+        description: error instanceof Error ? error.message : 'Intenta de nuevo o contáctanos por WhatsApp.',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Cargando...</p>
+      </div>
+    )
   }
 
   return (
@@ -204,8 +264,43 @@ export default function CotizacionesPage() {
             </p>
           </div>
 
+          {/* Guard: solicitar login para cotizar */}
+          {!user && (
+            <Card className="mb-8 border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+              <CardContent className="flex flex-col sm:flex-row items-center gap-4 py-5">
+                <Lock className="h-6 w-6 text-amber-600 shrink-0" />
+                <div className="flex-1 text-center sm:text-left">
+                  <p className="font-semibold text-amber-800 dark:text-amber-300">Inicia sesión para guardar y enviar tu cotización</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400">Puedes explorar el formulario, pero necesitas cuenta para generar la cotización.</p>
+                </div>
+                <Button onClick={() => setAuthDialogOpen(true)} size="sm" className="shrink-0">
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Iniciar sesión
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pantalla de éxito */}
+          {quoteSuccess && (
+            <Card className="mb-8 border-green-200 bg-green-50 dark:bg-green-950/20">
+              <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+                <CheckCircle className="h-14 w-14 text-green-600" />
+                <div>
+                  <h2 className="text-xl font-bold text-green-800 dark:text-green-300">¡Cotización enviada!</h2>
+                  <p className="text-green-700 dark:text-green-400 mt-1">Número de cotización: <strong>{quoteSuccess}</strong></p>
+                  <p className="text-sm text-muted-foreground mt-2">Nuestro equipo revisará tu solicitud y te contactará en menos de 24 horas.</p>
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => { setQuoteSuccess(null); setStep(1); setQuoteItems([]) }}>Nueva cotización</Button>
+                  <Button onClick={() => router.push('/pedidos')}>Ver mis cotizaciones</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Progress Steps */}
-          <div className="mb-8">
+          {!quoteSuccess && <div className="mb-8">
             <div className="flex items-center justify-between">
               {[
                 { num: 1, title: "Información", icon: FileText },
@@ -233,10 +328,10 @@ export default function CotizacionesPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Step 1: Company Information */}
-          {step === 1 && (
+          {!quoteSuccess && step === 1 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -352,7 +447,7 @@ export default function CotizacionesPage() {
           )}
 
           {/* Step 2: Products Selection */}
-          {step === 2 && (
+          {!quoteSuccess && step === 2 && (
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -570,7 +665,7 @@ export default function CotizacionesPage() {
           )}
 
           {/* Step 3: Quote Summary */}
-          {step === 3 && (
+          {!quoteSuccess && step === 3 && (
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -723,9 +818,9 @@ export default function CotizacionesPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Descargar PDF
                       </Button>
-                      <Button onClick={generateQuote} className="bg-primary hover:bg-primary/90">
+                      <Button onClick={generateQuote} disabled={isSubmitting} className="bg-primary hover:bg-primary/90">
                         <FileText className="mr-2 h-4 w-4" />
-                        Generar Cotización
+                        {isSubmitting ? "Enviando..." : user ? "Generar Cotización" : "Iniciar sesión para cotizar"}
                       </Button>
                     </div>
                   </div>
@@ -768,6 +863,7 @@ export default function CotizacionesPage() {
       </main>
       <Footer />
       <WhatsappButton />
+      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </div>
   )
 }

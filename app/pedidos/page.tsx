@@ -49,7 +49,7 @@ const formatDate = (iso: string) =>
 
 export default function PedidosPage() {
   const router = useRouter()
-  const { orders } = useOrders()
+  const { orders, loadingOrders } = useOrders()
   const { user, loading } = useAuth()
   const { content } = useSiteContent("pedidos")
   const t = (key: string, fallback: string) => content[key] ?? fallback
@@ -146,11 +146,11 @@ export default function PedidosPage() {
                 </div>
               </CardContent>
             </Card>
-          ) : loading ? (
+          ) : loading || loadingOrders ? (
             <Card className="text-center py-16">
               <CardContent className="space-y-4">
                 <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto animate-pulse" />
-                <p className="text-muted-foreground">Cargando...</p>
+                <p className="text-muted-foreground">Cargando tus pedidos...</p>
               </CardContent>
             </Card>
           ) : orders.length === 0 ? (
