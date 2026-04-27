@@ -1,9 +1,11 @@
 /**
  * Configuración de Integraciones de 3A Branding
- * 
- * Este archivo contiene la configuración y validación de todas las 
- * integraciones de terceros utilizadas en la plataforma.
+ *
+ * IMPORTANTE: Este módulo es server-only. Los valores de process.env aquí
+ * definidos NUNCA deben llegar al bundle del cliente.
+ * Si necesitas exponer status (boolean) al cliente, usa /api/integrations-status.
  */
+import 'server-only'
 
 // ============================================
 // SUPABASE - Base de Datos

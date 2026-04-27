@@ -65,7 +65,7 @@ import {
   ExternalLink,
   Calculator,
 } from "lucide-react"
-import { getIntegrationsStatus } from "@/lib/integrations-config"
+// getIntegrationsStatus se obtiene vía API para evitar exponer secrets en el bundle cliente
 import type { CotizadorConfig } from "@/lib/cotizador"
 import { defaultCotizadorConfig } from "@/lib/cotizador"
 import { AdminSiteContentEditor } from "@/components/admin-site-content-editor"
@@ -711,6 +711,22 @@ export default function AdminPage() {
   const [syncingPromocion, setSyncingPromocion] = useState(false)
   const [syncingInnovation, setSyncingInnovation] = useState(false)
   const [syncingDoblevela, setSyncingDoblevela] = useState(false)
+
+  // Estado de integraciones (se carga vía API para no exponer secrets en el bundle)
+  const [integrationsStatus, setIntegrationsStatus] = useState<Array<{
+    name: string
+    category: string
+    status: boolean
+    description: string
+    required: boolean
+  }>>([])
+
+  useEffect(() => {
+    fetch('/api/integrations-status')
+      .then((r) => r.json())
+      .then((data) => setIntegrationsStatus(data.integrations ?? []))
+      .catch(() => {/* silencioso si falla */})
+  }, [])
 
   // Función para sincronizar productos desde la API de inventario
   const handleSyncProducts = async () => {
@@ -4929,7 +4945,7 @@ export default function AdminPage() {
 
               {/* Status Overview */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {getIntegrationsStatus().map((integration, index) => (
+                {integrationsStatus.map((integration, index) => (
                   <Card
                     key={index}
                     className={integration.required && !integration.status ? "border-yellow-500" : ""}
