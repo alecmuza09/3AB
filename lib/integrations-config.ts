@@ -144,6 +144,16 @@ export const promocionConfig = {
 }
 
 // ============================================
+// DOBLEVELA - Proveedor de productos
+// ============================================
+export const doblevelaConfig = {
+  serviceUrl: process.env.DOBLEVELA_SERVICE_URL || 'http://srv-datos.dyndns.info/doblevela/service.asmx',
+  apiKey: process.env.DOBLEVELA_API_KEY || '',
+  timeout: parseInt(process.env.DOBLEVELA_API_TIMEOUT || '60000', 10),
+  isEnabled: () => !!(doblevelaConfig.serviceUrl && doblevelaConfig.apiKey),
+}
+
+// ============================================
 // CONFIGURACIÓN GENERAL
 // ============================================
 export const appConfig = {
@@ -170,6 +180,7 @@ export function validateIntegrations() {
     facturacion: facturacionConfig.isEnabled(),
     inventarioApi: inventarioApiConfig.isEnabled(),
     promocion: promocionConfig.isEnabled(),
+    doblevela: doblevelaConfig.isEnabled(),
   }
 
   return integrations
@@ -269,6 +280,13 @@ export function getIntegrationsStatus() {
       category: 'Productos',
       status: promocionConfig.isEnabled(),
       description: 'Productos desde Promocionales en Línea (GraphQL)',
+      required: false,
+    },
+    {
+      name: 'Doblevela',
+      category: 'Productos',
+      status: doblevelaConfig.isEnabled(),
+      description: 'Productos e inventario desde Doblevela (SOAP)',
       required: false,
     },
   ]

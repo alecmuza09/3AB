@@ -710,6 +710,7 @@ export default function AdminPage() {
   const [syncResult, setSyncResult] = useState<any>(null)
   const [syncingPromocion, setSyncingPromocion] = useState(false)
   const [syncingInnovation, setSyncingInnovation] = useState(false)
+  const [syncingDoblevela, setSyncingDoblevela] = useState(false)
 
   // Función para sincronizar productos desde la API de inventario
   const handleSyncProducts = async () => {
@@ -816,6 +817,33 @@ export default function AdminPage() {
       alert(`Error: ${error.message}`)
     } finally {
       setSyncingPromocion(false)
+    }
+  }
+
+  // Sincronizar productos desde Doblevela
+  const handleSyncDoblevela = async () => {
+    if (!confirm('¿Sincronizar productos desde Doblevela? Esto puede tardar varios minutos (la API puede ser lenta).')) {
+      return
+    }
+    setSyncingDoblevela(true)
+    try {
+      const response = await fetch('/api/sync-doblevela', { method: 'POST' })
+      const data = await response.json()
+      if (data.success) {
+        alert(
+          `✅ Doblevela sincronizado:\n` +
+          `• Productos creados: ${data.data?.productsCreated ?? 0}\n` +
+          `• Productos actualizados: ${data.data?.productsUpdated ?? 0}\n` +
+          `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
+          (data.data?.errors?.length ? `⚠️ Errores: ${data.data.errors.length}` : '')
+        )
+      } else {
+        alert(`❌ Error al sincronizar Doblevela:\n${data.error || data.message}`)
+      }
+    } catch (error) {
+      alert(`❌ Error de red al sincronizar Doblevela: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+    } finally {
+      setSyncingDoblevela(false)
     }
   }
 
@@ -2202,7 +2230,7 @@ export default function AdminPage() {
                       <Button 
                         variant="outline" 
                         onClick={handleSyncProducts}
-                        disabled={syncingProducts || syncingPromocion}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela}
                       >
                         {syncingProducts ? (
                           <>
@@ -2228,7 +2256,7 @@ export default function AdminPage() {
                       <Button 
                         variant="outline" 
                         onClick={handleSyncPromocion}
-                        disabled={syncingProducts || syncingPromocion}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela}
                       >
                         {syncingPromocion ? (
                           <>
@@ -2250,6 +2278,23 @@ export default function AdminPage() {
                         title="Probar conexión y schema de API de 3A Promoción"
                       >
                         {testingPromocion ? "Probando..." : "🔍 Test API Promopción"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleSyncDoblevela}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela}
+                      >
+                        {syncingDoblevela ? (
+                          <>
+                            <Package className="h-4 w-4 mr-2 animate-spin" />
+                            Sincronizando Doblevela...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Doblevela
+                          </>
+                        )}
                       </Button>
                       <Button variant="outline">
                         <Download className="h-4 w-4 mr-2" />
@@ -3661,7 +3706,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       onClick={handleSyncProducts}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
                     >
                       {syncingProducts ? (
                         <>
@@ -3678,7 +3723,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       onClick={handleSyncPromocion}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
                     >
                       {syncingPromocion ? (
                         <>
@@ -3694,8 +3739,25 @@ export default function AdminPage() {
                     </Button>
                     <Button
                       variant="outline"
+                      onClick={handleSyncDoblevela}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
+                    >
+                      {syncingDoblevela ? (
+                        <>
+                          <Package className="h-4 w-4 mr-2 animate-spin" />
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          Doblevela
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
                       onClick={handleSyncInnovation}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
                     >
                       {syncingInnovation ? (
                         <>

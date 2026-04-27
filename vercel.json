@@ -7,6 +7,10 @@
     {
       "path": "/api/sync-promocion",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/sync-doblevela",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
