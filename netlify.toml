@@ -5,6 +5,9 @@
 # Configuración de Node.js
 [build.environment]
   NODE_VERSION = "20"
+  # NEXT_PUBLIC_* keys se embeben intencionalmente en el bundle del cliente (es su función).
+  # SECRETS_SCAN_OMIT_KEYS le indica al escáner de Netlify que ignore estas keys.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
 
 # IMPORTANTE: Configurar las siguientes variables de entorno en:
 # Netlify Dashboard > Site settings > Environment variables
