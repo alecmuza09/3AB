@@ -5,9 +5,12 @@
 # Configuración de Node.js
 [build.environment]
   NODE_VERSION = "20"
-  # NEXT_PUBLIC_* keys se embeben intencionalmente en el bundle del cliente (es su función).
-  # SECRETS_SCAN_OMIT_KEYS le indica al escáner de Netlify que ignore estas keys.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
+  # NEXT_PUBLIC_* se embebe en el bundle del cliente por diseño de Next.js.
+  # Los demás están solo en .next/server/ como referencias process.env.XXX (no valores reales).
+  # SECRETS_SCAN_OMIT_KEYS indica al escáner que no busque los valores de estas vars.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,GEMINI_API_KEY,DOBLEVELA_API_KEY"
+  # Excluir archivos binarios de caché de webpack (pueden contener artefactos de builds anteriores)
+  SECRETS_SCAN_OMIT_PATHS = ".next/cache"
 
 # IMPORTANTE: Configurar las siguientes variables de entorno en:
 # Netlify Dashboard > Site settings > Environment variables
