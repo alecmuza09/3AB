@@ -149,7 +149,7 @@ export const promocionConfig = {
 // DOBLEVELA - Proveedor de productos
 // ============================================
 export const doblevelaConfig = {
-  serviceUrl: process.env.DOBLEVELA_SERVICE_URL || 'http://srv-datos.dyndns.info/doblevela/service.asmx',
+  serviceUrl: process.env.DOBLEVELA_SERVICE_URL || '',
   apiKey: process.env.DOBLEVELA_API_KEY || '',
   timeout: parseInt(process.env.DOBLEVELA_API_TIMEOUT || '60000', 10),
   isEnabled: () => !!(doblevelaConfig.serviceUrl && doblevelaConfig.apiKey),
