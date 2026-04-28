@@ -55,17 +55,15 @@ export interface InventarioApiProduct {
  * Obtiene todos los productos del inventario desde la API
  */
 export async function getAllProductsFromInventarioApi(): Promise<InventarioApiProduct[]> {
+  if (!inventarioApiConfig.isEnabled()) {
+    throw new Error('API de inventario no está configurada (falta INVENTARIO_API_BASE_URL)')
+  }
+
+  const url = `${inventarioApiConfig.baseUrl}/inventario`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), inventarioApiConfig.timeout)
+
   try {
-    if (!inventarioApiConfig.isEnabled()) {
-      console.warn('API de inventario no está configurada')
-      return []
-    }
-
-    const url = `${inventarioApiConfig.baseUrl}/inventario`
-    
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), inventarioApiConfig.timeout)
-
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -78,18 +76,17 @@ export async function getAllProductsFromInventarioApi(): Promise<InventarioApiPr
     clearTimeout(timeoutId)
 
     if (!response.ok) {
-      throw new Error(`Error al obtener productos: ${response.status} ${response.statusText}`)
+      throw new Error(`La API de 4Promotional respondió con error ${response.status} ${response.statusText}`)
     }
 
     const data = await response.json()
     return Array.isArray(data) ? data : []
   } catch (error) {
+    clearTimeout(timeoutId)
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error('Timeout al obtener productos del inventario')
-    } else {
-      console.error('Error al obtener productos del inventario:', error)
+      throw new Error(`Timeout (${inventarioApiConfig.timeout}ms): la API de 4Promotional no respondió a tiempo. Verifica que el puerto 9090 sea accesible desde Netlify.`)
     }
-    return []
+    throw error
   }
 }
 

@@ -435,10 +435,18 @@ export async function syncProductsFromInventarioApi(): Promise<SyncResult> {
 
     // Obtener todos los productos de la API
     console.log('Obteniendo productos de la API de inventario...')
-    const apiProducts = await getAllProductsFromInventarioApi()
+    let apiProducts: InventarioApiProduct[] = []
+    try {
+      apiProducts = await getAllProductsFromInventarioApi()
+    } catch (apiError) {
+      const msg = apiError instanceof Error ? apiError.message : 'Error desconocido al llamar la API'
+      result.errors.push(msg)
+      result.success = false
+      return result
+    }
 
     if (apiProducts.length === 0) {
-      result.errors.push('No se obtuvieron productos de la API')
+      result.errors.push('No se obtuvieron productos de la API (respuesta vacía)')
       result.success = false
       return result
     }

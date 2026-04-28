@@ -745,22 +745,47 @@ export default function AdminPage() {
         method: 'POST',
       })
 
-      const data = await response.json()
+      let data: any = {}
+      const rawText = await response.text()
+      try {
+        data = JSON.parse(rawText)
+      } catch {
+        // Netlify puede devolver HTML en timeout/error de infraestructura
+        data = { error: `Respuesta no válida del servidor (HTTP ${response.status})` }
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error al sincronizar productos')
+        const msg = data.error || data.message || data.detail || `Error HTTP ${response.status}`
+        if (response.status === 504 || response.status === 502) {
+          throw new Error(`La sincronización tardó demasiado y fue interrumpida por el servidor (${response.status}).\n\nPosibles causas:\n• La API de 4Promotional está lenta o inaccesible desde Netlify\n• El puerto 9090 puede estar bloqueado por el proveedor de hosting\n\nRevisa los logs de Netlify para más detalle.`)
+        }
+        if (response.status === 401) {
+          throw new Error('No autorizado. Verifica la variable CRON_SECRET en Netlify.')
+        }
+        throw new Error(msg)
       }
 
       setSyncResult(data)
       
       if (data.success) {
-        alert(`Sincronización completada exitosamente!\n\nCategorías creadas: ${data.data.categoriesCreated}\nCategorías actualizadas: ${data.data.categoriesUpdated}\nProductos creados: ${data.data.productsCreated}\nProductos actualizados: ${data.data.productsUpdated}\nVariaciones creadas: ${data.data.variationsCreated}\nVariaciones actualizadas: ${data.data.variationsUpdated}\nImágenes creadas: ${data.data.imagesCreated}`)
+        const errors = data.data?.errors ?? []
+        alert(
+          `✅ 4Promotional sincronizado:\n` +
+          `• Categorías: +${data.data.categoriesCreated} / ~${data.data.categoriesUpdated}\n` +
+          `• Productos creados: ${data.data.productsCreated}\n` +
+          `• Productos actualizados: ${data.data.productsUpdated}\n` +
+          `• Variaciones: ${data.data.variationsCreated + data.data.variationsUpdated}\n` +
+          `• Imágenes: ${data.data.imagesCreated}` +
+          (errors.length ? `\n\n⚠️ ${errors.length} advertencia(s): ${errors[0]}` : '')
+        )
       } else {
-        alert(`Sincronización completada con errores. Revisa la consola para más detalles.`)
+        const errors: string[] = data.data?.errors ?? []
+        const detalle = errors.length ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}` : ''
+        alert(`⚠️ Sincronización de 4Promotional completada con errores.${detalle}`)
       }
     } catch (error: any) {
       console.error('Error sincronizando productos:', error)
-      alert(`Error al sincronizar productos: ${error.message}`)
+      alert(`❌ Error al sincronizar 4Promotional:\n${error.message}`)
       setSyncResult({ success: false, error: error.message })
     } finally {
       setSyncingProducts(false)

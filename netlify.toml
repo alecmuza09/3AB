@@ -10,6 +10,19 @@
   # Omitir: binarios de caché webpack, archivo de ejemplo y plugins de terceros
   SECRETS_SCAN_OMIT_PATHS = ".next/cache,env.example,.netlify/plugins"
 
+# Timeout extendido para funciones de sincronización (requiere plan Pro o superior)
+# En plan gratuito el límite es 10s; estas líneas preparan la config para cuando se actualice
+[functions."api-sync-products"]
+  timeout = 30
+[functions."api-sync-promocion"]
+  timeout = 30
+[functions."api-sync-doblevela"]
+  timeout = 60
+[functions."api-sync-innovation"]
+  timeout = 60
+[functions."api-sync-promoopcion"]
+  timeout = 60
+
 # IMPORTANTE: Configurar las siguientes variables de entorno en:
 # Netlify Dashboard > Site settings > Environment variables
 #

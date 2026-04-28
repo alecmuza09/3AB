@@ -131,7 +131,8 @@ export const facturacionConfig = {
 export const inventarioApiConfig = {
   baseUrl: process.env.INVENTARIO_API_BASE_URL || 'https://4promotional.net:9090/WsEstrategia',
   apiKey: process.env.INVENTARIO_API_KEY || '',
-  timeout: parseInt(process.env.INVENTARIO_API_TIMEOUT || '30000', 10),
+  // 8s para que la petición falle dentro del límite de 10s de Netlify Functions
+  timeout: parseInt(process.env.INVENTARIO_API_TIMEOUT || '8000', 10),
   isEnabled: () => !!inventarioApiConfig.baseUrl,
 }
 
