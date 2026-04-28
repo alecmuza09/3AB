@@ -34,6 +34,15 @@ export async function POST(request: NextRequest) {
 
     const result = await syncProductsFromDoblevela()
 
+    // Si falló, intentar obtener la IP saliente para diagnóstico de whitelist
+    let serverIp: string | null = null
+    if (!result.success) {
+      try {
+        const r = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(3000) })
+        if (r.ok) serverIp = (await r.json()).ip ?? null
+      } catch { /* ignore */ }
+    }
+
     return NextResponse.json(
       {
         success: result.success,
@@ -48,6 +57,7 @@ export async function POST(request: NextRequest) {
           imagesCreated: result.imagesCreated,
           errors: result.errors,
         },
+        serverIp,
       },
       { status: 200 }
     )

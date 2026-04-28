@@ -1033,9 +1033,11 @@ export default function AdminPage() {
       const data = await response.json()
 
       const errors: string[] = data.data?.errors ?? []
-      const primerError = (errors[0] || data.error || data.message || '').toLowerCase()
-      const esHorario = primerError.includes('horario no permitido')
-      const esAcceso = primerError.includes('acceso no permitido')
+      const primerError = errors[0] || data.error || data.message || ''
+      const serverIp: string | null = data.serverIp ?? null
+      const ahora = new Date()
+      const hora = ahora.getHours()
+      const enHorarioLaboral = hora >= 9 && hora < 18 && ahora.getDay() >= 1 && ahora.getDay() <= 5
 
       if (data.success) {
         alert(
@@ -1045,22 +1047,21 @@ export default function AdminPage() {
           `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
           (errors.length ? `\n⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
         )
-      } else if (esHorario) {
-        alert(
-          `⏰ Horario no permitido\n\nLa API de Doblevela solo está disponible en horario laboral de México (lunes a viernes, 9am–6pm CST).\n\nIntenta de nuevo durante ese horario.`
-        )
-      } else if (esAcceso) {
-        alert(
-          `🚫 Acceso no permitido — Restricción de IP\n\n` +
-          `La API de Doblevela solo acepta peticiones desde la IP registrada en el contrato (35.215.119.244).\n\n` +
-          `La petición actual viene de otra IP (servidor Netlify o local).\n\n` +
-          `Solución: Contacta a Doblevela para actualizar la IP autorizada a la del servidor actual.`
-        )
       } else {
-        const detalle = errors.length
-          ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}`
+        // Mensaje detallado y honesto: no asumir si es horario o IP, mostrar todo
+        const probableCausa = enHorarioLaboral
+          ? `Estamos en horario laboral (lunes-viernes 9am-6pm CDMX), por lo que el rechazo es probablemente por IP.\n\nLa API de Doblevela tiene whitelist por IP en su contrato (IP autorizada: 35.215.119.244).`
+          : `Estamos fuera del horario laboral (lunes-viernes 9am-6pm CDMX). Puede ser horario, pero también IP.`
+        const ipInfo = serverIp
+          ? `\n\n📍 IP saliente del servidor Netlify: ${serverIp}\n\nSolución: contacta a Doblevela y pídeles agregar esta IP a su whitelist.`
           : ''
-        alert(`❌ Error al sincronizar Doblevela:\n${errors[0] || data.error || data.message}${detalle}`)
+
+        alert(
+          `❌ Doblevela rechazó la petición\n\n` +
+          `Mensaje de la API: "${primerError}"\n\n` +
+          probableCausa +
+          ipInfo
+        )
       }
     } catch (error) {
       alert(`❌ Error de red al sincronizar Doblevela: ${error instanceof Error ? error.message : 'Error desconocido'}`)
