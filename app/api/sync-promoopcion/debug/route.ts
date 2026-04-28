@@ -26,64 +26,66 @@ export async function GET() {
     isEnabled: promoopcionConfig.isEnabled(),
   }
 
+  // Probar primero una URL pública conocida del mismo servidor para descartar bloqueo por IP
+  let serverPublicStatus = 0
+  try {
+    const pubRes = await fetch('http://www.contenidopromo.com/exportadb.php?ubk=MX', {
+      method: 'GET', signal: AbortSignal.timeout(5000)
+    })
+    serverPublicStatus = pubRes.status
+  } catch { serverPublicStatus = -1 }
+
   if (!promoopcionConfig.isEnabled()) {
     return NextResponse.json({
       credentials,
+      serverPublicPageStatus: serverPublicStatus,
       error: 'Integración no configurada (faltan PROMOOPCION_USER o PROMOOPCION_API_KEY)',
       timestamp: new Date().toISOString(),
     })
   }
 
-  let httpStatus = 0
-  let rawBody = ''
-  let responseHeaders: Record<string, string> = {}
+  // Probar distintas variantes de URL para identificar cuál funciona
+  const urlVariants = [
+    'http://www.contenidopromo.com/wsds/mx/existencias',
+    'http://www.contenidopromo.com/wsds/mx/existencias/',
+    'https://www.contenidopromo.com/wsds/mx/existencias/',
+    'http://www.contenidopromo.com/wsds/mx/existencias.php',
+  ]
 
-  try {
-    const body = new URLSearchParams({ demo: demo ? '1' : '0' })
-    const controller = new AbortController()
-    const tid = setTimeout(() => controller.abort(), 10000)
+  const results: Array<{ url: string; status: number; preview: string }> = []
 
-    const res = await fetch(testUrl, {
-      method: 'POST',
-      headers: {
-        'user': user,
-        'x-api-key': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'User-Agent': '3ABranding/1.0',
-      },
-      body: body.toString(),
-      signal: controller.signal,
-    })
-    clearTimeout(tid)
-
-    httpStatus = res.status
-    rawBody = await res.text()
-    res.headers.forEach((v, k) => { responseHeaders[k] = v })
-  } catch (err) {
-    return NextResponse.json({
-      credentials,
-      urlCalled: testUrl,
-      error: err instanceof Error ? err.message : 'Error de red',
-      timestamp: new Date().toISOString(),
-    })
+  for (const variant of urlVariants) {
+    try {
+      const body = new URLSearchParams({ demo: demo ? '1' : '0' })
+      const res = await fetch(variant, {
+        method: 'POST',
+        headers: {
+          'user': user,
+          'x-api-key': apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
+        body: body.toString(),
+        signal: AbortSignal.timeout(8000),
+      })
+      const text = await res.text()
+      results.push({ url: variant, status: res.status, preview: text.substring(0, 150) })
+      // Si obtuvimos algo que no es 404, parar
+      if (res.status !== 404) break
+    } catch (e) {
+      results.push({ url: variant, status: -1, preview: String(e) })
+    }
   }
-
-  let parsed: unknown = null
-  try { parsed = JSON.parse(rawBody) } catch { /* no es JSON */ }
-
-  // Para existencias (objeto grande), solo mostrar resumen
-  const summary = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-    ? { totalKeys: Object.keys(parsed as object).length, sample: Object.entries(parsed as object).slice(0, 3) }
-    : null
 
   return NextResponse.json({
     credentials,
-    urlCalled: testUrl,
-    httpStatus,
-    rawBodyPreview: rawBody.substring(0, 300),
-    responseSummary: summary,
-    responseHeaders,
+    serverPublicPageStatus: serverPublicStatus,
+    diagnosis: serverPublicStatus === 200
+      ? 'El servidor responde a URLs públicas — la ruta /wsds/mx/ puede estar bloqueada por IP'
+      : serverPublicStatus === 404
+      ? 'El servidor no reconoce la URL pública — posible bloqueo total por IP desde Netlify'
+      : 'No se pudo conectar al servidor en absoluto',
+    urlVariantTests: results,
     timestamp: new Date().toISOString(),
   })
 }
