@@ -306,13 +306,9 @@ export async function syncProductsFromInnovation(): Promise<InnovationSyncResult
     errors: [],
   }
 
-  // Verificar horario de operación
+  // Advertir si estamos fuera de las ventanas recomendadas, pero intentar de todas formas
   if (!isWithinInnovationHours()) {
-    result.success = false
-    result.errors.push(
-      'Horario no permitido. La API de Innovation Line solo opera en estas ventanas (hora CDMX): 09:00-10:00, 13:00-14:00, 17:00-18:00.'
-    )
-    return result
+    console.warn('[Innovation] Fuera de ventana horaria recomendada (09-10, 13-14, 17-18 CDMX). Intentando de todas formas...')
   }
 
   try {

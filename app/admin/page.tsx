@@ -887,15 +887,27 @@ export default function AdminPage() {
       const data = await res.json()
       const conn = data.connection
       if (conn.success) {
+        const fueraDeHorario = !conn.withinRecommendedHours
         alert(
-          `✅ Conexión exitosa con Innovation Line\n\n` +
-          `Productos en catálogo: ${conn.totalProducts}\n` +
-          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n` +
-          `Modo: ${conn.mode ?? 'productivo'}\n\n` +
-          `Ejemplo: ${conn.sampleProduct?.Nombre ?? 'N/A'} (${conn.sampleProduct?.Codigo ?? 'N/A'})`
+          `✅ Conexión exitosa con Innovation Line\n` +
+          (fueraDeHorario ? `⚠️ Fuera de ventana recomendada — pero la API respondió bien\n` : '') +
+          `\nProductos en catálogo: ${conn.totalProducts}\n` +
+          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n\n` +
+          `Ejemplo: ${conn.sampleProduct?.Nombre ?? conn.sampleProduct?.nombre ?? 'N/A'}`
         )
       } else {
-        alert(`❌ Error de conexión Innovation Line:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+        const esHorario = (conn.error || '').toLowerCase().includes('horario') ||
+          (conn.error || '').toLowerCase().includes('fuera de')
+        if (esHorario) {
+          alert(
+            `⏰ Innovation Line bloqueó la petición por horario\n\n` +
+            `La API rechazó la llamada porque está fuera de su ventana de servicio.\n\n` +
+            `Próxima ventana disponible (CDMX):\n` +
+            `• 13:00 – 14:00\n• 17:00 – 18:00\n\nMensaje de la API: ${conn.error}`
+          )
+        } else {
+          alert(`❌ Error de conexión Innovation Line:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+        }
       }
     } catch (err) {
       alert(`❌ Error al probar Innovation Line: ${err}`)
@@ -1000,7 +1012,7 @@ export default function AdminPage() {
   }
 
   const handleSyncInnovation = async () => {
-    if (!confirm('¿Sincronizar productos desde Innovation Line? Esto puede tardar varios minutos.\n\nNota: la API solo opera en estas ventanas horarias (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00')) {
+    if (!confirm('¿Sincronizar productos desde Innovation Line? Esto puede tardar varios minutos.')) {
       return
     }
     setSyncingInnovation(true)
@@ -1009,9 +1021,8 @@ export default function AdminPage() {
       const data = await response.json()
 
       const errors: string[] = data.data?.errors ?? []
-      const fueraDeHorario = errors.some((e: string) =>
-        e.toLowerCase().includes('horario') || e.toLowerCase().includes('no permitido') || e.toLowerCase().includes('ventana')
-      )
+      const primerError = (errors[0] || data.error || data.message || '').toLowerCase()
+      const esHorarioAPI = primerError.includes('horario') && primerError.includes('innovation')
 
       if (data.success) {
         alert(
@@ -1020,17 +1031,19 @@ export default function AdminPage() {
           `• Productos actualizados: ${data.data?.productsUpdated ?? 0}\n` +
           `• Variantes: ${(data.data?.variationsCreated ?? 0) + (data.data?.variationsUpdated ?? 0)}\n` +
           `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
-          (errors.length ? `⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
+          (errors.length ? `\n⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
         )
-      } else if (fueraDeHorario) {
+      } else if (esHorarioAPI) {
         alert(
-          `⏰ Horario no permitido\n\nLa API de Innovation Line solo está disponible en estas ventanas (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\nIntenta de nuevo durante esos horarios.`
+          `⏰ La API de Innovation Line bloqueó la petición por horario\n\n` +
+          `Las ventanas disponibles (CDMX) son:\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\n` +
+          `Intenta de nuevo dentro de una de esas ventanas.`
         )
       } else {
         const detalle = errors.length
           ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}`
           : ''
-        alert(`❌ Error al sincronizar Innovation Line:\n${data.error || data.message}${detalle}`)
+        alert(`❌ Error al sincronizar Innovation Line:\n${errors[0] || data.error || data.message}${detalle}`)
       }
     } catch (error) {
       alert(`❌ Error de red al sincronizar Innovation Line: ${error instanceof Error ? error.message : 'Error desconocido'}`)

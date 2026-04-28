@@ -1,6 +1,7 @@
 /**
  * GET /api/sync-innovation/test
  * Prueba la conexión con el Webservice 3.0 de Innovation Line.
+ * Solo advierte (no bloquea) si estamos fuera de las ventanas horarias recomendadas.
  */
 import { NextResponse } from 'next/server'
 import { innovationConfig } from '@/lib/integrations-config'
@@ -18,16 +19,6 @@ export async function GET() {
   }
 
   const withinHours = isWithinInnovationHours()
-  if (!withinHours) {
-    return NextResponse.json({
-      connection: {
-        success: false,
-        error: 'Fuera del horario de operación de Innovation Line.',
-        hint: 'La API solo opera en estas ventanas (CDMX): 09:00-10:00, 13:00-14:00, 17:00-18:00.',
-      },
-      timestamp: new Date().toISOString(),
-    })
-  }
 
   try {
     const startTime = Date.now()
@@ -40,15 +31,23 @@ export async function GET() {
         totalProducts: products.length,
         sampleProduct: products[0] ?? null,
         responseTimeMs: elapsed,
+        withinRecommendedHours: withinHours,
+        note: withinHours ? undefined : 'Fuera de ventana horaria recomendada (09-10, 13-14, 17-18 CDMX), pero la API respondió correctamente.',
       },
       config: { user: innovationConfig.user },
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Error desconocido'
+    const esHorario = msg.toLowerCase().includes('horario') || msg.toLowerCase().includes('fuera de')
     return NextResponse.json({
       connection: {
         success: false,
-        error: error instanceof Error ? error.message : 'Error desconocido',
+        error: msg,
+        withinRecommendedHours: withinHours,
+        hint: esHorario
+          ? 'La API de Innovation Line bloqueó la petición por horario. Intenta en la próxima ventana: 13:00-14:00 CDMX.'
+          : undefined,
       },
       timestamp: new Date().toISOString(),
     })
