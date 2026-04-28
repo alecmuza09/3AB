@@ -710,6 +710,7 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [syncResult, setSyncResult] = useState<any>(null)
+  const [syncProgress4P, setSyncProgress4P] = useState<{ current: number; total: number; phase: string } | null>(null)
   const [syncingPromocion, setSyncingPromocion] = useState(false)
   const [syncingInnovation, setSyncingInnovation] = useState(false)
   const [syncingDoblevela, setSyncingDoblevela] = useState(false)
@@ -732,63 +733,104 @@ export default function AdminPage() {
   }, [])
 
   // Función para sincronizar productos desde la API de inventario
+  /**
+   * Sincronización en chunks: descarga primero el catálogo crudo (1 llamada rápida)
+   * y luego procesa en lotes de ~30 entradas para evitar el timeout de 10s de Netlify.
+   */
   const handleSyncProducts = async () => {
-    if (!confirm('¿Estás seguro de sincronizar los productos desde la API de inventario? Esto puede tardar varios minutos.')) {
+    if (!confirm('¿Sincronizar productos desde 4Promotional?\n\nEl proceso se hará por chunks para evitar timeouts. Puede tardar varios minutos.')) {
       return
     }
 
     setSyncingProducts(true)
     setSyncResult(null)
+    setSyncProgress4P({ current: 0, total: 0, phase: 'Descargando catálogo...' })
+
+    const totals = {
+      categoriesCreated: 0,
+      productsCreated: 0,
+      productsUpdated: 0,
+      variationsCreated: 0,
+      variationsUpdated: 0,
+      imagesCreated: 0,
+      errors: [] as string[],
+    }
 
     try {
-      const response = await fetch('/api/sync-products', {
-        method: 'POST',
-      })
-
-      let data: any = {}
-      const rawText = await response.text()
-      try {
-        data = JSON.parse(rawText)
-      } catch {
-        // Netlify puede devolver HTML en timeout/error de infraestructura
-        data = { error: `Respuesta no válida del servidor (HTTP ${response.status})` }
+      const fetchRes = await fetch('/api/sync-products/fetch-raw')
+      const fetchText = await fetchRes.text()
+      let fetchData: any = {}
+      try { fetchData = JSON.parse(fetchText) } catch {
+        throw new Error(`No se pudo descargar el catálogo: HTTP ${fetchRes.status}. ${fetchText.substring(0, 150)}`)
+      }
+      if (!fetchData.success) {
+        throw new Error(fetchData.error || 'Error desconocido al descargar catálogo')
       }
 
-      if (!response.ok) {
-        const msg = data.error || data.message || data.detail || `Error HTTP ${response.status}`
-        if (response.status === 504 || response.status === 502) {
-          throw new Error(`La sincronización tardó demasiado y fue interrumpida por el servidor (${response.status}).\n\nPosibles causas:\n• La API de 4Promotional está lenta o inaccesible desde Netlify\n• El puerto 9090 puede estar bloqueado por el proveedor de hosting\n\nRevisa los logs de Netlify para más detalle.`)
+      const allProducts: any[] = fetchData.products || []
+      if (allProducts.length === 0) {
+        throw new Error('La API de 4Promotional devolvió un catálogo vacío')
+      }
+
+      const CHUNK_SIZE = 30
+      const totalChunks = Math.ceil(allProducts.length / CHUNK_SIZE)
+      setSyncProgress4P({ current: 0, total: totalChunks, phase: `Procesando ${allProducts.length} productos…` })
+
+      let categoryMap: Record<string, string> = {}
+
+      for (let i = 0; i < allProducts.length; i += CHUNK_SIZE) {
+        const chunk = allProducts.slice(i, i + CHUNK_SIZE)
+        const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1
+        setSyncProgress4P({ current: chunkIndex, total: totalChunks, phase: `Procesando chunk ${chunkIndex}/${totalChunks}…` })
+
+        try {
+          const procRes = await fetch('/api/sync-products/process-chunk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ products: chunk, categoryMap }),
+          })
+          const procText = await procRes.text()
+          let procData: any = {}
+          try { procData = JSON.parse(procText) } catch {
+            totals.errors.push(`Chunk ${chunkIndex}: respuesta inválida (HTTP ${procRes.status})`)
+            continue
+          }
+          if (!procData.success) {
+            totals.errors.push(`Chunk ${chunkIndex}: ${procData.error || 'error desconocido'}`)
+            continue
+          }
+          totals.categoriesCreated += procData.categoriesCreated || 0
+          totals.productsCreated += procData.productsCreated || 0
+          totals.productsUpdated += procData.productsUpdated || 0
+          totals.variationsCreated += procData.variationsCreated || 0
+          totals.variationsUpdated += procData.variationsUpdated || 0
+          totals.imagesCreated += procData.imagesCreated || 0
+          if (Array.isArray(procData.errors) && procData.errors.length) {
+            totals.errors.push(...procData.errors.slice(0, 3))
+          }
+          if (procData.categoryMap) categoryMap = procData.categoryMap
+        } catch (err: any) {
+          totals.errors.push(`Chunk ${chunkIndex}: ${err.message || 'error de red'}`)
         }
-        if (response.status === 401) {
-          throw new Error('No autorizado. Verifica la variable CRON_SECRET en Netlify.')
-        }
-        throw new Error(msg)
       }
 
-      setSyncResult(data)
-      
-      if (data.success) {
-        const errors = data.data?.errors ?? []
-        alert(
-          `✅ 4Promotional sincronizado:\n` +
-          `• Categorías: +${data.data.categoriesCreated} / ~${data.data.categoriesUpdated}\n` +
-          `• Productos creados: ${data.data.productsCreated}\n` +
-          `• Productos actualizados: ${data.data.productsUpdated}\n` +
-          `• Variaciones: ${data.data.variationsCreated + data.data.variationsUpdated}\n` +
-          `• Imágenes: ${data.data.imagesCreated}` +
-          (errors.length ? `\n\n⚠️ ${errors.length} advertencia(s): ${errors[0]}` : '')
-        )
-      } else {
-        const errors: string[] = data.data?.errors ?? []
-        const detalle = errors.length ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}` : ''
-        alert(`⚠️ Sincronización de 4Promotional completada con errores.${detalle}`)
-      }
+      setSyncResult({ success: true, data: totals })
+      alert(
+        `✅ 4Promotional sincronizado (${totalChunks} chunks):\n` +
+        `• Productos creados: ${totals.productsCreated}\n` +
+        `• Productos actualizados: ${totals.productsUpdated}\n` +
+        `• Variaciones: ${totals.variationsCreated + totals.variationsUpdated}\n` +
+        `• Imágenes: ${totals.imagesCreated}\n` +
+        `• Categorías nuevas: ${totals.categoriesCreated}\n` +
+        (totals.errors.length ? `\n⚠️ ${totals.errors.length} advertencia(s):\n• ${totals.errors.slice(0, 3).join('\n• ')}` : '')
+      )
     } catch (error: any) {
-      console.error('Error sincronizando productos:', error)
+      console.error('Error sincronizando 4Promotional:', error)
       alert(`❌ Error al sincronizar 4Promotional:\n${error.message}`)
       setSyncResult({ success: false, error: error.message })
     } finally {
       setSyncingProducts(false)
+      setSyncProgress4P(null)
     }
   }
 
@@ -797,6 +839,21 @@ export default function AdminPage() {
   const [testingDoblevela, setTestingDoblevela] = useState(false)
   const [testingInnovation, setTestingInnovation] = useState(false)
   const [testingPromoopcion, setTestingPromoopcion] = useState(false)
+  const [auditing, setAuditing] = useState(false)
+  const [auditResult, setAuditResult] = useState<any>(null)
+
+  const handleAudit = async () => {
+    setAuditing(true)
+    try {
+      const res = await fetch('/api/integrations-audit')
+      const data = await res.json()
+      setAuditResult(data)
+    } catch (err) {
+      alert(`Error al auditar: ${err}`)
+    } finally {
+      setAuditing(false)
+    }
+  }
   const handleTest4Promotional = async () => {
     setTesting4Promotional(true)
     try {
@@ -2503,8 +2560,14 @@ export default function AdminPage() {
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                                   4Promotional
                                 </span>
-                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncProducts} disabled={anySync}>
-                                  {syncingProducts ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncProducts} disabled={anySync} title="Sincronización por chunks (sin timeout)">
+                                  {syncingProducts ? (
+                                    <><Package className="h-3 w-3 mr-1 animate-spin" />
+                                      {syncProgress4P ? `${syncProgress4P.current}/${syncProgress4P.total}` : 'Sincronizando'}
+                                    </>
+                                  ) : (
+                                    <><Upload className="h-3 w-3 mr-1" />Sincronizar</>
+                                  )}
                                 </Button>
                                 <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTest4Promotional} disabled={testing4Promotional} title="Probar conexión con 4Promotional">
                                   {testing4Promotional ? "…" : "🔍 Test"}
@@ -2570,6 +2633,51 @@ export default function AdminPage() {
                           )
                         })()}
                       </div>
+
+                      {/* Auditoría rápida */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs"
+                        onClick={handleAudit}
+                        disabled={auditing}
+                        title="Probar conectividad con los 5 proveedores"
+                      >
+                        {auditing ? '⏳ Auditando…' : '🔬 Auditoría completa de proveedores'}
+                      </Button>
+
+                      {auditResult && (
+                        <div className="w-full rounded-lg border bg-muted/30 p-3 text-xs space-y-2">
+                          <div className="font-medium">
+                            Estado: {auditResult.summary?.ok ?? 0}/5 OK
+                            {auditResult.serverIp && (
+                              <span className="block mt-0.5 font-normal text-muted-foreground">
+                                IP de servidor: <code className="bg-background px-1">{auditResult.serverIp}</code>
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {auditResult.providers?.map((p: any) => {
+                              const icon = p.status === 'ok' ? '✅'
+                                : p.status === 'blocked-ip' ? '🚫'
+                                : p.status === 'wrong-hours' ? '⏰'
+                                : p.status === 'wrong-credentials' ? '🔑'
+                                : p.status === 'timeout' ? '⏱️'
+                                : p.status === 'not-configured' ? '⚙️'
+                                : '❌'
+                              return (
+                                <div key={p.name} className="flex items-start gap-1.5 leading-tight">
+                                  <span>{icon}</span>
+                                  <div className="flex-1">
+                                    <span className="font-medium">{p.name}:</span>{' '}
+                                    <span className="text-muted-foreground">{p.message}</span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Acciones generales */}
                       <div className="flex gap-2">
