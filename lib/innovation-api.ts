@@ -150,21 +150,29 @@ async function callInnovationApi<T>(
     // Validamos esos casos para que no se propaguen como datos válidos.
     const data = (await response.json()) as any
     if (data && typeof data === 'object' && !Array.isArray(data)) {
-      // Caso: { error: "Web service no activo o credenciales invalidas." }
+      const respCheck = data?.respuesta_llave?.response
+      const correctDatos = respCheck?.Correct_Datos
+      const activo = respCheck?.Activo
+      const statusInner = respCheck?.Status
+
+      // Diferenciar credenciales inválidas vs fuera de horario:
+      // - Correct_Datos === false  →  CREDENCIALES INVÁLIDAS
+      // - Correct_Datos === true   →  credenciales OK (cualquier otro fallo es horario / activación)
+      if (correctDatos === false) {
+        throw new Error('CREDENCIALES_INVALIDAS')
+      }
+      if (activo === false || statusInner === 'Fuera de horario') {
+        throw new Error('FUERA_DE_HORARIO')
+      }
       if (data.error && typeof data.error === 'string') {
         const msg = data.error.toLowerCase()
+        if (msg.includes('credenciales') || msg.includes('invalidas')) {
+          throw new Error('CREDENCIALES_INVALIDAS')
+        }
         if (msg.includes('no activo') || msg.includes('fuera de horario') || msg.includes('horario')) {
           throw new Error('FUERA_DE_HORARIO')
         }
-        if (msg.includes('credenciales') || msg.includes('invalidas')) {
-          throw new Error(`Innovation Line: ${data.error}`)
-        }
         throw new Error(`Innovation Line: ${data.error}`)
-      }
-      // Caso: { respuesta_llave: { response: { Activo: false, Status: "Fuera de horario" } } }
-      const respCheck = data?.respuesta_llave?.response
-      if (respCheck?.Activo === false) {
-        throw new Error('FUERA_DE_HORARIO')
       }
     }
 

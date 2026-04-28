@@ -953,15 +953,33 @@ export default function AdminPage() {
           `Ejemplo: ${conn.sampleProduct?.Nombre ?? conn.sampleProduct?.nombre ?? 'N/A'}`
         )
       } else {
-        const esFueraDeHorario = conn.error === 'FUERA_DE_HORARIO' ||
-          (conn.error || '').toLowerCase().includes('fuera de horario') ||
-          (conn.error || '').toLowerCase().includes('no está activo')
-        if (esFueraDeHorario) {
+        const errLower = (conn.error || '').toLowerCase()
+        const esCredencialesInvalidas = conn.error === 'CREDENCIALES_INVALIDAS' ||
+          errLower.includes('credenciales') ||
+          errLower.includes('invalidas') ||
+          errLower.includes('correct_datos')
+        const esFueraDeHorario = !esCredencialesInvalidas && (
+          conn.error === 'FUERA_DE_HORARIO' ||
+          errLower.includes('fuera de horario') ||
+          errLower.includes('no está activo')
+        )
+        if (esCredencialesInvalidas) {
+          alert(
+            `🔑 Innovation Line — Credenciales inválidas\n\n` +
+            `El API de Innovation Line está rechazando el USER y/o CLAVE configurados.\n\n` +
+            `Esto significa que:\n` +
+            `• La cuenta fue desactivada por Innovation, o\n` +
+            `• Alguien cambió la contraseña en su panel, o\n` +
+            `• El auth-token (API Key) ya no es válido.\n\n` +
+            `Solución: contacta a tu ejecutivo de Innovation Line y pide que confirme/regenere:\n` +
+            `1. Usuario (correo)\n2. Clave\n3. Auth-token\n\n` +
+            `Una vez con datos nuevos, actualízalos en Netlify (Site settings → Environment variables).`
+          )
+        } else if (esFueraDeHorario) {
           alert(
             `⏰ Innovation Line — Fuera de horario\n\n` +
             `Credenciales correctas ✅ — pero el web service no está activo ahora.\n\n` +
-            `Ventanas disponibles (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\n` +
-            `Intenta de nuevo a las 13:00.`
+            `Ventanas disponibles (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00`
           )
         } else {
           alert(`❌ Error de conexión Innovation Line:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
@@ -1082,11 +1100,17 @@ export default function AdminPage() {
       const errors: string[] = data.data?.errors ?? []
       const primerError = errors[0] || data.error || data.message || ''
       const errorLower = primerError.toLowerCase()
-      const esFueraDeHorario = primerError === 'FUERA_DE_HORARIO' ||
+      const esCredencialesInvalidas = primerError === 'CREDENCIALES_INVALIDAS' ||
+        errorLower.includes('credenciales') ||
+        errorLower.includes('invalidas') ||
+        errorLower.includes('correct_datos')
+      const esFueraDeHorario = !esCredencialesInvalidas && (
+        primerError === 'FUERA_DE_HORARIO' ||
         errorLower.includes('fuera de horario') ||
         errorLower.includes('no está activo') ||
         errorLower.includes('no activo') ||
         errorLower.includes('web service no')
+      )
 
       if (data.success) {
         alert(
@@ -1097,12 +1121,23 @@ export default function AdminPage() {
           `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
           (errors.length ? `\n⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
         )
+      } else if (esCredencialesInvalidas) {
+        alert(
+          `🔑 Innovation Line — Credenciales inválidas\n\n` +
+          `El API de Innovation Line está rechazando las credenciales (Correct_Datos: false).\n\n` +
+          `Causas posibles:\n` +
+          `• La cuenta fue desactivada por Innovation, o\n` +
+          `• Alguien cambió la contraseña en su panel, o\n` +
+          `• El auth-token (API Key) ya no es válido.\n\n` +
+          `Acción: contacta a tu ejecutivo de Innovation Line y pide que confirme/regenere:\n` +
+          `1. Usuario (correo)\n2. Clave\n3. Auth-token\n\n` +
+          `Después actualízalos en Netlify → Site settings → Environment variables.`
+        )
       } else if (esFueraDeHorario) {
         alert(
           `⏰ Innovation Line — Fuera de horario\n\n` +
           `El web service no está activo en este momento.\n\n` +
-          `Ventanas disponibles (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\n` +
-          `Las credenciales son correctas. Intenta de nuevo a las 13:00.`
+          `Ventanas disponibles (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00`
         )
       } else {
         const detalle = errors.length
