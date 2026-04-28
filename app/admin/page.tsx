@@ -794,6 +794,9 @@ export default function AdminPage() {
 
   // Probar conexión con API de 4Promotional
   const [testing4Promotional, setTesting4Promotional] = useState(false)
+  const [testingDoblevela, setTestingDoblevela] = useState(false)
+  const [testingInnovation, setTestingInnovation] = useState(false)
+  const [testingPromoopcion, setTestingPromoopcion] = useState(false)
   const handleTest4Promotional = async () => {
     setTesting4Promotional(true)
     try {
@@ -839,6 +842,80 @@ export default function AdminPage() {
       alert(`Error al probar la conexión: ${err}`)
     } finally {
       setTestingPromocion(false)
+    }
+  }
+
+  const handleTestDoblevela = async () => {
+    setTestingDoblevela(true)
+    try {
+      const res = await fetch('/api/sync-doblevela/test')
+      const data = await res.json()
+      const conn = data.connection
+      if (conn.success) {
+        alert(
+          `✅ Conexión exitosa con Doblevela\n\n` +
+          `Productos en catálogo: ${conn.totalProducts}\n` +
+          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n\n` +
+          `Producto de ejemplo: ${conn.sampleProduct?.Descripcion ?? 'N/A'}\n` +
+          `Código: ${conn.sampleProduct?.Codigo ?? 'N/A'}`
+        )
+      } else {
+        alert(`❌ Error de conexión Doblevela:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+      }
+    } catch (err) {
+      alert(`❌ Error al probar Doblevela: ${err}`)
+    } finally {
+      setTestingDoblevela(false)
+    }
+  }
+
+  const handleTestInnovation = async () => {
+    setTestingInnovation(true)
+    try {
+      const res = await fetch('/api/sync-innovation/test')
+      const data = await res.json()
+      const conn = data.connection
+      if (conn.success) {
+        alert(
+          `✅ Conexión exitosa con Innovation Line\n\n` +
+          `Productos en catálogo: ${conn.totalProducts}\n` +
+          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n` +
+          `Modo: ${conn.mode ?? 'productivo'}\n\n` +
+          `Ejemplo: ${conn.sampleProduct?.Nombre ?? 'N/A'} (${conn.sampleProduct?.Codigo ?? 'N/A'})`
+        )
+      } else {
+        alert(`❌ Error de conexión Innovation Line:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+      }
+    } catch (err) {
+      alert(`❌ Error al probar Innovation Line: ${err}`)
+    } finally {
+      setTestingInnovation(false)
+    }
+  }
+
+  const handleTestPromoopcion = async () => {
+    setTestingPromoopcion(true)
+    try {
+      const res = await fetch('/api/sync-promoopcion/test')
+      const data = await res.json()
+      const conn = data.connection
+      if (conn.success) {
+        const samples = (conn.sampleItems ?? []).map((s: any) => `${s.code}: ${s.stock}`).join(', ')
+        alert(
+          `✅ Conexión exitosa con PromoOpción\n\n` +
+          `Ítems con registro: ${conn.totalItems}\n` +
+          `Con stock > 0: ${conn.withStock}\n` +
+          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n` +
+          `Modo: ${conn.mode}\n\n` +
+          `Ejemplos de stock: ${samples}`
+        )
+      } else {
+        alert(`❌ Error de conexión PromoOpción:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+      }
+    } catch (err) {
+      alert(`❌ Error al probar PromoOpción: ${err}`)
+    } finally {
+      setTestingPromoopcion(false)
     }
   }
 
@@ -2371,121 +2448,107 @@ export default function AdminPage() {
                       </div>
                       <CardDescription>Administra el catálogo completo de productos. Los usuarios no pueden modificar esta configuración.</CardDescription>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button 
-                        variant="outline" 
-                        onClick={handleSyncProducts}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
-                      >
-                        {syncingProducts ? (
-                          <>
-                            <Package className="h-4 w-4 mr-2 animate-spin" />
-                            Sincronizando...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            For Promotional
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleTest4Promotional}
-                        disabled={testing4Promotional}
-                        title="Probar conexión y schema de API de 4Promotional"
-                      >
-                        {testing4Promotional ? "Probando..." : "🔍 Test API 4Promotional"}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={handleSyncPromocion}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
-                      >
-                        {syncingPromocion ? (
-                          <>
-                            <Package className="h-4 w-4 mr-2 animate-spin" />
-                            Sincronizando 3A Promoción...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Promopción
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleTestPromocion}
-                        disabled={testingPromocion}
-                        title="Probar conexión y schema de API de 3A Promoción"
-                      >
-                        {testingPromocion ? "Probando..." : "🔍 Test API Promopción"}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={handleSyncDoblevela}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
-                      >
-                        {syncingDoblevela ? (
-                          <>
-                            <Package className="h-4 w-4 mr-2 animate-spin" />
-                            Sincronizando Doblevela...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Doblevela
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={handleSyncInnovation}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation || syncingPromoopcion}
-                      >
-                        {syncingInnovation ? (
-                          <>
-                            <Package className="h-4 w-4 mr-2 animate-spin" />
-                            Sincronizando Innovation...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Innovation Line
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={handleSyncPromoopcion}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation || syncingPromoopcion}
-                      >
-                        {syncingPromoopcion ? (
-                          <>
-                            <Package className="h-4 w-4 mr-2 animate-spin" />
-                            Sincronizando PromoOpción...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4 mr-2" />
-                            PromoOpción
-                          </>
-                        )}
-                      </Button>
-                      <Button variant="outline">
-                        <Download className="h-4 w-4 mr-2" />
-                        Exportar
-                      </Button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button className="bg-primary hover:bg-primary/90">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Nuevo Producto
-                          </Button>
-                        </DialogTrigger>
+                    <div className="flex flex-col gap-3 items-end min-w-[380px]">
+                      {/* Tabla de proveedores: nombre | sincronizar | test */}
+                      <div className="w-full rounded-lg border overflow-hidden divide-y text-sm">
+                        {/* Fila cabecera */}
+                        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          <span>Proveedor</span>
+                          <span className="w-28 text-center">Sincronizar</span>
+                          <span className="w-16 text-center">Test</span>
+                        </div>
+
+                        {/* 4Promotional */}
+                        {(() => {
+                          const anySync = syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation || syncingPromoopcion
+                          return (
+                            <>
+                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                                  4Promotional
+                                </span>
+                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncProducts} disabled={anySync}>
+                                  {syncingProducts ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTest4Promotional} disabled={testing4Promotional} title="Probar conexión con 4Promotional">
+                                  {testing4Promotional ? "…" : "🔍 Test"}
+                                </Button>
+                              </div>
+
+                              {/* Promopción */}
+                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+                                  Promopción
+                                </span>
+                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncPromocion} disabled={anySync}>
+                                  {syncingPromocion ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestPromocion} disabled={testingPromocion} title="Probar conexión con Promopción">
+                                  {testingPromocion ? "…" : "🔍 Test"}
+                                </Button>
+                              </div>
+
+                              {/* Doblevela */}
+                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-600 shrink-0" />
+                                  Doblevela
+                                </span>
+                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncDoblevela} disabled={anySync}>
+                                  {syncingDoblevela ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestDoblevela} disabled={testingDoblevela} title="Probar conexión con Doblevela">
+                                  {testingDoblevela ? "…" : "🔍 Test"}
+                                </Button>
+                              </div>
+
+                              {/* Innovation Line */}
+                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
+                                  Innovation Line
+                                </span>
+                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncInnovation} disabled={anySync}>
+                                  {syncingInnovation ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestInnovation} disabled={testingInnovation} title="Probar conexión con Innovation Line (solo en horario 9-10, 13-14, 17-18 CDMX)">
+                                  {testingInnovation ? "…" : "🔍 Test"}
+                                </Button>
+                              </div>
+
+                              {/* PromoOpción */}
+                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-cyan-600 shrink-0" />
+                                  PromoOpción
+                                </span>
+                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncPromoopcion} disabled={anySync}>
+                                  {syncingPromoopcion ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestPromoopcion} disabled={testingPromoopcion} title="Probar conexión con PromoOpción">
+                                  {testingPromoopcion ? "…" : "🔍 Test"}
+                                </Button>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </div>
+
+                      {/* Acciones generales */}
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <Download className="h-4 w-4 mr-2" />
+                          Exportar
+                        </Button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" className="bg-primary hover:bg-primary/90">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Nuevo Producto
+                            </Button>
+                          </DialogTrigger>
                         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle>Nuevo Producto</DialogTitle>
@@ -2666,7 +2729,8 @@ export default function AdminPage() {
                           </div>
                         </DialogContent>
                       </Dialog>
-                    </div>
+                      </div>{/* /acciones generales */}
+                    </div>{/* /columna proveedores */}
                   </div>
                 </CardHeader>
                 <CardContent>
