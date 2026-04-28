@@ -150,7 +150,7 @@ export const promocionConfig = {
 // PROMOOPCIÓN - Proveedor de productos
 // ============================================
 export const promoopcionConfig = {
-  baseUrl: process.env.PROMOOPCION_BASE_URL || 'https://www.contenidopromo.com/wsds/mx/',
+  baseUrl: process.env.PROMOOPCION_BASE_URL || 'http://www.contenidopromo.com/wsds/mx/',
   user: process.env.PROMOOPCION_USER || '',
   apiKey: process.env.PROMOOPCION_API_KEY || '',
   demo: process.env.PROMOOPCION_DEMO !== '0',
