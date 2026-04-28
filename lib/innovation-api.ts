@@ -146,7 +146,29 @@ async function callInnovationApi<T>(
     if (response.status === 405) throw new Error('Método HTTP incorrecto (405).')
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
 
-    return (await response.json()) as T
+    // Algunas respuestas vienen con HTTP 200 pero con un body de error embebido.
+    // Validamos esos casos para que no se propaguen como datos válidos.
+    const data = (await response.json()) as any
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      // Caso: { error: "Web service no activo o credenciales invalidas." }
+      if (data.error && typeof data.error === 'string') {
+        const msg = data.error.toLowerCase()
+        if (msg.includes('no activo') || msg.includes('fuera de horario') || msg.includes('horario')) {
+          throw new Error('FUERA_DE_HORARIO')
+        }
+        if (msg.includes('credenciales') || msg.includes('invalidas')) {
+          throw new Error(`Innovation Line: ${data.error}`)
+        }
+        throw new Error(`Innovation Line: ${data.error}`)
+      }
+      // Caso: { respuesta_llave: { response: { Activo: false, Status: "Fuera de horario" } } }
+      const respCheck = data?.respuesta_llave?.response
+      if (respCheck?.Activo === false) {
+        throw new Error('FUERA_DE_HORARIO')
+      }
+    }
+
+    return data as T
   } catch (error) {
     clearTimeout(timeoutId)
     if ((error as Error).name === 'AbortError') {

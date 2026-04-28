@@ -1081,9 +1081,12 @@ export default function AdminPage() {
 
       const errors: string[] = data.data?.errors ?? []
       const primerError = errors[0] || data.error || data.message || ''
+      const errorLower = primerError.toLowerCase()
       const esFueraDeHorario = primerError === 'FUERA_DE_HORARIO' ||
-        primerError.toLowerCase().includes('fuera de horario') ||
-        primerError.toLowerCase().includes('no está activo')
+        errorLower.includes('fuera de horario') ||
+        errorLower.includes('no está activo') ||
+        errorLower.includes('no activo') ||
+        errorLower.includes('web service no')
 
       if (data.success) {
         alert(
