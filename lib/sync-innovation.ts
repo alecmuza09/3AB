@@ -320,7 +320,11 @@ export async function syncProductsFromInnovation(): Promise<InnovationSyncResult
       products = await getAllProductsFromInnovation()
     } catch (apiError) {
       const msg = apiError instanceof Error ? apiError.message : 'Error desconocido al llamar la API'
-      result.errors.push(msg)
+      if (msg === 'FUERA_DE_HORARIO') {
+        result.errors.push('FUERA_DE_HORARIO')
+      } else {
+        result.errors.push(msg)
+      }
       result.success = false
       return result
     }

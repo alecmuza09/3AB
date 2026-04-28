@@ -121,11 +121,26 @@ async function callInnovationApi<T>(
 
     if (response.status === 401) {
       const body = await response.text().catch(() => '')
-      throw new Error(`Token inválido o ausente (401). Verifica INNOVATION_AUTH_TOKEN.\nRespuesta API: ${body.substring(0, 200)}`)
+      throw new Error(`Token inválido o ausente (401). Verifica INNOVATION_AUTH_TOKEN.\nRespuesta: ${body.substring(0, 200)}`)
     }
     if (response.status === 403) {
       const body = await response.text().catch(() => '')
-      throw new Error(`Sin permiso al recurso (403). Verifica User/Clave en variables de entorno.\nRespuesta API: ${body.substring(0, 200)}`)
+      // Detectar respuesta específica de "fuera de horario" que devuelve Innovation Line
+      try {
+        const parsed = JSON.parse(body)
+        const resp = parsed?.respuesta_llave?.response
+        if (resp?.Activo === false && resp?.Status === 'Fuera de horario') {
+          throw new Error('FUERA_DE_HORARIO')
+        }
+        if (parsed?.error) {
+          throw new Error(`Innovation Line: ${parsed.error}`)
+        }
+      } catch (parseErr) {
+        if ((parseErr as Error).message === 'FUERA_DE_HORARIO' || (parseErr as Error).message.startsWith('Innovation Line:')) {
+          throw parseErr
+        }
+      }
+      throw new Error(`Sin permiso al recurso (403). Credenciales: User/Clave correctos pero acceso denegado.\nRespuesta: ${body.substring(0, 200)}`)
     }
     if (response.status === 404) throw new Error(`Ruta incorrecta (404): ${endpoint}`)
     if (response.status === 405) throw new Error('Método HTTP incorrecto (405).')

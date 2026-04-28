@@ -896,14 +896,15 @@ export default function AdminPage() {
           `Ejemplo: ${conn.sampleProduct?.Nombre ?? conn.sampleProduct?.nombre ?? 'N/A'}`
         )
       } else {
-        const esHorario = (conn.error || '').toLowerCase().includes('horario') ||
-          (conn.error || '').toLowerCase().includes('fuera de')
-        if (esHorario) {
+        const esFueraDeHorario = conn.error === 'FUERA_DE_HORARIO' ||
+          (conn.error || '').toLowerCase().includes('fuera de horario') ||
+          (conn.error || '').toLowerCase().includes('no está activo')
+        if (esFueraDeHorario) {
           alert(
-            `⏰ Innovation Line bloqueó la petición por horario\n\n` +
-            `La API rechazó la llamada porque está fuera de su ventana de servicio.\n\n` +
-            `Próxima ventana disponible (CDMX):\n` +
-            `• 13:00 – 14:00\n• 17:00 – 18:00\n\nMensaje de la API: ${conn.error}`
+            `⏰ Innovation Line — Fuera de horario\n\n` +
+            `Credenciales correctas ✅ — pero el web service no está activo ahora.\n\n` +
+            `Ventanas disponibles (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\n` +
+            `Intenta de nuevo a las 13:00.`
           )
         } else {
           alert(`❌ Error de conexión Innovation Line:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
@@ -1021,8 +1022,10 @@ export default function AdminPage() {
       const data = await response.json()
 
       const errors: string[] = data.data?.errors ?? []
-      const primerError = (errors[0] || data.error || data.message || '').toLowerCase()
-      const esHorarioAPI = primerError.includes('horario') && primerError.includes('innovation')
+      const primerError = errors[0] || data.error || data.message || ''
+      const esFueraDeHorario = primerError === 'FUERA_DE_HORARIO' ||
+        primerError.toLowerCase().includes('fuera de horario') ||
+        primerError.toLowerCase().includes('no está activo')
 
       if (data.success) {
         alert(
@@ -1033,17 +1036,18 @@ export default function AdminPage() {
           `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
           (errors.length ? `\n⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
         )
-      } else if (esHorarioAPI) {
+      } else if (esFueraDeHorario) {
         alert(
-          `⏰ La API de Innovation Line bloqueó la petición por horario\n\n` +
-          `Las ventanas disponibles (CDMX) son:\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\n` +
-          `Intenta de nuevo dentro de una de esas ventanas.`
+          `⏰ Innovation Line — Fuera de horario\n\n` +
+          `El web service no está activo en este momento.\n\n` +
+          `Ventanas disponibles (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\n` +
+          `Las credenciales son correctas. Intenta de nuevo a las 13:00.`
         )
       } else {
         const detalle = errors.length
           ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}`
           : ''
-        alert(`❌ Error al sincronizar Innovation Line:\n${errors[0] || data.error || data.message}${detalle}`)
+        alert(`❌ Error al sincronizar Innovation Line:\n${primerError}${detalle}`)
       }
     } catch (error) {
       alert(`❌ Error de red al sincronizar Innovation Line: ${error instanceof Error ? error.message : 'Error desconocido'}`)
