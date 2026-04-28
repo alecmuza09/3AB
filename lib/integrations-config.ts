@@ -146,6 +146,18 @@ export const promocionConfig = {
 }
 
 // ============================================
+// PROMOOPCIÓN - Proveedor de productos
+// ============================================
+export const promoopcionConfig = {
+  baseUrl: process.env.PROMOOPCION_BASE_URL || 'https://www.contenidopromo.com/wsds/mx/',
+  user: process.env.PROMOOPCION_USER || '',
+  apiKey: process.env.PROMOOPCION_API_KEY || '',
+  demo: process.env.PROMOOPCION_DEMO !== '0',
+  timeout: parseInt(process.env.PROMOOPCION_API_TIMEOUT || '60000', 10),
+  isEnabled: () => !!(promoopcionConfig.user && promoopcionConfig.apiKey),
+}
+
+// ============================================
 // INNOVATION LINE - Proveedor de productos
 // ============================================
 export const innovationConfig = {
@@ -195,6 +207,7 @@ export function validateIntegrations() {
     promocion: promocionConfig.isEnabled(),
     doblevela: doblevelaConfig.isEnabled(),
     innovation: innovationConfig.isEnabled(),
+    promoopcion: promoopcionConfig.isEnabled(),
   }
 
   return integrations
@@ -308,6 +321,13 @@ export function getIntegrationsStatus() {
       category: 'Productos',
       status: innovationConfig.isEnabled(),
       description: 'Productos e inventario desde Innovation Line (REST)',
+      required: false,
+    },
+    {
+      name: 'PromoOpción',
+      category: 'Productos',
+      status: promoopcionConfig.isEnabled(),
+      description: 'Productos e inventario desde PromoOpción (REST V2)',
       required: false,
     },
   ]

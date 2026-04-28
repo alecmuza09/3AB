@@ -713,6 +713,7 @@ export default function AdminPage() {
   const [syncingPromocion, setSyncingPromocion] = useState(false)
   const [syncingInnovation, setSyncingInnovation] = useState(false)
   const [syncingDoblevela, setSyncingDoblevela] = useState(false)
+  const [syncingPromoopcion, setSyncingPromoopcion] = useState(false)
 
   // Estado de integraciones (se carga vía API para no exponer secrets en el bundle)
   const [integrationsStatus, setIntegrationsStatus] = useState<Array<{
@@ -915,6 +916,43 @@ export default function AdminPage() {
       alert(`❌ Error de red al sincronizar Innovation Line: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setSyncingInnovation(false)
+    }
+  }
+
+  const handleSyncPromoopcion = async () => {
+    if (!confirm('¿Sincronizar productos desde PromoOpción? Esto puede tardar varios minutos.\n\nNota: en modo productivo la API tiene límite de consultas por hora. En modo demo (desarrollo) no hay límite.')) {
+      return
+    }
+    setSyncingPromoopcion(true)
+    try {
+      const response = await fetch('/api/sync-promoopcion', { method: 'POST' })
+      const data = await response.json()
+      const errors: string[] = data.data?.errors ?? []
+
+      if (data.success) {
+        alert(
+          `✅ PromoOpción sincronizado:\n` +
+          `• Productos creados: ${data.data?.productsCreated ?? 0}\n` +
+          `• Productos actualizados: ${data.data?.productsUpdated ?? 0}\n` +
+          `• Variantes: ${(data.data?.variationsCreated ?? 0) + (data.data?.variationsUpdated ?? 0)}\n` +
+          `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
+          (errors.length ? `⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
+        )
+      } else {
+        const limitExcedido = errors.some((e: string) =>
+          e.toLowerCase().includes('límite') || e.toLowerCase().includes('429') || e.toLowerCase().includes('limit')
+        )
+        if (limitExcedido) {
+          alert('⏱️ Límite de consultas excedido\n\nLa API de PromoOpción tiene un límite por hora en modo productivo.\n\nOpciones:\n• Activa PROMOOPCION_DEMO=1 para desarrollo sin límite\n• Espera al siguiente ciclo (30 min) e intenta de nuevo')
+        } else {
+          const detalle = errors.length ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}` : ''
+          alert(`❌ Error al sincronizar PromoOpción:\n${data.error || data.message}${detalle}`)
+        }
+      }
+    } catch (error) {
+      alert(`❌ Error de red al sincronizar PromoOpción: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+    } finally {
+      setSyncingPromoopcion(false)
     }
   }
 
@@ -2381,7 +2419,7 @@ export default function AdminPage() {
                       <Button
                         variant="outline"
                         onClick={handleSyncInnovation}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation || syncingPromoopcion}
                       >
                         {syncingInnovation ? (
                           <>
@@ -2392,6 +2430,23 @@ export default function AdminPage() {
                           <>
                             <Upload className="h-4 w-4 mr-2" />
                             Innovation Line
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleSyncPromoopcion}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation || syncingPromoopcion}
+                      >
+                        {syncingPromoopcion ? (
+                          <>
+                            <Package className="h-4 w-4 mr-2 animate-spin" />
+                            Sincronizando PromoOpción...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            PromoOpción
                           </>
                         )}
                       </Button>
@@ -2911,6 +2966,7 @@ export default function AdminPage() {
                                           product.proveedor === "doblevela" ? "#16a34a" :
                                           product.proveedor === "3a-promocion" ? "#9333ea" :
                                           product.proveedor === "innovation" ? "#ea580c" :
+                                          product.proveedor === "promoopcion" ? "#0891b2" :
                                           "#6b7280",
                                       }}
                                     >
@@ -3855,7 +3911,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       onClick={handleSyncProducts}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela || syncingPromoopcion}
                     >
                       {syncingProducts ? (
                         <>
@@ -3872,7 +3928,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       onClick={handleSyncPromocion}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela || syncingPromoopcion}
                     >
                       {syncingPromocion ? (
                         <>
@@ -3889,7 +3945,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       onClick={handleSyncDoblevela}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela || syncingPromoopcion}
                     >
                       {syncingDoblevela ? (
                         <>
@@ -3906,7 +3962,7 @@ export default function AdminPage() {
                     <Button
                       variant="outline"
                       onClick={handleSyncInnovation}
-                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela || syncingPromoopcion}
                     >
                       {syncingInnovation ? (
                         <>
@@ -3917,6 +3973,23 @@ export default function AdminPage() {
                         <>
                           <Upload className="h-4 w-4 mr-2" />
                           Innovation Line
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleSyncPromoopcion}
+                      disabled={syncingProducts || syncingPromocion || syncingInnovation || syncingDoblevela || syncingPromoopcion}
+                    >
+                      {syncingPromoopcion ? (
+                        <>
+                          <Package className="h-4 w-4 mr-2 animate-spin" />
+                          Sincronizando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-2" />
+                          PromoOpción
                         </>
                       )}
                     </Button>
