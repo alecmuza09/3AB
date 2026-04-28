@@ -855,12 +855,23 @@ export default function AdminPage() {
         alert(
           `✅ Conexión exitosa con Doblevela\n\n` +
           `Productos en catálogo: ${conn.totalProducts}\n` +
-          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n\n` +
-          `Producto de ejemplo: ${conn.sampleProduct?.Descripcion ?? 'N/A'}\n` +
+          `Tiempo de respuesta: ${conn.responseTimeMs}ms\n` +
+          (conn.serverIp ? `IP saliente del servidor: ${conn.serverIp}\n` : '') +
+          `\nProducto de ejemplo: ${conn.sampleProduct?.Descripcion ?? 'N/A'}\n` +
           `Código: ${conn.sampleProduct?.Codigo ?? 'N/A'}`
         )
       } else {
-        alert(`❌ Error de conexión Doblevela:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+        const esAcceso = (conn.error || '').toLowerCase().includes('acceso no permitido')
+        if (esAcceso) {
+          alert(
+            `🚫 Acceso denegado por IP\n\n` +
+            `La API de Doblevela rechaza peticiones que no vengan de la IP registrada (35.215.119.244).\n\n` +
+            (conn.serverIp ? `IP actual del servidor: ${conn.serverIp}\n\n` : '') +
+            `Para solucionarlo, contacta a Doblevela (soporte técnico) y pídeles actualizar la IP autorizada.`
+          )
+        } else {
+          alert(`❌ Error de conexión Doblevela:\n${conn.error}${conn.hint ? '\n\n' + conn.hint : ''}`)
+        }
       }
     } catch (err) {
       alert(`❌ Error al probar Doblevela: ${err}`)
@@ -952,9 +963,9 @@ export default function AdminPage() {
       const data = await response.json()
 
       const errors: string[] = data.data?.errors ?? []
-      const fueraDeHorario = errors.some((e: string) =>
-        e.toLowerCase().includes('horario') || e.toLowerCase().includes('no permitido')
-      )
+      const primerError = (errors[0] || data.error || data.message || '').toLowerCase()
+      const esHorario = primerError.includes('horario no permitido')
+      const esAcceso = primerError.includes('acceso no permitido')
 
       if (data.success) {
         alert(
@@ -962,17 +973,24 @@ export default function AdminPage() {
           `• Productos creados: ${data.data?.productsCreated ?? 0}\n` +
           `• Productos actualizados: ${data.data?.productsUpdated ?? 0}\n` +
           `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
-          (errors.length ? `⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
+          (errors.length ? `\n⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
         )
-      } else if (fueraDeHorario) {
+      } else if (esHorario) {
         alert(
           `⏰ Horario no permitido\n\nLa API de Doblevela solo está disponible en horario laboral de México (lunes a viernes, 9am–6pm CST).\n\nIntenta de nuevo durante ese horario.`
+        )
+      } else if (esAcceso) {
+        alert(
+          `🚫 Acceso no permitido — Restricción de IP\n\n` +
+          `La API de Doblevela solo acepta peticiones desde la IP registrada en el contrato (35.215.119.244).\n\n` +
+          `La petición actual viene de otra IP (servidor Netlify o local).\n\n` +
+          `Solución: Contacta a Doblevela para actualizar la IP autorizada a la del servidor actual.`
         )
       } else {
         const detalle = errors.length
           ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}`
           : ''
-        alert(`❌ Error al sincronizar Doblevela:\n${data.error || data.message}${detalle}`)
+        alert(`❌ Error al sincronizar Doblevela:\n${errors[0] || data.error || data.message}${detalle}`)
       }
     } catch (error) {
       alert(`❌ Error de red al sincronizar Doblevela: ${error instanceof Error ? error.message : 'Error desconocido'}`)
