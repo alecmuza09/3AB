@@ -33,7 +33,7 @@ export default async () => {
 
   const results: Array<{ endpoint: string; status: number; ok: boolean }> = []
 
-  for (const endpoint of ['/api/sync-products', '/api/sync-promocion', '/api/sync-doblevela']) {
+  for (const endpoint of ['/api/sync-products', '/api/sync-promocion', '/api/sync-doblevela', '/api/sync-innovation']) {
     try {
       const res = await fetch(`${siteUrl}${endpoint}`, {
         method: 'POST',

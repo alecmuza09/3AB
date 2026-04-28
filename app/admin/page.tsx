@@ -878,12 +878,41 @@ export default function AdminPage() {
     }
   }
 
-  // Innovation Line: placeholder hasta tener integración
   const handleSyncInnovation = async () => {
+    if (!confirm('¿Sincronizar productos desde Innovation Line? Esto puede tardar varios minutos.\n\nNota: la API solo opera en estas ventanas horarias (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00')) {
+      return
+    }
     setSyncingInnovation(true)
     try {
-      await new Promise((r) => setTimeout(r, 800))
-      alert('Innovation Line: integración en desarrollo. Próximamente podrás actualizar stock desde esta fuente.')
+      const response = await fetch('/api/sync-innovation', { method: 'POST' })
+      const data = await response.json()
+
+      const errors: string[] = data.data?.errors ?? []
+      const fueraDeHorario = errors.some((e: string) =>
+        e.toLowerCase().includes('horario') || e.toLowerCase().includes('no permitido') || e.toLowerCase().includes('ventana')
+      )
+
+      if (data.success) {
+        alert(
+          `✅ Innovation Line sincronizado:\n` +
+          `• Productos creados: ${data.data?.productsCreated ?? 0}\n` +
+          `• Productos actualizados: ${data.data?.productsUpdated ?? 0}\n` +
+          `• Variantes: ${(data.data?.variationsCreated ?? 0) + (data.data?.variationsUpdated ?? 0)}\n` +
+          `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
+          (errors.length ? `⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
+        )
+      } else if (fueraDeHorario) {
+        alert(
+          `⏰ Horario no permitido\n\nLa API de Innovation Line solo está disponible en estas ventanas (hora CDMX):\n• 09:00 – 10:00\n• 13:00 – 14:00\n• 17:00 – 18:00\n\nIntenta de nuevo durante esos horarios.`
+        )
+      } else {
+        const detalle = errors.length
+          ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}`
+          : ''
+        alert(`❌ Error al sincronizar Innovation Line:\n${data.error || data.message}${detalle}`)
+      }
+    } catch (error) {
+      alert(`❌ Error de red al sincronizar Innovation Line: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setSyncingInnovation(false)
     }
@@ -1221,6 +1250,7 @@ export default function AdminPage() {
         attributes: null,
         status: stock > 10 ? "active" : "low-stock",
         lastUpdated: new Date().toISOString().split("T")[0],
+        proveedor: null,
       }
       setProducts([...products, product])
       setNewProduct({ name: "", category: "", price: "", stock: "", description: "", minQuantity: "1", multipleOf: "1" })
@@ -2282,7 +2312,7 @@ export default function AdminPage() {
                       <Button 
                         variant="outline" 
                         onClick={handleSyncProducts}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
                       >
                         {syncingProducts ? (
                           <>
@@ -2308,7 +2338,7 @@ export default function AdminPage() {
                       <Button 
                         variant="outline" 
                         onClick={handleSyncPromocion}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
                       >
                         {syncingPromocion ? (
                           <>
@@ -2334,7 +2364,7 @@ export default function AdminPage() {
                       <Button
                         variant="outline"
                         onClick={handleSyncDoblevela}
-                        disabled={syncingProducts || syncingPromocion || syncingDoblevela}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
                       >
                         {syncingDoblevela ? (
                           <>
@@ -2345,6 +2375,23 @@ export default function AdminPage() {
                           <>
                             <Upload className="h-4 w-4 mr-2" />
                             Doblevela
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handleSyncInnovation}
+                        disabled={syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation}
+                      >
+                        {syncingInnovation ? (
+                          <>
+                            <Package className="h-4 w-4 mr-2 animate-spin" />
+                            Sincronizando Innovation...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Innovation Line
                           </>
                         )}
                       </Button>

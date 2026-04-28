@@ -146,6 +146,17 @@ export const promocionConfig = {
 }
 
 // ============================================
+// INNOVATION LINE - Proveedor de productos
+// ============================================
+export const innovationConfig = {
+  authToken: process.env.INNOVATION_AUTH_TOKEN || '',
+  user: process.env.INNOVATION_USER || '',
+  clave: process.env.INNOVATION_CLAVE || '',
+  timeout: parseInt(process.env.INNOVATION_API_TIMEOUT || '60000', 10),
+  isEnabled: () => !!(innovationConfig.authToken && innovationConfig.user && innovationConfig.clave),
+}
+
+// ============================================
 // DOBLEVELA - Proveedor de productos
 // ============================================
 export const doblevelaConfig = {
@@ -183,6 +194,7 @@ export function validateIntegrations() {
     inventarioApi: inventarioApiConfig.isEnabled(),
     promocion: promocionConfig.isEnabled(),
     doblevela: doblevelaConfig.isEnabled(),
+    innovation: innovationConfig.isEnabled(),
   }
 
   return integrations
@@ -289,6 +301,13 @@ export function getIntegrationsStatus() {
       category: 'Productos',
       status: doblevelaConfig.isEnabled(),
       description: 'Productos e inventario desde Doblevela (SOAP)',
+      required: false,
+    },
+    {
+      name: 'Innovation Line',
+      category: 'Productos',
+      status: innovationConfig.isEnabled(),
+      description: 'Productos e inventario desde Innovation Line (REST)',
       required: false,
     },
   ]
