@@ -212,10 +212,18 @@ export async function syncProductsFromDoblevela(): Promise<DoblevelaSyncResult> 
     const supabase = createSupabaseServerClient()
 
     console.log('[Doblevela] Obteniendo productos...')
-    const rawProducts = await getAllProductsFromDoblevela()
+    let rawProducts: DoblevelaProductRaw[] = []
+    try {
+      rawProducts = await getAllProductsFromDoblevela()
+    } catch (apiError) {
+      const msg = apiError instanceof Error ? apiError.message : 'Error desconocido'
+      result.errors.push(msg)
+      result.success = false
+      return result
+    }
 
     if (rawProducts.length === 0) {
-      result.errors.push('No se obtuvieron productos de Doblevela (puede ser fuera de horario)')
+      result.errors.push('No se obtuvieron productos de Doblevela')
       result.success = false
       return result
     }

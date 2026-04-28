@@ -838,23 +838,36 @@ export default function AdminPage() {
 
   // Sincronizar productos desde Doblevela
   const handleSyncDoblevela = async () => {
-    if (!confirm('¿Sincronizar productos desde Doblevela? Esto puede tardar varios minutos (la API puede ser lenta).')) {
+    if (!confirm('¿Sincronizar productos desde Doblevela? Esto puede tardar varios minutos.\n\nNota: la API de Doblevela solo opera en horario laboral (lunes a viernes, 9am–6pm hora de México).')) {
       return
     }
     setSyncingDoblevela(true)
     try {
       const response = await fetch('/api/sync-doblevela', { method: 'POST' })
       const data = await response.json()
+
+      const errors: string[] = data.data?.errors ?? []
+      const fueraDeHorario = errors.some((e: string) =>
+        e.toLowerCase().includes('horario') || e.toLowerCase().includes('no permitido')
+      )
+
       if (data.success) {
         alert(
           `✅ Doblevela sincronizado:\n` +
           `• Productos creados: ${data.data?.productsCreated ?? 0}\n` +
           `• Productos actualizados: ${data.data?.productsUpdated ?? 0}\n` +
           `• Imágenes: ${data.data?.imagesCreated ?? 0}\n` +
-          (data.data?.errors?.length ? `⚠️ Errores: ${data.data.errors.length}` : '')
+          (errors.length ? `⚠️ Advertencias (${errors.length}): ${errors[0]}` : '')
+        )
+      } else if (fueraDeHorario) {
+        alert(
+          `⏰ Horario no permitido\n\nLa API de Doblevela solo está disponible en horario laboral de México (lunes a viernes, 9am–6pm CST).\n\nIntenta de nuevo durante ese horario.`
         )
       } else {
-        alert(`❌ Error al sincronizar Doblevela:\n${data.error || data.message}`)
+        const detalle = errors.length
+          ? `\n\nDetalle:\n• ${errors.slice(0, 3).join('\n• ')}`
+          : ''
+        alert(`❌ Error al sincronizar Doblevela:\n${data.error || data.message}${detalle}`)
       }
     } catch (error) {
       alert(`❌ Error de red al sincronizar Doblevela: ${error instanceof Error ? error.message : 'Error desconocido'}`)

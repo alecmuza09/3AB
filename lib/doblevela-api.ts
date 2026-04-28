@@ -147,8 +147,10 @@ export async function getAllProductsFromDoblevela(): Promise<DoblevelaProductRaw
   if (!data) return []
 
   if (data.intCodigo !== 0) {
-    console.warn(`[Doblevela] GetExistenciaAll: código ${data.intCodigo} — ${data.strMensaje}`)
-    return []
+    const msg = `[Doblevela] GetExistenciaAll: código ${data.intCodigo} — ${data.strMensaje}`
+    console.warn(msg)
+    // Lanzar error con el mensaje de la API para que el caller lo capture
+    throw new Error(data.strMensaje || `Error código ${data.intCodigo}`)
   }
 
   return Array.isArray(data.Resultado) ? data.Resultado : []
