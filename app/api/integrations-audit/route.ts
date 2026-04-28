@@ -6,7 +6,6 @@
 import { NextResponse } from 'next/server'
 import {
   inventarioApiConfig,
-  promocionConfig,
   doblevelaConfig,
   innovationConfig,
   promoopcionConfig,
@@ -60,29 +59,6 @@ async function auditFourPromotional(): Promise<ProviderStatus> {
       return { name, configured: true, reachable: false, status: 'timeout', message: `Timeout (${ms}ms). Puerto 9090 probablemente bloqueado o API muy lenta.`, responseTimeMs: ms }
     }
     return { name, configured: true, reachable: false, status: 'error', message: msg, responseTimeMs: ms }
-  }
-}
-
-async function auditPromocion(): Promise<ProviderStatus> {
-  const name = 'Promopción (3A)'
-  if (!promocionConfig.isEnabled()) {
-    return { name, configured: false, reachable: false, status: 'not-configured', message: 'PROMOCION_EMAIL/PASSWORD no configurados' }
-  }
-  const start = Date.now()
-  try {
-    const res = await fetch(promocionConfig.graphqlUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{ __typename }' }),
-      signal: AbortSignal.timeout(6000),
-    })
-    const ms = Date.now() - start
-    if (res.ok) {
-      return { name, configured: true, reachable: true, status: 'ok', message: 'Endpoint GraphQL responde', responseTimeMs: ms }
-    }
-    return { name, configured: true, reachable: true, status: 'error', message: `HTTP ${res.status}`, responseTimeMs: ms }
-  } catch (err) {
-    return { name, configured: true, reachable: false, status: 'error', message: err instanceof Error ? err.message : 'Error', responseTimeMs: Date.now() - start }
   }
 }
 
@@ -195,16 +171,15 @@ async function auditPromoOpcion(): Promise<ProviderStatus> {
 }
 
 export async function GET() {
-  const [serverIp, fourP, promo, doble, inno, promoop] = await Promise.all([
+  const [serverIp, fourP, doble, inno, promoop] = await Promise.all([
     auditServerIp(),
     auditFourPromotional(),
-    auditPromocion(),
     auditDoblevela(),
     auditInnovation(),
     auditPromoOpcion(),
   ])
 
-  const providers = [fourP, promo, doble, inno, promoop]
+  const providers = [fourP, doble, inno, promoop]
   const summary = {
     ok: providers.filter((p) => p.status === 'ok').length,
     blockedByIp: providers.filter((p) => p.status === 'blocked-ip').length,

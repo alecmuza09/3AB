@@ -2574,20 +2574,6 @@ export default function AdminPage() {
                                 </Button>
                               </div>
 
-                              {/* Promopción */}
-                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
-                                <span className="flex items-center gap-2 font-medium">
-                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
-                                  Promopción
-                                </span>
-                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncPromocion} disabled={anySync}>
-                                  {syncingPromocion ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
-                                </Button>
-                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestPromocion} disabled={testingPromocion} title="Probar conexión con Promopción">
-                                  {testingPromocion ? "…" : "🔍 Test"}
-                                </Button>
-                              </div>
-
                               {/* Doblevela */}
                               <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
                                 <span className="flex items-center gap-2 font-medium">
@@ -2649,7 +2635,7 @@ export default function AdminPage() {
                       {auditResult && (
                         <div className="w-full rounded-lg border bg-muted/30 p-3 text-xs space-y-2">
                           <div className="font-medium">
-                            Estado: {auditResult.summary?.ok ?? 0}/5 OK
+                            Estado: {auditResult.summary?.ok ?? 0}/4 OK
                             {auditResult.serverIp && (
                               <span className="block mt-0.5 font-normal text-muted-foreground">
                                 IP de servidor: <code className="bg-background px-1">{auditResult.serverIp}</code>
