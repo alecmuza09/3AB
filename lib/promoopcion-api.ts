@@ -70,35 +70,60 @@ async function callPromoOpcionV2<T>(
   }
 
   const demoMode = promoopcionConfig.demo ? '1' : '0'
-  const body = new URLSearchParams({ demo: demoMode, ...extraBody })
-  // Normalizar base URL: siempre con slash al final para evitar URL mal formadas
+  const bodyParams = new URLSearchParams({ demo: demoMode, ...extraBody })
+
+  // Normalizar base URL y construir URL sin barra duplicada al final del path
   const baseUrl = promoopcionConfig.baseUrl.endsWith('/')
     ? promoopcionConfig.baseUrl
     : promoopcionConfig.baseUrl + '/'
-  const url = `${baseUrl}${path}`
+  // Quitar barra final del path para evitar doble barra o problemas con algunos servidores
+  const cleanPath = path.replace(/\/$/, '')
+  const url = `${baseUrl}${cleanPath}`
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), promoopcionConfig.timeout)
 
-  try {
-    const response = await fetch(url, {
+  const makeRequest = async (targetUrl: string) =>
+    fetch(targetUrl, {
       method: 'POST',
       headers: {
         'user': promoopcionConfig.user,
         'x-api-key': promoopcionConfig.apiKey,
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': '3ABranding/1.0',
       },
-      body: body.toString(),
+      body: bodyParams.toString(),
       signal: controller.signal,
     })
 
+  try {
+    let response = await makeRequest(url)
+
+    // Si da 404, intentar con barra final (algunos servidores requieren uno u otro)
+    if (response.status === 404) {
+      response = await makeRequest(url + '/')
+    }
+
     clearTimeout(timeoutId)
 
-    if (response.status === 401) throw new Error('Credenciales inválidas (401). Verifica PROMOOPCION_USER y PROMOOPCION_API_KEY.')
-    if (response.status === 403) throw new Error('Sin permiso al recurso (403). Verifica tus credenciales de PromoOpción.')
-    if (response.status === 404) throw new Error(`Endpoint no encontrado (404): ${url} — Verifica PROMOOPCION_BASE_URL en variables de entorno.`)
-    if (response.status === 429) throw new Error('Límite de consultas excedido (429). Activa modo demo o espera el ciclo de 30 minutos.')
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    if (response.status === 401) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Credenciales inválidas (401). Verifica PROMOOPCION_USER y PROMOOPCION_API_KEY.\nRespuesta: ${body.substring(0, 200)}`)
+    }
+    if (response.status === 403) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Sin permiso al recurso (403).\nRespuesta: ${body.substring(0, 200)}`)
+    }
+    if (response.status === 404) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Endpoint no encontrado (404): ${url}\nRespuesta del servidor: ${body.substring(0, 300)}`)
+    }
+    if (response.status === 429) throw new Error('Límite de consultas excedido (429). Activa PROMOOPCION_DEMO=1 para pruebas sin límite.')
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`HTTP ${response.status}: ${response.statusText}\nRespuesta: ${body.substring(0, 200)}`)
+    }
 
     return (await response.json()) as T
   } catch (err) {

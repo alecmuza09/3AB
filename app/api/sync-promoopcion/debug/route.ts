@@ -49,6 +49,8 @@ export async function GET() {
         'user': user,
         'x-api-key': apiKey,
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': '3ABranding/1.0',
       },
       body: body.toString(),
       signal: controller.signal,
