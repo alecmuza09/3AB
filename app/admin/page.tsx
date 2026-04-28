@@ -84,6 +84,7 @@ interface Product {
   attributes: any | null
   status: "active" | "inactive" | "low-stock"
   lastUpdated: string
+  proveedor: string | null
 }
 
 interface InventoryMovement {
@@ -615,6 +616,7 @@ export default function AdminPage() {
             ? "low-stock"
             : "active",
         lastUpdated: product.updated_at ? new Date(product.updated_at).toISOString().split("T")[0] : "",
+        proveedor: (product.attributes?.proveedor as string) || null,
       }))
 
       setProducts(formattedProducts)
@@ -888,6 +890,9 @@ export default function AdminPage() {
   }
 
   const [selectedCategory, setSelectedCategory] = useState("all")
+  const [selectedProveedor, setSelectedProveedor] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 50
 
   // =========================
   // Edición masiva de productos (tipo WooCommerce)
@@ -951,10 +956,23 @@ export default function AdminPage() {
   ]
 
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const term = searchTerm.toLowerCase()
+    const matchesSearch =
+      product.name.toLowerCase().includes(term) ||
+      (product.sku || "").toLowerCase().includes(term)
     const matchesCategory = selectedCategory === "all" || product.category === selectedCategory
-    return matchesSearch && matchesCategory
+    const matchesProveedor = selectedProveedor === "all" || (product.proveedor || "sin proveedor") === selectedProveedor
+    return matchesSearch && matchesCategory && matchesProveedor
   })
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedProducts = filteredProducts.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
+
+  const proveedorOptions = Array.from(
+    new Set(products.map((p) => p.proveedor || "sin proveedor"))
+  ).sort()
+
 
   const categoryOptions = Array.from(new Set([...(categories || []), ...products.map((p) => p.category).filter(Boolean)])).sort()
 
@@ -969,6 +987,11 @@ export default function AdminPage() {
   const toggleSelect = (id: string, checked: boolean) => {
     setSelectedProductIds((prev) => (checked ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id)))
   }
+
+  // Resetear página cuando cambian los filtros
+  const handleSearchChange = (value: string) => { setSearchTerm(value); setCurrentPage(1) }
+  const handleCategoryChange = (value: string) => { setSelectedCategory(value); setCurrentPage(1) }
+  const handleProveedorChange = (value: string) => { setSelectedProveedor(value); setCurrentPage(1) }
 
   const toggleSelectAllFiltered = (checked: boolean) => {
     if (!checked) {
@@ -2536,13 +2559,18 @@ export default function AdminPage() {
                           </Badge>
                         )}
                       </div>
-                      {searchTerm && (
-                        <Button 
-                          variant="ghost" 
+                      {(searchTerm || selectedProveedor !== "all" || selectedCategory !== "all") && (
+                        <Button
+                          variant="ghost"
                           size="sm"
-                          onClick={() => setSearchTerm("")}
+                          onClick={() => {
+                            setSearchTerm("")
+                            setSelectedCategory("all")
+                            setSelectedProveedor("all")
+                            setCurrentPage(1)
+                          }}
                         >
-                          Limpiar búsqueda
+                          Limpiar filtros
                         </Button>
                       )}
                     </div>
@@ -2552,14 +2580,14 @@ export default function AdminPage() {
                         <div className="relative">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                           <Input
-                            placeholder="Buscar por nombre, SKU o descripción..."
+                            placeholder="Buscar por nombre o SKU..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                             className="pl-10 h-10"
                           />
                         </div>
                       </div>
-                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                         <SelectTrigger className="w-full sm:w-48 h-10">
                           <SelectValue placeholder="Categoría" />
                         </SelectTrigger>
@@ -2572,10 +2600,19 @@ export default function AdminPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button variant="outline" className="h-10">
-                        <Filter className="h-4 w-4 mr-2" />
-                        Más Filtros
-                      </Button>
+                      <Select value={selectedProveedor} onValueChange={handleProveedorChange}>
+                        <SelectTrigger className="w-full sm:w-44 h-10">
+                          <SelectValue placeholder="Proveedor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos los proveedores</SelectItem>
+                          {proveedorOptions.map((prov) => (
+                            <SelectItem key={prov} value={prov}>
+                              {prov}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -2732,6 +2769,7 @@ export default function AdminPage() {
                           <TableHead className="min-w-[200px]">Producto</TableHead>
                           <TableHead className="min-w-[120px]">SKU</TableHead>
                           <TableHead className="min-w-[140px]">Categoría</TableHead>
+                          <TableHead className="min-w-[130px]">Proveedor</TableHead>
                           <TableHead className="min-w-[140px] bg-primary/5 font-bold">
                             <div className="flex items-center gap-2">
                               <DollarSign className="h-4 w-4 text-primary" />
@@ -2749,7 +2787,7 @@ export default function AdminPage() {
                       <TableBody>
                         {loadingProducts ? (
                           <TableRow>
-                            <TableCell colSpan={11} className="text-center py-8">
+                            <TableCell colSpan={12} className="text-center py-8">
                               <div className="flex flex-col items-center gap-2">
                                 <Package className="h-8 w-8 text-muted-foreground animate-pulse" />
                                 <p className="text-sm text-muted-foreground">Cargando productos...</p>
@@ -2758,7 +2796,7 @@ export default function AdminPage() {
                           </TableRow>
                         ) : filteredProducts.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={11} className="text-center py-8">
+                            <TableCell colSpan={12} className="text-center py-8">
                               <div className="flex flex-col items-center gap-2">
                                 <Package className="h-8 w-8 text-muted-foreground" />
                                 <p className="text-sm text-muted-foreground">No hay productos disponibles</p>
@@ -2766,7 +2804,7 @@ export default function AdminPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          filteredProducts.map((product) => {
+                          paginatedProducts.map((product) => {
                             const draft = getDraft(product.id)
                             const priceValue = typeof draft.price === "number" ? draft.price : product.price
                             const minQtyValue =
@@ -2815,6 +2853,25 @@ export default function AdminPage() {
                                   <Badge variant="outline" className="whitespace-nowrap">
                                     {product.category}
                                   </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {product.proveedor ? (
+                                    <Badge
+                                      className="whitespace-nowrap text-white"
+                                      style={{
+                                        backgroundColor:
+                                          product.proveedor === "4promotional" ? "#2563eb" :
+                                          product.proveedor === "doblevela" ? "#16a34a" :
+                                          product.proveedor === "3a-promocion" ? "#9333ea" :
+                                          product.proveedor === "innovation" ? "#ea580c" :
+                                          "#6b7280",
+                                      }}
+                                    >
+                                      {product.proveedor}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="bg-primary/5">
                                   <div className="space-y-1">
@@ -2956,13 +3013,29 @@ export default function AdminPage() {
                   {/* Pagination */}
                   <div className="flex items-center justify-between mt-4">
                     <p className="text-sm text-muted-foreground">
-                      Mostrando {filteredProducts.length} de {products.length} productos
+                      Mostrando {Math.min((safePage - 1) * ITEMS_PER_PAGE + 1, filteredProducts.length)}–
+                      {Math.min(safePage * ITEMS_PER_PAGE, filteredProducts.length)} de{" "}
+                      {filteredProducts.length} productos
+                      {filteredProducts.length !== products.length && ` (filtrado de ${products.length})`}
                     </p>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        Pág. {safePage} / {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={safePage <= 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      >
                         Anterior
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={safePage >= totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      >
                         Siguiente
                       </Button>
                     </div>
