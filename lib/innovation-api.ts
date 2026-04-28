@@ -119,10 +119,16 @@ async function callInnovationApi<T>(
 
     clearTimeout(timeoutId)
 
-    if (response.status === 401) throw new Error('Token inválido o ausente (401). Verifica INNOVATION_AUTH_TOKEN.')
-    if (response.status === 403) throw new Error('Sin permiso al recurso (403). Verifica credenciales User/Clave.')
-    if (response.status === 404) throw new Error(`Ruta incorrecta o parámetro inexistente (404): ${endpoint}`)
-    if (response.status === 405) throw new Error('Método HTTP incorrecto (405). Todos los endpoints son GET.')
+    if (response.status === 401) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Token inválido o ausente (401). Verifica INNOVATION_AUTH_TOKEN.\nRespuesta API: ${body.substring(0, 200)}`)
+    }
+    if (response.status === 403) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Sin permiso al recurso (403). Verifica User/Clave en variables de entorno.\nRespuesta API: ${body.substring(0, 200)}`)
+    }
+    if (response.status === 404) throw new Error(`Ruta incorrecta (404): ${endpoint}`)
+    if (response.status === 405) throw new Error('Método HTTP incorrecto (405).')
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
 
     return (await response.json()) as T
