@@ -27,19 +27,34 @@ interface MockupAnalysis {
     type: string
     material: string
     primaryColor: string
+    primaryColorHex?: string
     hasCurvature: boolean
     perspective: string
     placementArea: { xPct: number; yPct: number; wPct: number; hPct: number }
+    closedStateDescription?: string
+    openStateDescription?: string
+    showsTwoViews?: boolean
   }
   logo: {
+    hasBackground?: boolean
     primaryColor: string
+    style?: "icon_only" | "text_only" | "icon_and_text" | "complex"
     recommendedSizePct: number
   }
   application: {
     technique: string
+    logoColorAdjustment?: string
     blendMode: "normal" | "multiply" | "screen" | "overlay"
     opacity: number
+    perspectiveSkew?: boolean
   }
+  insertCard?: {
+    applicable: boolean
+    material: string
+    color: string
+  }
+  complementaryObject?: string
+  generationPrompt?: string
 }
 
 interface Product {
@@ -240,6 +255,8 @@ export function CustomizationSection() {
   const [mockupMime, setMockupMime] = useState("image/png")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [usedFallback, setUsedFallback] = useState(false)
+  const [stage, setStage] = useState<string | null>(null)
+  const [aiModel, setAiModel] = useState<string | null>(null)
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -308,6 +325,8 @@ export function CustomizationSection() {
     setErrorMsg(null)
     setUsedFallback(false)
     setAnalysis(null)
+    setStage(null)
+    setAiModel(null)
 
     try {
       // El servidor hace paso 1 (análisis) y paso 2 (generación) internamente
@@ -334,7 +353,8 @@ export function CustomizationSection() {
         const mime = data.mimeType || "image/png"
         setMockupMime(mime)
         setMockupUrl(`data:${mime};base64,${data.imageBase64}`)
-        // si fue Imagen 3 (texto→imagen), marcar como generado por IA pero sin edición
+        setStage(data.stage ?? null)
+        setAiModel(data.model ?? null)
       } else if (data.fallback) {
         // Canvas inteligente con las coordenadas del análisis
         console.warn("[Mockup] Generación IA no disponible, usando canvas inteligente. Análisis:", data.analysis)
@@ -654,18 +674,33 @@ export function CustomizationSection() {
                           alt="Mockup generado"
                           className="w-full object-contain max-h-[500px]"
                         />
-                        {usedFallback && (
+                        {usedFallback ? (
                           <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-md">
                             Composición IA
                           </div>
-                        )}
+                        ) : stage === "nano-banana" ? (
+                          <div className="absolute bottom-2 left-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-black text-[10px] font-semibold px-2 py-1 rounded-md shadow-md">
+                            🍌 Nano Banana
+                          </div>
+                        ) : stage === "imagen3" ? (
+                          <div className="absolute bottom-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-1 rounded-md">
+                            Imagen 3
+                          </div>
+                        ) : null}
                       </div>
                       <div className="p-4 flex items-center justify-between bg-muted/20 border-t">
                         <div>
                           <p className="text-sm font-semibold">
-                            {usedFallback ? "Composición inteligente" : "Mockup generado con IA"}
+                            {usedFallback
+                              ? "Composición inteligente"
+                              : stage === "nano-banana"
+                              ? "Mockup generado con Nano Banana"
+                              : "Mockup generado con IA"}
                           </p>
-                          <p className="text-xs text-muted-foreground">{selectedProduct?.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedProduct?.name}
+                            {aiModel && !usedFallback ? ` · ${aiModel}` : ""}
+                          </p>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" onClick={handleGenerate} className="gap-1.5">
