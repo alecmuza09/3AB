@@ -71,11 +71,16 @@ import {
   PanelLeftOpen,
   Save,
   X,
+  Printer,
+  FileDown,
+  ArrowRight,
+  Layers,
 } from "lucide-react"
 // getIntegrationsStatus se obtiene vía API para evitar exponer secrets en el bundle cliente
 import type { CotizadorConfig } from "@/lib/cotizador"
 import { defaultCotizadorConfig } from "@/lib/cotizador"
 import { AdminSiteContentEditor } from "@/components/admin-site-content-editor"
+import { openQuotationPrint } from "@/lib/quotation-pdf"
 
 interface Product {
   id: string
@@ -237,6 +242,21 @@ export default function AdminPage() {
   // Vista de detalle (read-only)
   const [detailQuotation, setDetailQuotation] = useState<any | null>(null)
   const [deletingQuotationId, setDeletingQuotationId] = useState<string | null>(null)
+
+  // Selector de variantes
+  const [variantSelection, setVariantSelection] = useState<{
+    product: any
+    variations: any[]
+  } | null>(null)
+  const [loadingVariants, setLoadingVariants] = useState(false)
+
+  // Conversión a pedido
+  const [convertingQuotation, setConvertingQuotation] = useState<any | null>(null)
+  const [savingConvert, setSavingConvert] = useState(false)
+  const [convertForm, setConvertForm] = useState({
+    paymentStatus: "pending" as "pending" | "paid" | "partial",
+    notes: "",
+  })
   const [dashboardStats, setDashboardStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -2418,6 +2438,42 @@ export default function AdminPage() {
     }
   }
 
+  const handleConvertToOrder = async () => {
+    if (!convertingQuotation) return
+    try {
+      setSavingConvert(true)
+      const res = await fetch(
+        `/api/quotations/${encodeURIComponent(convertingQuotation.id)}/convert`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paymentStatus: convertForm.paymentStatus,
+            notes: convertForm.notes || null,
+          }),
+        }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "No se pudo convertir la cotización")
+      }
+      await loadAdminQuotations()
+      await loadOrders()
+      setConvertingQuotation(null)
+      setConvertForm({ paymentStatus: "pending", notes: "" })
+      alert(
+        `✅ Pedido creado: ${data.order?.order_number || ""}\n\n` +
+          `La cotización fue marcada como "Convertida". Ahora puedes gestionar el pedido en la sección Pedidos.`
+      )
+    } catch (err) {
+      alert(
+        `❌ Error al convertir cotización: ${err instanceof Error ? err.message : err}`
+      )
+    } finally {
+      setSavingConvert(false)
+    }
+  }
+
   const deleteQuotation = async (q: any) => {
     if (!confirm(`¿Eliminar la cotización ${q.quotation_number}?\n\nEsta acción no se puede deshacer.`)) {
       return
@@ -2461,25 +2517,91 @@ export default function AdminPage() {
     }
   }
 
-  const addProductToQuote = (product: any) => {
+  const pushQuoteLine = (params: {
+    productId: string | null
+    productName: string
+    productSku: string | null
+    quantity: number
+    unitPrice: number
+    imageUrl?: string | null
+    variationLabel?: string | null
+  }) => {
     setNewQuoteItems((prev) => [
       ...prev,
       {
-        id: `${product.id}-${Date.now()}`,
-        productId: product.id,
-        productName: product.name || "Producto",
-        productSku: product.sku || null,
-        quantity: Math.max(1, Number(product.min_quantity) || 1),
-        unitPrice: Number(product.price) || 0,
+        id: `${params.productId || "free"}-${Date.now()}-${prev.length}`,
+        productId: params.productId,
+        productName: params.variationLabel
+          ? `${params.productName} — ${params.variationLabel}`
+          : params.productName,
+        productSku: params.productSku,
+        quantity: Math.max(1, Math.floor(params.quantity || 1)),
+        unitPrice: Number(params.unitPrice) || 0,
         customization: "",
-        imageUrl:
-          product.product_images?.[0]?.url ||
-          product.image_url ||
-          null,
+        imageUrl: params.imageUrl ?? null,
       },
     ])
+  }
+
+  const addProductToQuote = async (product: any) => {
+    // Detectar si el producto tiene variantes activas y abrir selector
+    try {
+      setLoadingVariants(true)
+      const supabase = getSupabaseClient()
+      let variations: any[] = []
+      if (supabase) {
+        const { data } = await supabase
+          .from("product_variations")
+          .select("id, name, sku, price, stock_quantity, attributes, image_url, is_active")
+          .eq("product_id", product.id)
+          .eq("is_active", true)
+          .order("name", { ascending: true })
+        variations = (data as any[]) || []
+      }
+
+      if (variations.length > 0) {
+        setVariantSelection({ product, variations })
+        setCatalogSearchTerm("")
+        setCatalogResults([])
+        return
+      }
+    } catch (err) {
+      console.warn("addProductToQuote: error consultando variantes:", err)
+    } finally {
+      setLoadingVariants(false)
+    }
+
+    // Sin variantes → agregar directo
+    pushQuoteLine({
+      productId: product.id,
+      productName: product.name || "Producto",
+      productSku: product.sku || null,
+      quantity: Math.max(1, Number(product.min_quantity) || 1),
+      unitPrice: Number(product.price) || 0,
+      imageUrl: product.product_images?.[0]?.url || product.image_url || null,
+    })
     setCatalogSearchTerm("")
     setCatalogResults([])
+  }
+
+  const addVariantToQuote = (variation: any) => {
+    if (!variantSelection) return
+    const { product } = variantSelection
+    const variationPrice = variation.price ?? product.price ?? 0
+    pushQuoteLine({
+      productId: product.id,
+      productName: product.name || "Producto",
+      productSku: variation.sku || product.sku || null,
+      quantity: Math.max(1, Number(product.min_quantity) || 1),
+      unitPrice: Number(variationPrice) || 0,
+      imageUrl:
+        variation.image_url ||
+        product.product_images?.[0]?.url ||
+        product.image_url ||
+        null,
+      variationLabel: variation.name,
+    })
+    setVariantSelection(null)
   }
 
   // Búsqueda de clientes (en customers ya cargados)
@@ -5574,6 +5696,14 @@ export default function AdminPage() {
                                     <Button
                                       variant="ghost"
                                       size="sm"
+                                      title="Imprimir / PDF"
+                                      onClick={() => openQuotationPrint(q)}
+                                    >
+                                      <Printer className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
                                       title="Enviar email"
                                       disabled={sendingQuotationEmail === q.id}
                                       onClick={() => handleSendQuotationEmail(q)}
@@ -5590,6 +5720,17 @@ export default function AdminPage() {
                                     >
                                       <Phone className="h-4 w-4" />
                                     </Button>
+                                    {q.status !== "converted" && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-purple-700 hover:bg-purple-50"
+                                        title="Convertir a pedido"
+                                        onClick={() => setConvertingQuotation(q)}
+                                      >
+                                        <ArrowRight className="h-4 w-4" />
+                                      </Button>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -9218,6 +9359,13 @@ EMAIL_FROM=ventas@3abranding.com`}
                       <div className="flex flex-wrap justify-end gap-2 pt-2 border-t">
                         <Button
                           variant="outline"
+                          onClick={() => openQuotationPrint(q)}
+                        >
+                          <FileDown className="h-4 w-4 mr-2" />
+                          Imprimir / PDF
+                        </Button>
+                        <Button
+                          variant="outline"
                           onClick={() => {
                             setDetailQuotation(null)
                             duplicateQuotation(q)
@@ -9245,6 +9393,19 @@ EMAIL_FROM=ventas@3abranding.com`}
                             {sendingQuotationWA === q.id ? "Enviando..." : "WhatsApp"}
                           </Button>
                         )}
+                        {q.status !== "converted" && (
+                          <Button
+                            variant="outline"
+                            className="text-purple-700 border-purple-300 hover:bg-purple-50"
+                            onClick={() => {
+                              setConvertingQuotation(q)
+                              setDetailQuotation(null)
+                            }}
+                          >
+                            <ArrowRight className="h-4 w-4 mr-2" />
+                            Convertir a pedido
+                          </Button>
+                        )}
                         <Button
                           onClick={() => {
                             setDetailQuotation(null)
@@ -9258,6 +9419,253 @@ EMAIL_FROM=ventas@3abranding.com`}
                     </div>
                   )
                 })()}
+              </DialogContent>
+            </Dialog>
+
+            {/* =========================================
+                 SELECTOR DE VARIANTE (al agregar producto al editor)
+                 ========================================= */}
+            <Dialog
+              open={!!variantSelection}
+              onOpenChange={(open) => !open && setVariantSelection(null)}
+            >
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Layers className="h-5 w-5 text-primary" />
+                    Selecciona una variante
+                  </DialogTitle>
+                  <DialogDescription>
+                    Este producto tiene varias opciones. Elige la variante que va en la cotización.
+                  </DialogDescription>
+                </DialogHeader>
+                {variantSelection && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                      {variantSelection.product.product_images?.[0]?.url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={variantSelection.product.product_images[0].url}
+                          alt={variantSelection.product.name}
+                          className="h-12 w-12 object-cover rounded"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">
+                          {variantSelection.product.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {variantSelection.product.sku || "—"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto">
+                      {variantSelection.variations.map((v: any) => {
+                        const price = v.price ?? variantSelection.product.price ?? 0
+                        const attrs = v.attributes || {}
+                        const attrPairs = Object.entries(attrs)
+                          .filter(([, val]) => val != null && val !== "")
+                          .slice(0, 4)
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => addVariantToQuote(v)}
+                            disabled={Number(v.stock_quantity) <= 0}
+                            className="text-left p-3 border rounded-lg hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <div className="flex items-center gap-3">
+                              {v.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={v.image_url}
+                                  alt={v.name}
+                                  className="h-10 w-10 object-cover rounded"
+                                />
+                              ) : (
+                                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                                  <Layers className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate">{v.name}</p>
+                                {v.sku && (
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    {v.sku}
+                                  </p>
+                                )}
+                                {attrPairs.length > 0 && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {attrPairs
+                                      .map(([k, val]) => `${k}: ${val}`)
+                                      .join(" · ")}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-sm font-semibold">
+                                  ${Number(price).toLocaleString("es-MX")}
+                                </p>
+                                <p
+                                  className={`text-xs ${
+                                    Number(v.stock_quantity) > 0
+                                      ? "text-muted-foreground"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  {Number(v.stock_quantity) > 0
+                                    ? `Stock: ${v.stock_quantity}`
+                                    : "Sin stock"}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          // Permite agregar el producto base sin variante específica
+                          if (!variantSelection) return
+                          const product = variantSelection.product
+                          pushQuoteLine({
+                            productId: product.id,
+                            productName: product.name || "Producto",
+                            productSku: product.sku || null,
+                            quantity: Math.max(1, Number(product.min_quantity) || 1),
+                            unitPrice: Number(product.price) || 0,
+                            imageUrl:
+                              product.product_images?.[0]?.url ||
+                              product.image_url ||
+                              null,
+                          })
+                          setVariantSelection(null)
+                        }}
+                      >
+                        Agregar producto base sin variante
+                      </Button>
+                      <Button variant="outline" onClick={() => setVariantSelection(null)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* =========================================
+                 CONVERTIR cotización → pedido
+                 ========================================= */}
+            <Dialog
+              open={!!convertingQuotation}
+              onOpenChange={(open) => !open && setConvertingQuotation(null)}
+            >
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <ArrowRight className="h-5 w-5 text-purple-700" />
+                    Convertir cotización en pedido
+                  </DialogTitle>
+                  <DialogDescription>
+                    Se creará un nuevo pedido vinculado a esta cotización y la cotización
+                    quedará marcada como "Convertida".
+                  </DialogDescription>
+                </DialogHeader>
+                {convertingQuotation && (
+                  <div className="space-y-4">
+                    <div className="p-3 rounded-lg bg-muted/50 text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Cotización</span>
+                        <span className="font-mono font-semibold">
+                          {convertingQuotation.quotation_number}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Cliente</span>
+                        <span className="font-medium">
+                          {convertingQuotation.contact_info?.contactName || "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Total</span>
+                        <span className="font-semibold text-primary">
+                          ${Number(convertingQuotation.total || 0).toLocaleString("es-MX", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Productos</span>
+                        <span>
+                          {Array.isArray(convertingQuotation.quotation_items)
+                            ? convertingQuotation.quotation_items.length
+                            : 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Estado de pago inicial</Label>
+                      <Select
+                        value={convertForm.paymentStatus}
+                        onValueChange={(v) =>
+                          setConvertForm((p) => ({ ...p, paymentStatus: v as any }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pendiente de pago</SelectItem>
+                          <SelectItem value="partial">Anticipo recibido</SelectItem>
+                          <SelectItem value="paid">Pagado completo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Después podrás actualizar el pago desde el detalle del pedido.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Notas internas del pedido</Label>
+                      <Textarea
+                        value={convertForm.notes}
+                        onChange={(e) =>
+                          setConvertForm((p) => ({ ...p, notes: e.target.value }))
+                        }
+                        placeholder="Anticipo recibido por transferencia, fecha límite producción, etc."
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => setConvertingQuotation(null)}
+                        disabled={savingConvert}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={handleConvertToOrder}
+                        disabled={savingConvert}
+                        className="bg-purple-700 hover:bg-purple-800"
+                      >
+                        {savingConvert ? "Convirtiendo..." : (
+                          <>
+                            <ArrowRight className="h-4 w-4 mr-2" />
+                            Convertir en pedido
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </DialogContent>
             </Dialog>
 
