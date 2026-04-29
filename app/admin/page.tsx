@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Package,
   Plus,
@@ -64,6 +65,12 @@ import {
   AlertCircle,
   ExternalLink,
   Calculator,
+  ChevronLeft,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Save,
+  X,
 } from "lucide-react"
 // getIntegrationsStatus se obtiene vía API para evitar exponer secrets en el bundle cliente
 import type { CotizadorConfig } from "@/lib/cotizador"
@@ -99,12 +106,52 @@ interface InventoryMovement {
 export default function AdminPage() {
   const searchParams = useSearchParams()
   const [activeSection, setActiveSection] = useState("dashboard")
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem('admin:sidebarCollapsed')
+      if (saved === '1') setSidebarCollapsed(true)
+    } catch {/* noop */}
+  }, [])
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try { localStorage.setItem('admin:sidebarCollapsed', next ? '1' : '0') } catch {/* noop */}
+      return next
+    })
+  }
   const [orders, setOrders] = useState<any[]>([])
   const [loadingOrders, setLoadingOrders] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState("")
+  const [viewCustomer, setViewCustomer] = useState<any | null>(null)
+  const [editCustomer, setEditCustomer] = useState<any | null>(null)
+  const [editCustomerForm, setEditCustomerForm] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    company_name: "",
+    tax_id: "",
+  })
+  const [savingCustomer, setSavingCustomer] = useState(false)
   const [coupons, setCoupons] = useState<any[]>([])
   const [loadingCoupons, setLoadingCoupons] = useState(false)
+  const [couponDialogOpen, setCouponDialogOpen] = useState(false)
+  const [editingCoupon, setEditingCoupon] = useState<any | null>(null)
+  const [couponForm, setCouponForm] = useState({
+    code: "",
+    type: "percentage" as "percentage" | "fixed",
+    discount: "10",
+    maxUses: "100",
+    expiresAt: "",
+    isActive: true,
+  })
+  const [savingCoupon, setSavingCoupon] = useState(false)
   const [adminQuotations, setAdminQuotations] = useState<any[]>([])
   const [loadingAdminQuotations, setLoadingAdminQuotations] = useState(false)
   const [quotationFilter, setQuotationFilter] = useState("all")
@@ -1504,32 +1551,92 @@ export default function AdminPage() {
     setRelationsProduct(null)
   }
 
-  const handleAddProduct = () => {
-    if (newProduct.name && newProduct.category && newProduct.price && newProduct.stock) {
-      const stock = Number.parseInt(newProduct.stock)
-      const product: Product = {
-        id: Date.now().toString(),
-        sku: null,
-        name: newProduct.name,
-        category: newProduct.category,
-        categoryId: null,
-        price: Number.parseFloat(newProduct.price),
-        stock,
-        isActive: true,
-        minQuantity: Math.max(1, Math.floor(Number(newProduct.minQuantity) || 1)),
-        multipleOf: Math.max(1, Math.floor(Number(newProduct.multipleOf) || 1)),
-        attributes: null,
-        status: stock > 10 ? "active" : "low-stock",
-        lastUpdated: new Date().toISOString().split("T")[0],
-        proveedor: null,
+  const [savingNewProduct, setSavingNewProduct] = useState(false)
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null)
+
+  const handleAddProduct = async () => {
+    if (!newProduct.name || !newProduct.price || !newProduct.stock) {
+      alert("Completa al menos nombre, precio y stock para crear el producto.")
+      return
+    }
+    try {
+      setSavingNewProduct(true)
+      // Tratar de resolver category_id desde la BD por nombre, si está disponible
+      let resolvedCategoryId: string | null = null
+      try {
+        if (newProduct.category) {
+          const sb = getSupabaseClient()
+          if (sb) {
+            const { data: cat } = await sb
+              .from("categories")
+              .select("id, name")
+              .ilike("name", newProduct.category)
+              .maybeSingle()
+            resolvedCategoryId = (cat as any)?.id ?? null
+          }
+        }
+      } catch {/* noop */}
+      const payload = {
+        name: newProduct.name.trim(),
+        description: newProduct.description?.trim() || null,
+        category_id: resolvedCategoryId,
+        price: Number.parseFloat(newProduct.price) || 0,
+        stock_quantity: Number.parseInt(newProduct.stock, 10) || 0,
+        min_quantity: Math.max(1, Math.floor(Number(newProduct.minQuantity) || 1)),
+        multiple_of: Math.max(1, Math.floor(Number(newProduct.multipleOf) || 1)),
+        is_active: true,
       }
-      setProducts([...products, product])
-      setNewProduct({ name: "", category: "", price: "", stock: "", description: "", minQuantity: "1", multipleOf: "1" })
+      const res = await fetch("/api/admin/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "No se pudo crear el producto")
+      }
+      // Recargar la lista para tener los datos canónicos del servidor
+      await loadProducts()
+      setNewProduct({
+        name: "",
+        category: "",
+        price: "",
+        stock: "",
+        description: "",
+        minQuantity: "1",
+        multipleOf: "1",
+      })
+      alert(`✅ Producto "${data.product?.name || payload.name}" creado correctamente.`)
+    } catch (err) {
+      alert(`❌ Error al crear producto: ${err instanceof Error ? err.message : err}`)
+    } finally {
+      setSavingNewProduct(false)
     }
   }
 
-  const handleDeleteProduct = (id: string) => {
-    setProducts(products.filter((p) => p.id !== id))
+  const handleDeleteProduct = async (id: string) => {
+    const target = products.find((p) => p.id === id)
+    if (!confirm(`¿Desactivar "${target?.name ?? id}"?\n\nEl producto dejará de mostrarse en la tienda pero quedará en la base de datos por integridad histórica (pedidos previos).`)) {
+      return
+    }
+    try {
+      setDeletingProductId(id)
+      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "No se pudo eliminar el producto")
+      }
+      // Actualización optimista local: marcar inactivo
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, isActive: false, status: "inactive" } : p))
+      )
+    } catch (err) {
+      alert(`❌ Error al eliminar producto: ${err instanceof Error ? err.message : err}`)
+    } finally {
+      setDeletingProductId(null)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -1688,6 +1795,195 @@ export default function AdminPage() {
       console.error("Error loading customers:", error)
     } finally {
       setLoadingCustomers(false)
+    }
+  }
+
+  const openViewCustomer = async (customer: any) => {
+    setViewCustomer({ ...customer, _loading: true })
+    try {
+      const supabase = getSupabaseClient()
+      if (!supabase) return
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", customer.id)
+        .maybeSingle()
+      const { data: lastOrders } = await supabase
+        .from("orders")
+        .select("id, order_number, total, status, created_at")
+        .eq("user_id", customer.id)
+        .order("created_at", { ascending: false })
+        .limit(5)
+      setViewCustomer({
+        ...customer,
+        ...(profile as any || {}),
+        recentOrders: lastOrders || [],
+        _loading: false,
+      })
+    } catch (err) {
+      console.error("openViewCustomer error:", err)
+      setViewCustomer({ ...customer, _loading: false })
+    }
+  }
+
+  const openEditCustomer = (customer: any) => {
+    setEditCustomer(customer)
+    setEditCustomerForm({
+      full_name: customer.full_name || customer.name || "",
+      email: customer.email || "",
+      phone: customer.phone || "",
+      company_name: customer.company_name || "",
+      tax_id: customer.tax_id || "",
+    })
+  }
+
+  const saveCustomer = async () => {
+    if (!editCustomer) return
+    try {
+      setSavingCustomer(true)
+      const supabase = getSupabaseClient()
+      if (!supabase) throw new Error("Supabase no disponible")
+      const payload: Record<string, any> = {
+        full_name: editCustomerForm.full_name?.trim() || null,
+        phone: editCustomerForm.phone?.trim() || null,
+        company_name: editCustomerForm.company_name?.trim() || null,
+        tax_id: editCustomerForm.tax_id?.trim() || null,
+        updated_at: new Date().toISOString(),
+      }
+      const { error } = await supabase
+        .from("profiles")
+        .update(payload as any)
+        .eq("id", editCustomer.id)
+      if (error) throw new Error(error.message)
+      // Actualizar localmente
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === editCustomer.id
+            ? { ...c, name: payload.full_name || c.name, phone: payload.phone || c.phone, company_name: payload.company_name }
+            : c
+        )
+      )
+      setEditCustomer(null)
+      alert("✅ Cliente actualizado correctamente.")
+    } catch (err) {
+      alert(`❌ Error al actualizar cliente: ${err instanceof Error ? err.message : err}`)
+    } finally {
+      setSavingCustomer(false)
+    }
+  }
+
+  const openNewCoupon = () => {
+    setEditingCoupon(null)
+    setCouponForm({
+      code: "",
+      type: "percentage",
+      discount: "10",
+      maxUses: "100",
+      expiresAt: "",
+      isActive: true,
+    })
+    setCouponDialogOpen(true)
+  }
+
+  const openEditCoupon = (coupon: any) => {
+    setEditingCoupon(coupon)
+    setCouponForm({
+      code: coupon.code || "",
+      type: coupon.type === "fixed" ? "fixed" : "percentage",
+      discount: String(coupon.discount ?? coupon.amount ?? ""),
+      maxUses: String(coupon.max_uses ?? coupon.maxUses ?? ""),
+      expiresAt: coupon.expires_at
+        ? new Date(coupon.expires_at).toISOString().split("T")[0]
+        : coupon.expiresAt || "",
+      isActive: coupon.is_active ?? coupon.isActive ?? true,
+    })
+    setCouponDialogOpen(true)
+  }
+
+  const saveCoupon = async () => {
+    if (!couponForm.code.trim()) {
+      alert("El código es obligatorio.")
+      return
+    }
+    const discount = Number(couponForm.discount) || 0
+    if (discount <= 0) {
+      alert("El descuento debe ser mayor a 0.")
+      return
+    }
+    try {
+      setSavingCoupon(true)
+      const supabase = getSupabaseClient()
+      if (!supabase) throw new Error("Supabase no disponible")
+
+      const payload: Record<string, any> = {
+        code: couponForm.code.trim().toUpperCase(),
+        type: couponForm.type,
+        discount,
+        max_uses: Number(couponForm.maxUses) || 0,
+        expires_at: couponForm.expiresAt
+          ? new Date(couponForm.expiresAt).toISOString()
+          : null,
+        is_active: couponForm.isActive,
+        updated_at: new Date().toISOString(),
+      }
+
+      if (editingCoupon?.id) {
+        const { error } = await supabase
+          .from("coupons" as any)
+          .update(payload)
+          .eq("id", editingCoupon.id)
+        if (error) throw new Error(error.message)
+      } else {
+        const { error } = await supabase
+          .from("coupons" as any)
+          .insert({ ...payload, uses: 0, created_at: new Date().toISOString() })
+        if (error) throw new Error(error.message)
+      }
+
+      await loadCoupons()
+      setCouponDialogOpen(false)
+      setEditingCoupon(null)
+      alert(`✅ Cupón ${editingCoupon ? "actualizado" : "creado"} correctamente.`)
+    } catch (err: any) {
+      const msg = err?.message || String(err)
+      if (msg.includes("does not exist") || msg.includes("PGRST")) {
+        alert(
+          `⚠️ La tabla 'coupons' no existe en tu base de datos.\n\n` +
+            `Para usar cupones primero crea la tabla con esta SQL:\n\n` +
+            `CREATE TABLE coupons (\n` +
+            `  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,\n` +
+            `  code text UNIQUE NOT NULL,\n` +
+            `  type text NOT NULL DEFAULT 'percentage',\n` +
+            `  discount numeric NOT NULL,\n` +
+            `  uses integer DEFAULT 0,\n` +
+            `  max_uses integer DEFAULT 0,\n` +
+            `  expires_at timestamptz,\n` +
+            `  is_active boolean DEFAULT true,\n` +
+            `  created_at timestamptz DEFAULT now(),\n` +
+            `  updated_at timestamptz DEFAULT now()\n` +
+            `);`
+        )
+      } else {
+        alert(`❌ Error al guardar cupón: ${msg}`)
+      }
+    } finally {
+      setSavingCoupon(false)
+    }
+  }
+
+  const deleteCoupon = async (coupon: any) => {
+    if (!confirm(`¿Eliminar el cupón "${coupon.code}"?`)) return
+    try {
+      const supabase = getSupabaseClient()
+      if (!supabase) throw new Error("Supabase no disponible")
+      const { error } = await supabase
+        .from("coupons" as any)
+        .delete()
+        .eq("id", coupon.id)
+      if (error) throw new Error(error.message)
+      setCoupons((prev) => prev.filter((c) => c.id !== coupon.id))
+    } catch (err: any) {
+      alert(`❌ Error al eliminar cupón: ${err?.message || err}`)
     }
   }
 
@@ -2129,272 +2425,392 @@ export default function AdminPage() {
     return <Badge className={config.color}>{config.label}</Badge>
   }
 
+  // Items principales del sidebar
+  const mainNavItems = [
+    { key: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { key: "products", label: "Productos", icon: Package },
+    { key: "orders", label: "Pedidos", icon: ShoppingCart },
+    { key: "inventory", label: "Inventario", icon: Truck },
+    { key: "customers", label: "Clientes", icon: Users },
+    { key: "coupons", label: "Cupones", icon: Tag },
+    { key: "quotations", label: "Cotizaciones", icon: Calculator },
+    { key: "reports", label: "Reportes", icon: FileText },
+  ] as const
+
+  const settingsSubItems = [
+    { key: "settings", label: "General", icon: Shield },
+    { key: "content", label: "Contenido del sitio", icon: FileText },
+    { key: "integrations", label: "Integraciones", icon: Plug },
+    { key: "cotizador-config", label: "Cotizador", icon: Calculator },
+    { key: "users", label: "Usuarios", icon: UserCog },
+    { key: "shipping-config", label: "Envíos", icon: Truck },
+  ] as const
+
+  const isSettingsActive = settingsSubItems.some((s) => s.key === activeSection)
+
+  // Helper para item del sidebar (con o sin tooltip cuando colapsado)
+  const SidebarItem = ({
+    itemKey,
+    label,
+    Icon,
+    indented = false,
+  }: {
+    itemKey: string
+    label: string
+    Icon: React.ComponentType<{ className?: string }>
+    indented?: boolean
+  }) => {
+    const isActive = activeSection === itemKey
+    const button = (
+      <Button
+        variant={isActive ? "secondary" : "ghost"}
+        size={indented && !sidebarCollapsed ? "sm" : "default"}
+        className={
+          sidebarCollapsed
+            ? "w-full justify-center px-0 h-10"
+            : `w-full justify-start ${indented ? "text-sm" : ""}`
+        }
+        onClick={() => {
+          setActiveSection(itemKey)
+          setMobileSidebarOpen(false)
+        }}
+      >
+        <Icon
+          className={
+            sidebarCollapsed
+              ? "h-5 w-5"
+              : indented
+              ? "h-3 w-3 mr-2"
+              : "h-4 w-4 mr-3"
+          }
+        />
+        {!sidebarCollapsed && <span className="truncate">{label}</span>}
+      </Button>
+    )
+    if (!sidebarCollapsed) return button
+    return (
+      <Tooltip delayDuration={150}>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  const sidebarWidthClass = sidebarCollapsed ? "w-16" : "w-64"
+
+  const sidebarContent = (
+    <>
+      <div className={`flex items-center justify-between ${sidebarCollapsed ? "p-3" : "p-4"} border-b border-border`}>
+        {!sidebarCollapsed && (
+          <div className="overflow-hidden">
+            <h2 className="text-lg font-bold leading-tight">Administración</h2>
+            <p className="text-xs text-muted-foreground">Panel de control</p>
+          </div>
+        )}
+        <Tooltip delayDuration={200}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+
+      <nav className={`flex-1 ${sidebarCollapsed ? "px-2" : "px-3"} py-3 space-y-1 overflow-y-auto`}>
+        {mainNavItems.map((it) => (
+          <SidebarItem key={it.key} itemKey={it.key} label={it.label} Icon={it.icon} />
+        ))}
+
+        <Separator className="my-3" />
+
+        {/* Configuración */}
+        {sidebarCollapsed ? (
+          <Tooltip delayDuration={150}>
+            <TooltipTrigger asChild>
+              <Button
+                variant={isSettingsActive ? "secondary" : "ghost"}
+                className="w-full justify-center px-0 h-10"
+                onClick={() => setActiveSection(isSettingsActive ? "dashboard" : "settings")}
+              >
+                <Settings className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Configuración</TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="space-y-1">
+            <Button
+              variant={isSettingsActive ? "secondary" : "ghost"}
+              className="w-full justify-start font-semibold"
+              onClick={() =>
+                setActiveSection(isSettingsActive ? "dashboard" : "settings")
+              }
+            >
+              <Settings className="h-4 w-4 mr-3" />
+              Configuración
+              <ChevronRight
+                className={`ml-auto h-4 w-4 transition-transform ${
+                  isSettingsActive ? "rotate-90" : ""
+                }`}
+              />
+            </Button>
+            {isSettingsActive && (
+              <div className="ml-4 pl-3 border-l border-border space-y-1">
+                {settingsSubItems.map((it) => (
+                  <SidebarItem
+                    key={it.key}
+                    itemKey={it.key}
+                    label={it.label}
+                    Icon={it.icon}
+                    indented
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </nav>
+    </>
+  )
+
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-background">
-        <TopHeader />
-        <WhatsappButton />
-        
-        <div className="flex overflow-x-hidden">
-          {/* Admin Sidebar */}
-          <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r bg-card h-screen sticky top-0 overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-1">Administración</h2>
-              <p className="text-sm text-muted-foreground">Panel de control</p>
-            </div>
-            
-            <nav className="flex-1 px-3 space-y-1">
-              {/* Dashboard */}
-              <Button
-                variant={activeSection === "dashboard" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("dashboard")}
-              >
-                <BarChart3 className="h-4 w-4 mr-3" />
-                Dashboard
-              </Button>
-              
-              {/* Productos */}
-              <Button
-                variant={activeSection === "products" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("products")}
-              >
-                <Package className="h-4 w-4 mr-3" />
-                Productos
-              </Button>
-              
-              {/* Pedidos */}
-              <Button
-                variant={activeSection === "orders" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("orders")}
-              >
-                <ShoppingCart className="h-4 w-4 mr-3" />
-                Pedidos
-              </Button>
-              
-              {/* Inventario */}
-              <Button
-                variant={activeSection === "inventory" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("inventory")}
-              >
-                <Truck className="h-4 w-4 mr-3" />
-                Inventario
-              </Button>
-              
-              {/* Clientes */}
-              <Button
-                variant={activeSection === "customers" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("customers")}
-              >
-                <Users className="h-4 w-4 mr-3" />
-                Clientes
-              </Button>
-              
-              {/* Cupones */}
-              <Button
-                variant={activeSection === "coupons" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("coupons")}
-              >
-                <Tag className="h-4 w-4 mr-3" />
-                Cupones
-              </Button>
-              
-              {/* Cotizaciones */}
-              <Button
-                variant={activeSection === "quotations" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("quotations")}
-              >
-                <Calculator className="h-4 w-4 mr-3" />
-                Cotizaciones
-              </Button>
+      <TooltipProvider>
+        <div className="min-h-screen bg-background">
+          <TopHeader />
+          <WhatsappButton />
 
-              {/* Reportes */}
-              <Button
-                variant={activeSection === "reports" ? "secondary" : "ghost"}
-                className="w-full justify-start"
-                onClick={() => setActiveSection("reports")}
-              >
-                <FileText className="h-4 w-4 mr-3" />
-                Reportes
-              </Button>
-              
-              <Separator className="my-3" />
-              
-              {/* Configuración (colapsable) */}
-              <div className="space-y-1">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start font-semibold"
-                  onClick={() => {
-                    const settingsSections = ["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"];
-                    if (settingsSections.includes(activeSection)) {
-                      setActiveSection("dashboard");
-                    } else {
-                      setActiveSection("settings");
-                    }
-                  }}
-                >
-                  <Settings className="h-4 w-4 mr-3" />
-                  Configuración
-                  {["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"].includes(activeSection) && (
-                    <span className="ml-auto">▼</span>
-                  )}
-                  {!["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"].includes(activeSection) && (
-                    <span className="ml-auto">▶</span>
-                  )}
-                </Button>
-                
-                {["settings", "content", "integrations", "cotizador-config", "users", "shipping-config"].includes(activeSection) && (
-                  <div className="ml-7 space-y-1">
-                    <Button
-                      variant={activeSection === "settings" ? "secondary" : "ghost"}
-                      className="w-full justify-start text-sm"
-                      size="sm"
-                      onClick={() => setActiveSection("settings")}
-                    >
-                      <Shield className="h-3 w-3 mr-2" />
-                      General
-                    </Button>
-                    
-                    <Button
-                      variant={activeSection === "content" ? "secondary" : "ghost"}
-                      className="w-full justify-start text-sm"
-                      size="sm"
-                      onClick={() => setActiveSection("content")}
-                    >
-                      <FileText className="h-3 w-3 mr-2" />
-                      Contenido del sitio
-                    </Button>
-                    
-                    <Button
-                      variant={activeSection === "integrations" ? "secondary" : "ghost"}
-                      className="w-full justify-start text-sm"
-                      size="sm"
-                      onClick={() => setActiveSection("integrations")}
-                    >
-                      <Plug className="h-3 w-3 mr-2" />
-                      Integraciones
-                    </Button>
-                    
-                    <Button
-                      variant={activeSection === "cotizador-config" ? "secondary" : "ghost"}
-                      className="w-full justify-start text-sm"
-                      size="sm"
-                      onClick={() => setActiveSection("cotizador-config")}
-                    >
-                      <Calculator className="h-3 w-3 mr-2" />
-                      Cotizador
-                    </Button>
-                    
-                    <Button
-                      variant={activeSection === "users" ? "secondary" : "ghost"}
-                      className="w-full justify-start text-sm"
-                      size="sm"
-                      onClick={() => setActiveSection("users")}
-                    >
-                      <UserCog className="h-3 w-3 mr-2" />
-                      Usuarios
-                    </Button>
-                    
-                    <Button
-                      variant={activeSection === "shipping-config" ? "secondary" : "ghost"}
-                      className="w-full justify-start text-sm"
-                      size="sm"
-                      onClick={() => setActiveSection("shipping-config")}
-                    >
-                      <Truck className="h-3 w-3 mr-2" />
-                      Envíos
-                    </Button>
+          <div className="flex overflow-x-hidden">
+            {/* Sidebar desktop */}
+            <aside
+              className={`hidden md:flex md:flex-col ${sidebarWidthClass} shrink-0 border-r bg-card h-screen sticky top-0 transition-[width] duration-200 ease-in-out`}
+            >
+              {sidebarContent}
+            </aside>
+
+            {/* Sidebar móvil (drawer) */}
+            {mobileSidebarOpen && (
+              <div className="md:hidden fixed inset-0 z-50 flex">
+                <div
+                  className="absolute inset-0 bg-black/50"
+                  onClick={() => setMobileSidebarOpen(false)}
+                />
+                <aside className="relative flex flex-col w-64 max-w-[80vw] bg-card border-r animate-in slide-in-from-left">
+                  {sidebarContent}
+                </aside>
+              </div>
+            )}
+
+            {/* Main Content */}
+            <div className="flex-1 min-w-0">
+              <div className="px-4 sm:px-6 py-6 max-w-7xl mx-auto">
+                {/* Header */}
+                <div className="mb-6 flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden"
+                    onClick={() => setMobileSidebarOpen(true)}
+                    aria-label="Abrir menú"
+                  >
+                    <PanelLeftOpen className="h-5 w-5" />
+                  </Button>
+                  <div className="min-w-0">
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                      Panel de Administración
+                    </h1>
+                    <p className="text-sm text-muted-foreground">
+                      Sistema completo de gestión para 3A Branding
+                    </p>
                   </div>
-                )}
-              </div>
-            </nav>
-          </aside>
-          
-          {/* Main Content */}
-          <div className="flex-1 p-6">
-            <div className="max-w-7xl mx-auto">
-              {/* Header */}
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
-                <p className="text-muted-foreground">Sistema completo de gestión para 3A Branding</p>
-              </div>
+                </div>
 
           {/* Content Sections */}
           <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-6">
 
             {/* Dashboard */}
             <TabsContent value="dashboard" className="space-y-6">
+              {/* Header acciones rápidas */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Resumen general</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Estado actual del negocio · {new Date().toLocaleDateString("es-MX", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      loadDashboardStats()
+                      loadOrders()
+                      loadProducts()
+                    }}
+                    disabled={loadingStats}
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    {loadingStats ? "Actualizando..." : "Refrescar datos"}
+                  </Button>
+                </div>
+              </div>
+
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="hover:shadow-md transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Ventas del Mes</CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Ventas totales</CardTitle>
+                    <div className="h-8 w-8 rounded-md bg-green-100 flex items-center justify-center">
+                      <DollarSign className="h-4 w-4 text-green-700" />
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {loadingStats ? (
-                      <div className="text-2xl font-bold">...</div>
+                      <div className="text-2xl font-bold animate-pulse">...</div>
                     ) : (
                       <>
-                        <div className="text-2xl font-bold">${Math.round(dashboardStats.totalRevenue).toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Total acumulado</p>
+                        <div className="text-2xl font-bold">
+                          ${Math.round(dashboardStats.totalRevenue).toLocaleString("es-MX")}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Total acumulado · {dashboardStats.totalOrders} pedidos
+                        </p>
                       </>
                     )}
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pedidos Totales</CardTitle>
-                    <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Pedidos</CardTitle>
+                    <div className="h-8 w-8 rounded-md bg-blue-100 flex items-center justify-center">
+                      <ShoppingCart className="h-4 w-4 text-blue-700" />
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {loadingStats ? (
-                      <div className="text-2xl font-bold">...</div>
+                      <div className="text-2xl font-bold animate-pulse">...</div>
                     ) : (
                       <>
                         <div className="text-2xl font-bold">{dashboardStats.totalOrders}</div>
-                        <p className="text-xs text-muted-foreground">Total de pedidos</p>
+                        <p className="text-xs text-muted-foreground">
+                          {dashboardStats.pendingOrders > 0
+                            ? `${dashboardStats.pendingOrders} pendiente${dashboardStats.pendingOrders === 1 ? "" : "s"}`
+                            : "Todo procesado"}
+                        </p>
                       </>
                     )}
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Clientes Activos</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-sm font-medium">Clientes</CardTitle>
+                    <div className="h-8 w-8 rounded-md bg-purple-100 flex items-center justify-center">
+                      <Users className="h-4 w-4 text-purple-700" />
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {loadingStats ? (
-                      <div className="text-2xl font-bold">...</div>
+                      <div className="text-2xl font-bold animate-pulse">...</div>
                     ) : (
                       <>
                         <div className="text-2xl font-bold">{dashboardStats.totalCustomers}</div>
-                        <p className="text-xs text-green-600">+{dashboardStats.newCustomersThisMonth} nuevos este mes</p>
+                        <p className="text-xs text-green-600">
+                          +{dashboardStats.newCustomersThisMonth} nuevos este mes
+                        </p>
                       </>
                     )}
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="hover:shadow-md transition-shadow">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Ticket Promedio</CardTitle>
-                    <TrendingUp className="h-4 w-4 text-primary" />
+                    <CardTitle className="text-sm font-medium">Ticket promedio</CardTitle>
+                    <div className="h-8 w-8 rounded-md bg-orange-100 flex items-center justify-center">
+                      <TrendingUp className="h-4 w-4 text-orange-700" />
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">$798</div>
-                    <p className="text-xs text-green-600">+5.3% vs mes anterior</p>
+                    {loadingStats ? (
+                      <div className="text-2xl font-bold animate-pulse">...</div>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold">
+                          ${Math.round(dashboardStats.averageTicket || 0).toLocaleString("es-MX")}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {dashboardStats.totalOrders > 0
+                            ? "Promedio por pedido"
+                            : "Sin pedidos aún"}
+                        </p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Acciones rápidas */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Acciones rápidas</CardTitle>
+                  <CardDescription>Atajos a las funciones más usadas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Button
+                      variant="outline"
+                      className="h-auto py-3 flex-col gap-1"
+                      onClick={() => setActiveSection("products")}
+                    >
+                      <Package className="h-5 w-5" />
+                      <span className="text-xs">Catálogo</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-3 flex-col gap-1"
+                      onClick={() => setActiveSection("orders")}
+                    >
+                      <ShoppingCart className="h-5 w-5" />
+                      <span className="text-xs">Pedidos</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-3 flex-col gap-1"
+                      onClick={() => setActiveSection("quotations")}
+                    >
+                      <Calculator className="h-5 w-5" />
+                      <span className="text-xs">Cotizaciones</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-auto py-3 flex-col gap-1"
+                      onClick={() => setActiveSection("inventory")}
+                    >
+                      <Truck className="h-5 w-5" />
+                      <span className="text-xs">Sincronizar</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Charts and Recent Activity */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2891,8 +3307,12 @@ export default function AdminPage() {
                               </p>
                             </div>
 
-                            <Button onClick={handleAddProduct} className="w-full bg-primary hover:bg-primary/90">
-                              Crear Producto
+                            <Button
+                              onClick={handleAddProduct}
+                              disabled={savingNewProduct || !newProduct.name || !newProduct.price || !newProduct.stock}
+                              className="w-full bg-primary hover:bg-primary/90"
+                            >
+                              {savingNewProduct ? "Guardando..." : "Crear Producto"}
                             </Button>
                           </div>
                         </DialogContent>
@@ -3355,8 +3775,9 @@ export default function AdminPage() {
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => handleDeleteProduct(product.id)}
+                                      disabled={deletingProductId === product.id}
                                       className="text-primary hover:text-primary/80"
-                                      title="Eliminar"
+                                      title="Desactivar producto"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
@@ -4049,13 +4470,20 @@ export default function AdminPage() {
                     <div className="flex-1">
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input placeholder="Buscar clientes por nombre, email o teléfono..." className="pl-10" />
+                        <Input
+                          placeholder="Buscar clientes por nombre, email o teléfono..."
+                          className="pl-10"
+                          value={customerSearch}
+                          onChange={(e) => setCustomerSearch(e.target.value)}
+                        />
                       </div>
                     </div>
-                    <Button variant="outline">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Filtros
-                    </Button>
+                    {customerSearch && (
+                      <Button variant="outline" onClick={() => setCustomerSearch("")}>
+                        <X className="h-4 w-4 mr-2" />
+                        Limpiar
+                      </Button>
+                    )}
                   </div>
 
                   {/* Customers Table */}
@@ -4092,7 +4520,17 @@ export default function AdminPage() {
                             </TableCell>
                           </TableRow>
                         ) : (
-                          customers.map((customer) => {
+                          customers
+                            .filter((c) => {
+                              if (!customerSearch.trim()) return true
+                              const q = customerSearch.toLowerCase()
+                              return (
+                                (c.name || "").toLowerCase().includes(q) ||
+                                (c.email || "").toLowerCase().includes(q) ||
+                                (c.phone || "").toLowerCase().includes(q)
+                              )
+                            })
+                            .map((customer) => {
                             return (
                               <TableRow key={customer.id}>
                                 <TableCell>
@@ -4131,10 +4569,20 @@ export default function AdminPage() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <div className="flex justify-end gap-2">
-                                    <Button variant="ghost" size="sm" title="Ver perfil">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Ver perfil"
+                                      onClick={() => openViewCustomer(customer)}
+                                    >
                                       <Eye className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="sm" title="Editar">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Editar"
+                                      onClick={() => openEditCustomer(customer)}
+                                    >
                                       <Edit className="h-4 w-4" />
                                     </Button>
                                   </div>
@@ -4390,7 +4838,10 @@ export default function AdminPage() {
                       <CardTitle>Cupones y Descuentos</CardTitle>
                       <CardDescription>Gestiona códigos promocionales y ofertas especiales</CardDescription>
                     </div>
-                    <Button className="bg-primary hover:bg-primary/90">
+                    <Button
+                      className="bg-primary hover:bg-primary/90"
+                      onClick={openNewCoupon}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
                       Crear Cupón
                     </Button>
@@ -4431,10 +4882,21 @@ export default function AdminPage() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                <Button variant="ghost" size="sm">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditCoupon(coupon)}
+                                  title="Editar cupón"
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" className="text-primary">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-primary"
+                                  onClick={() => deleteCoupon(coupon)}
+                                  title="Eliminar cupón"
+                                >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -4443,6 +4905,23 @@ export default function AdminPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    {coupons.length === 0 && !loadingCoupons && (
+                      <div className="py-10 text-center">
+                        <Tag className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          No hay cupones creados todavía
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          onClick={openNewCoupon}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Crear primer cupón
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -7176,11 +7655,330 @@ EMAIL_FROM=ventas@3abranding.com`}
                 )}
               </DialogContent>
             </Dialog>
+
+            {/* Diálogo: Ver perfil de cliente */}
+            <Dialog open={!!viewCustomer} onOpenChange={(open) => !open && setViewCustomer(null)}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Perfil del cliente</DialogTitle>
+                  <DialogDescription>
+                    Información completa y pedidos recientes
+                  </DialogDescription>
+                </DialogHeader>
+                {viewCustomer && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-lg font-semibold text-primary">
+                          {(viewCustomer.full_name || viewCustomer.name || "C")
+                            .split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .substring(0, 2)
+                            .toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-lg truncate">
+                          {viewCustomer.full_name || viewCustomer.name || "Sin nombre"}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {viewCustomer.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Teléfono</p>
+                        <p className="font-medium">{viewCustomer.phone || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Empresa</p>
+                        <p className="font-medium">{viewCustomer.company_name || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">RFC</p>
+                        <p className="font-medium">{viewCustomer.tax_id || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Rol</p>
+                        <p className="font-medium capitalize">{viewCustomer.role || "customer"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total pedidos</p>
+                        <p className="font-medium">{viewCustomer.totalOrders ?? 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total gastado</p>
+                        <p className="font-medium">
+                          ${Number(viewCustomer.totalSpent ?? 0).toLocaleString("es-MX")}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Cliente desde</p>
+                        <p className="font-medium">
+                          {viewCustomer.created_at
+                            ? new Date(viewCustomer.created_at).toLocaleDateString("es-MX")
+                            : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">ID</p>
+                        <p className="font-mono text-xs truncate">{viewCustomer.id}</p>
+                      </div>
+                    </div>
+
+                    {Array.isArray(viewCustomer.recentOrders) && viewCustomer.recentOrders.length > 0 && (
+                      <>
+                        <Separator />
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-sm">Pedidos recientes</h4>
+                          <div className="space-y-1.5">
+                            {viewCustomer.recentOrders.map((o: any) => (
+                              <div
+                                key={o.id}
+                                className="flex items-center justify-between text-sm border rounded-md px-3 py-2"
+                              >
+                                <div>
+                                  <p className="font-medium">#{o.order_number || o.id.slice(0, 8)}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {o.created_at ? new Date(o.created_at).toLocaleDateString("es-MX") : "—"}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold">
+                                    ${Number(o.total ?? 0).toLocaleString("es-MX")}
+                                  </p>
+                                  <Badge variant="outline" className="text-xs capitalize">
+                                    {o.status || "—"}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="outline" onClick={() => setViewCustomer(null)}>
+                        Cerrar
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          openEditCustomer(viewCustomer)
+                          setViewCustomer(null)
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar cliente
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* Diálogo: Editar cliente */}
+            <Dialog open={!!editCustomer} onOpenChange={(open) => !open && setEditCustomer(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Editar cliente</DialogTitle>
+                  <DialogDescription>
+                    Los cambios se guardan en la base de datos (tabla profiles)
+                  </DialogDescription>
+                </DialogHeader>
+                {editCustomer && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Nombre completo</Label>
+                      <Input
+                        value={editCustomerForm.full_name}
+                        onChange={(e) =>
+                          setEditCustomerForm((p) => ({ ...p, full_name: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input value={editCustomerForm.email} disabled />
+                      <p className="text-xs text-muted-foreground">
+                        El email es identificador y no se puede cambiar desde aquí.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Teléfono</Label>
+                        <Input
+                          value={editCustomerForm.phone}
+                          onChange={(e) =>
+                            setEditCustomerForm((p) => ({ ...p, phone: e.target.value }))
+                          }
+                          placeholder="+52 ..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Empresa</Label>
+                        <Input
+                          value={editCustomerForm.company_name}
+                          onChange={(e) =>
+                            setEditCustomerForm((p) => ({ ...p, company_name: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>RFC</Label>
+                      <Input
+                        value={editCustomerForm.tax_id}
+                        onChange={(e) =>
+                          setEditCustomerForm((p) => ({ ...p, tax_id: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="outline" onClick={() => setEditCustomer(null)}>
+                        Cancelar
+                      </Button>
+                      <Button onClick={saveCustomer} disabled={savingCustomer}>
+                        {savingCustomer ? "Guardando..." : (
+                          <>
+                            <Save className="h-4 w-4 mr-2" />
+                            Guardar cambios
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* Diálogo: Crear/Editar cupón */}
+            <Dialog
+              open={couponDialogOpen}
+              onOpenChange={(open) => {
+                setCouponDialogOpen(open)
+                if (!open) setEditingCoupon(null)
+              }}
+            >
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingCoupon ? "Editar cupón" : "Crear cupón"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingCoupon
+                      ? "Modifica el cupón existente"
+                      : "Define un nuevo cupón promocional"}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Código</Label>
+                    <Input
+                      value={couponForm.code}
+                      onChange={(e) =>
+                        setCouponForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))
+                      }
+                      placeholder="DESCUENTO10"
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Tipo</Label>
+                      <Select
+                        value={couponForm.type}
+                        onValueChange={(v) =>
+                          setCouponForm((p) => ({ ...p, type: v as "percentage" | "fixed" }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percentage">Porcentaje (%)</SelectItem>
+                          <SelectItem value="fixed">Monto fijo ($)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descuento</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={couponForm.discount}
+                        onChange={(e) =>
+                          setCouponForm((p) => ({ ...p, discount: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Usos máx.</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={couponForm.maxUses}
+                        onChange={(e) =>
+                          setCouponForm((p) => ({ ...p, maxUses: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Vencimiento</Label>
+                      <Input
+                        type="date"
+                        value={couponForm.expiresAt}
+                        onChange={(e) =>
+                          setCouponForm((p) => ({ ...p, expiresAt: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={couponForm.isActive}
+                      onCheckedChange={(v) =>
+                        setCouponForm((p) => ({ ...p, isActive: v }))
+                      }
+                    />
+                    <Label>Activo</Label>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCouponDialogOpen(false)
+                        setEditingCoupon(null)
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button onClick={saveCoupon} disabled={savingCoupon}>
+                      {savingCoupon ? "Guardando..." : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          {editingCoupon ? "Guardar cambios" : "Crear cupón"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </Tabs>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </TooltipProvider>
     </AdminGuard>
   )
 }
