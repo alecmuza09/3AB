@@ -193,18 +193,60 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * PATCH /api/quotations
+ *
+ * Actualiza una cotización. Acepta:
+ * - quotationId: id de la cotización (requerido)
+ * - status: nuevo estado
+ * - contactInfo: objeto con datos de contacto (companyName, contactName, email, phone, taxId, ...)
+ * - notes: notas para el cliente
+ * - adminNotes: notas internas (string libre)
+ * - validUntil: fecha (YYYY-MM-DD)
+ * - subtotal, taxes, shippingCost, discount, total: montos
+ * - userId: vinculación con perfil del cliente (UUID o null)
+ * - items: array completo de líneas (reemplaza las existentes)
+ *   [{ productId?, productName, productSku?, quantity, unitPrice, subtotal, customization?, imageUrl? }]
+ */
 export async function PATCH(request: NextRequest) {
   try {
     const supabase = getSupabase()
     const body = await request.json()
-    const { quotationId, status, adminNotes } = body
+    const {
+      quotationId,
+      status,
+      contactInfo,
+      notes,
+      adminNotes,
+      validUntil,
+      subtotal,
+      taxes,
+      shippingCost,
+      discount,
+      total,
+      userId,
+      items,
+    } = body
 
-    if (!quotationId || !status) {
-      return NextResponse.json({ error: 'quotationId y status son requeridos' }, { status: 400 })
+    if (!quotationId) {
+      return NextResponse.json({ error: 'quotationId es requerido' }, { status: 400 })
     }
 
-    const updateData: Record<string, any> = { status, updated_at: new Date().toISOString() }
+    const updateData: Record<string, any> = { updated_at: new Date().toISOString() }
+    if (status !== undefined) updateData.status = status
+    if (contactInfo !== undefined) updateData.contact_info = contactInfo
+    if (notes !== undefined) updateData.notes = notes
     if (adminNotes !== undefined) updateData.admin_notes = adminNotes
+    if (validUntil !== undefined)
+      updateData.valid_until = validUntil
+        ? new Date(validUntil).toISOString().split('T')[0]
+        : null
+    if (subtotal !== undefined) updateData.subtotal = Number(subtotal) || 0
+    if (taxes !== undefined) updateData.taxes = Number(taxes) || 0
+    if (shippingCost !== undefined) updateData.shipping_cost = Number(shippingCost) || 0
+    if (discount !== undefined) updateData.discount = Number(discount) || 0
+    if (total !== undefined) updateData.total = Number(total) || 0
+    if (userId !== undefined) updateData.user_id = userId || null
 
     const { data, error } = await supabase
       .from('quotations')
@@ -214,12 +256,88 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: 'Error al actualizar la cotización', details: error.message }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Error al actualizar la cotización', details: error.message },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json({ success: true, quotation: data })
+    // Reemplazar items si vienen
+    if (Array.isArray(items)) {
+      // 1) Borrar items previos
+      const { error: delErr } = await supabase
+        .from('quotation_items')
+        .delete()
+        .eq('quotation_id', quotationId)
+      if (delErr) {
+        console.warn('[quotations PATCH] error eliminando items previos:', delErr.message)
+      }
+      if (items.length > 0) {
+        const itemRecords = items.map((item: any) => ({
+          quotation_id: quotationId,
+          product_id: item.productId || null,
+          product_name: item.productName || item.name || 'Producto personalizado',
+          product_sku: item.productSku || item.sku || null,
+          variation_id: item.variationId || null,
+          variation_label: item.variationLabel || null,
+          quantity: Number(item.quantity) || 1,
+          unit_price: Number(item.unitPrice) || 0,
+          subtotal:
+            Number(item.subtotal) ||
+            (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1),
+          customization_data: item.customization
+            ? { description: item.customization }
+            : item.customizationData || null,
+          image_url: item.imageUrl || null,
+        }))
+        const { error: insErr } = await supabase.from('quotation_items').insert(itemRecords)
+        if (insErr) {
+          console.warn('[quotations PATCH] error insertando items:', insErr.message)
+        }
+      }
+    }
+
+    // Devolver la cotización con sus items recién actualizados
+    const { data: full } = await supabase
+      .from('quotations')
+      .select('*, quotation_items(*)')
+      .eq('id', quotationId)
+      .single()
+
+    return NextResponse.json({ success: true, quotation: full || data })
   } catch (error) {
     console.error('Error in PATCH /api/quotations:', error)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/quotations?id=...
+ * Elimina la cotización y sus items relacionados.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = getSupabase()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) {
+      return NextResponse.json({ error: 'id es requerido' }, { status: 400 })
+    }
+
+    // Borrar items primero (por si no hay ON DELETE CASCADE)
+    await supabase.from('quotation_items').delete().eq('quotation_id', id)
+    const { error } = await supabase.from('quotations').delete().eq('id', id)
+
+    if (error) {
+      return NextResponse.json(
+        { error: 'Error al eliminar la cotización', details: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, id })
+  } catch (error) {
+    console.error('Error in DELETE /api/quotations:', error)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }

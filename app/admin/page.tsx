@@ -155,15 +155,88 @@ export default function AdminPage() {
   const [adminQuotations, setAdminQuotations] = useState<any[]>([])
   const [loadingAdminQuotations, setLoadingAdminQuotations] = useState(false)
   const [quotationFilter, setQuotationFilter] = useState("all")
-  const [newQuoteOpen, setNewQuoteOpen] = useState(false)
-  const [newQuoteForm, setNewQuoteForm] = useState({
-    contactName: "", companyName: "", email: "", phone: "",
-    notes: "", validDays: "30",
-  })
-  const [newQuoteItems, setNewQuoteItems] = useState<Array<{
-    id: string; productName: string; quantity: number; unitPrice: number; customization: string
-  }>>([])
+  const [quotationSearch, setQuotationSearch] = useState("")
+
+  // ============================
+  // EDITOR de cotizaciones (admin) — versión completa
+  // ============================
+  type QuoteLine = {
+    id: string
+    productId: string | null
+    productName: string
+    productSku: string | null
+    quantity: number
+    unitPrice: number
+    customization: string
+    imageUrl: string | null
+  }
+
+  type QuoteForm = {
+    // Cliente
+    userId: string | null
+    contactName: string
+    companyName: string
+    email: string
+    phone: string
+    taxId: string
+    deliveryAddress: string
+    eventType: string
+    deliveryDate: string
+    paymentTerms: string
+    // Términos
+    validDays: string
+    discountPercent: string
+    discountAmount: string
+    taxRate: string
+    shippingCost: string
+    // Notas
+    notes: string
+    adminNotes: string
+    // Estado inicial
+    status: "draft" | "sent" | "accepted" | "rejected" | "expired" | "converted"
+  }
+
+  const emptyQuoteForm: QuoteForm = {
+    userId: null,
+    contactName: "",
+    companyName: "",
+    email: "",
+    phone: "",
+    taxId: "",
+    deliveryAddress: "",
+    eventType: "",
+    deliveryDate: "",
+    paymentTerms: "",
+    validDays: "30",
+    discountPercent: "0",
+    discountAmount: "0",
+    taxRate: "0",
+    shippingCost: "0",
+    notes: "",
+    adminNotes: "",
+    status: "draft",
+  }
+
+  const [quoteEditorOpen, setQuoteEditorOpen] = useState(false)
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null)
+  const [quoteEditorTab, setQuoteEditorTab] = useState<"client" | "products" | "terms">("client")
+  const [newQuoteForm, setNewQuoteForm] = useState<QuoteForm>(emptyQuoteForm)
+  const [newQuoteItems, setNewQuoteItems] = useState<QuoteLine[]>([])
   const [savingNewQuote, setSavingNewQuote] = useState(false)
+
+  // Búsqueda de productos del catálogo dentro del editor
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState("")
+  const [catalogResults, setCatalogResults] = useState<any[]>([])
+  const [searchingCatalog, setSearchingCatalog] = useState(false)
+
+  // Búsqueda de clientes dentro del editor
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [clientResults, setClientResults] = useState<any[]>([])
+  const [searchingClients, setSearchingClients] = useState(false)
+
+  // Vista de detalle (read-only)
+  const [detailQuotation, setDetailQuotation] = useState<any | null>(null)
+  const [deletingQuotationId, setDeletingQuotationId] = useState<string | null>(null)
   const [dashboardStats, setDashboardStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -2136,37 +2209,314 @@ export default function AdminPage() {
     }
   }
 
+  // ============================
+  // Cálculos del editor de cotizaciones
+  // ============================
+  const computeQuoteTotals = (
+    items: QuoteLine[],
+    form: QuoteForm
+  ) => {
+    const subtotal = items.reduce(
+      (s, i) => s + (Number(i.unitPrice) || 0) * (Number(i.quantity) || 0),
+      0
+    )
+    const discountPct = Math.max(0, Number(form.discountPercent) || 0)
+    const discountFixed = Math.max(0, Number(form.discountAmount) || 0)
+    const discount = subtotal * (discountPct / 100) + discountFixed
+    const taxableBase = Math.max(0, subtotal - discount)
+    const taxRate = Math.max(0, Number(form.taxRate) || 0)
+    const taxes = taxableBase * (taxRate / 100)
+    const shipping = Math.max(0, Number(form.shippingCost) || 0)
+    const total = taxableBase + taxes + shipping
+    return { subtotal, discount, taxes, shipping, total }
+  }
+
+  const openNewQuoteEditor = () => {
+    setEditingQuotationId(null)
+    setNewQuoteForm(emptyQuoteForm)
+    setNewQuoteItems([])
+    setQuoteEditorTab("client")
+    setCatalogSearchTerm("")
+    setCatalogResults([])
+    setClientSearchTerm("")
+    setClientResults([])
+    setQuoteEditorOpen(true)
+  }
+
+  const openEditQuoteEditor = (q: any) => {
+    setEditingQuotationId(q.id)
+    const ci = q.contact_info || {}
+    const items = Array.isArray(q.quotation_items) ? q.quotation_items : []
+    // Calcular descuento como % aproximado (si no hay)
+    const subtotal = Number(q.subtotal) || 0
+    const discountAmount = Number(q.discount) || 0
+    const discountPercent = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0
+    const taxRate =
+      Number(q.taxes) > 0 && subtotal > 0
+        ? (Number(q.taxes) / Math.max(1, subtotal - discountAmount)) * 100
+        : 0
+    setNewQuoteForm({
+      userId: q.user_id || null,
+      contactName: ci.contactName || "",
+      companyName: ci.companyName || "",
+      email: ci.email || "",
+      phone: ci.phone || "",
+      taxId: ci.taxId || "",
+      deliveryAddress: ci.deliveryAddress || "",
+      eventType: ci.eventType || "",
+      deliveryDate: ci.deliveryDate || "",
+      paymentTerms: ci.paymentTerms || "",
+      validDays: q.valid_until
+        ? String(
+            Math.max(
+              0,
+              Math.round(
+                (new Date(q.valid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+              )
+            )
+          )
+        : "30",
+      discountPercent: String(Math.round(discountPercent * 100) / 100),
+      discountAmount: "0",
+      taxRate: String(Math.round(taxRate * 100) / 100),
+      shippingCost: String(q.shipping_cost || 0),
+      notes: q.notes || "",
+      adminNotes: q.admin_notes || "",
+      status: q.status || "draft",
+    })
+    setNewQuoteItems(
+      items.map((it: any, idx: number) => ({
+        id: it.id || `${idx}-${Date.now()}`,
+        productId: it.product_id || null,
+        productName: it.product_name || "",
+        productSku: it.product_sku || null,
+        quantity: Number(it.quantity) || 1,
+        unitPrice: Number(it.unit_price) || 0,
+        customization:
+          it.customization_data?.description ||
+          (typeof it.customization_data === "string" ? it.customization_data : "") ||
+          "",
+        imageUrl: it.image_url || null,
+      }))
+    )
+    setQuoteEditorTab("client")
+    setQuoteEditorOpen(true)
+  }
+
+  const duplicateQuotation = (q: any) => {
+    openEditQuoteEditor(q)
+    // Resetear el id para que se cree como nueva
+    setEditingQuotationId(null)
+    setNewQuoteForm((prev) => ({ ...prev, status: "draft", validDays: "30" }))
+  }
+
   const saveAdminQuote = async () => {
-    if (!newQuoteForm.contactName || !newQuoteForm.email || newQuoteItems.length === 0) return
+    if (!newQuoteForm.contactName || !newQuoteForm.email) {
+      alert("El nombre del contacto y el email son obligatorios.")
+      setQuoteEditorTab("client")
+      return
+    }
+    if (newQuoteItems.length === 0) {
+      alert("Agrega al menos un producto a la cotización.")
+      setQuoteEditorTab("products")
+      return
+    }
     setSavingNewQuote(true)
     try {
-      const subtotal = newQuoteItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-      const res = await fetch('/api/quotations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          formData: {
-            companyName: newQuoteForm.companyName,
-            contactName: newQuoteForm.contactName,
-            email: newQuoteForm.email,
-            phone: newQuoteForm.phone,
-            specialRequirements: newQuoteForm.notes,
-          },
-          quoteItems: newQuoteItems.map(i => ({
-            ...i, product: i.productName, category: 'Manual', total: i.unitPrice * i.quantity,
-          })),
-          subtotal, discountAmount: 0, volumeDiscount: 0, total: subtotal,
-        }),
-      })
-      if (res.ok) {
-        setNewQuoteOpen(false)
-        setNewQuoteForm({ contactName: '', companyName: '', email: '', phone: '', notes: '', validDays: '30' })
-        setNewQuoteItems([])
-        loadAdminQuotations()
+      const totals = computeQuoteTotals(newQuoteItems, newQuoteForm)
+      const validUntil = (() => {
+        const days = Math.max(0, Math.floor(Number(newQuoteForm.validDays) || 30))
+        const d = new Date()
+        d.setDate(d.getDate() + days)
+        return d.toISOString().split("T")[0]
+      })()
+
+      const contactInfo = {
+        contactName: newQuoteForm.contactName.trim(),
+        companyName: newQuoteForm.companyName.trim() || null,
+        email: newQuoteForm.email.trim(),
+        phone: newQuoteForm.phone.trim() || null,
+        taxId: newQuoteForm.taxId.trim() || null,
+        deliveryAddress: newQuoteForm.deliveryAddress.trim() || null,
+        eventType: newQuoteForm.eventType.trim() || null,
+        deliveryDate: newQuoteForm.deliveryDate || null,
+        paymentTerms: newQuoteForm.paymentTerms.trim() || null,
       }
+
+      const itemsPayload = newQuoteItems.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        productSku: i.productSku,
+        quantity: Number(i.quantity) || 1,
+        unitPrice: Number(i.unitPrice) || 0,
+        subtotal: (Number(i.unitPrice) || 0) * (Number(i.quantity) || 1),
+        customization: i.customization || null,
+        imageUrl: i.imageUrl,
+      }))
+
+      let res: Response
+      if (editingQuotationId) {
+        // UPDATE
+        res = await fetch("/api/quotations", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            quotationId: editingQuotationId,
+            status: newQuoteForm.status,
+            contactInfo,
+            notes: newQuoteForm.notes || null,
+            adminNotes: newQuoteForm.adminNotes || null,
+            validUntil,
+            subtotal: totals.subtotal,
+            taxes: totals.taxes,
+            shippingCost: totals.shipping,
+            discount: totals.discount,
+            total: totals.total,
+            userId: newQuoteForm.userId,
+            items: itemsPayload,
+          }),
+        })
+      } else {
+        // CREATE
+        res = await fetch("/api/quotations/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: newQuoteForm.userId,
+            contactInfo,
+            items: itemsPayload,
+            subtotal: totals.subtotal,
+            taxes: totals.taxes,
+            shippingCost: totals.shipping,
+            discount: totals.discount,
+            total: totals.total,
+            currency: "MXN",
+            validUntil,
+            notes: newQuoteForm.notes || null,
+            adminNotes: newQuoteForm.adminNotes || null,
+            status: newQuoteForm.status,
+          }),
+        })
+      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "No se pudo guardar la cotización")
+      }
+      setQuoteEditorOpen(false)
+      setEditingQuotationId(null)
+      setNewQuoteForm(emptyQuoteForm)
+      setNewQuoteItems([])
+      await loadAdminQuotations()
+      alert(
+        `✅ Cotización ${editingQuotationId ? "actualizada" : "creada"} correctamente.\n` +
+          `Número: ${data.quotation?.quotation_number || "—"}`
+      )
+    } catch (err) {
+      alert(`❌ Error al guardar cotización: ${err instanceof Error ? err.message : err}`)
     } finally {
       setSavingNewQuote(false)
     }
+  }
+
+  const deleteQuotation = async (q: any) => {
+    if (!confirm(`¿Eliminar la cotización ${q.quotation_number}?\n\nEsta acción no se puede deshacer.`)) {
+      return
+    }
+    try {
+      setDeletingQuotationId(q.id)
+      const res = await fetch(`/api/quotations?id=${encodeURIComponent(q.id)}`, {
+        method: "DELETE",
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || "No se pudo eliminar")
+      }
+      setAdminQuotations((prev) => prev.filter((x) => x.id !== q.id))
+    } catch (err) {
+      alert(`❌ Error al eliminar cotización: ${err instanceof Error ? err.message : err}`)
+    } finally {
+      setDeletingQuotationId(null)
+    }
+  }
+
+  // Búsqueda de productos del catálogo (debounced en componente al usar)
+  const searchCatalogForQuote = async (term: string) => {
+    setCatalogSearchTerm(term)
+    if (!term.trim()) {
+      setCatalogResults([])
+      return
+    }
+    try {
+      setSearchingCatalog(true)
+      const res = await fetch(
+        `/api/products?search=${encodeURIComponent(term.trim())}&limit=15&activeOnly=false`
+      )
+      const data = await res.json().catch(() => ({ products: [] }))
+      setCatalogResults(data.products || [])
+    } catch (err) {
+      console.error("searchCatalogForQuote error:", err)
+      setCatalogResults([])
+    } finally {
+      setSearchingCatalog(false)
+    }
+  }
+
+  const addProductToQuote = (product: any) => {
+    setNewQuoteItems((prev) => [
+      ...prev,
+      {
+        id: `${product.id}-${Date.now()}`,
+        productId: product.id,
+        productName: product.name || "Producto",
+        productSku: product.sku || null,
+        quantity: Math.max(1, Number(product.min_quantity) || 1),
+        unitPrice: Number(product.price) || 0,
+        customization: "",
+        imageUrl:
+          product.product_images?.[0]?.url ||
+          product.image_url ||
+          null,
+      },
+    ])
+    setCatalogSearchTerm("")
+    setCatalogResults([])
+  }
+
+  // Búsqueda de clientes (en customers ya cargados)
+  const searchClientsForQuote = (term: string) => {
+    setClientSearchTerm(term)
+    if (!term.trim()) {
+      setClientResults([])
+      return
+    }
+    setSearchingClients(true)
+    try {
+      const q = term.toLowerCase().trim()
+      const matched = (customers || [])
+        .filter((c: any) =>
+          [c.name, c.email, c.phone, c.company_name]
+            .filter(Boolean)
+            .some((v: string) => v.toLowerCase().includes(q))
+        )
+        .slice(0, 10)
+      setClientResults(matched)
+    } finally {
+      setSearchingClients(false)
+    }
+  }
+
+  const selectClientForQuote = (client: any) => {
+    setNewQuoteForm((prev) => ({
+      ...prev,
+      userId: client.id,
+      contactName: client.full_name || client.name || prev.contactName,
+      email: client.email || prev.email,
+      phone: client.phone || prev.phone,
+      companyName: client.company_name || prev.companyName,
+      taxId: client.tax_id || prev.taxId,
+    }))
+    setClientSearchTerm("")
+    setClientResults([])
   }
 
   const updateQuotationStatus = async (quotationId: string, newStatus: string) => {
@@ -4929,217 +5279,338 @@ export default function AdminPage() {
 
             {/* Quotations */}
             <TabsContent value="quotations" className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-bold">Cotizaciones</h2>
-                  <p className="text-muted-foreground">Gestiona y genera cotizaciones para clientes</p>
+                  <h2 className="text-2xl font-bold">Cotizaciones y propuestas</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Genera cotizaciones profesionales con productos del catálogo
+                  </p>
                 </div>
-                <div className="flex gap-2">
+                <Button onClick={openNewQuoteEditor}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva cotización
+                </Button>
+              </div>
+
+              {/* KPIs */}
+              {(() => {
+                const stats = adminQuotations.reduce(
+                  (acc, q) => {
+                    acc.total += 1
+                    acc.totalAmount += Number(q.total || 0)
+                    if (q.status === "accepted" || q.status === "converted") {
+                      acc.accepted += 1
+                      acc.acceptedAmount += Number(q.total || 0)
+                    }
+                    if (q.status === "draft" || q.status === "sent") acc.pending += 1
+                    return acc
+                  },
+                  { total: 0, accepted: 0, pending: 0, totalAmount: 0, acceptedAmount: 0 }
+                )
+                const conversion = stats.total > 0 ? (stats.accepted / stats.total) * 100 : 0
+                return (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Total cotizaciones</p>
+                        <p className="text-2xl font-bold">{stats.total}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Pendientes</p>
+                        <p className="text-2xl font-bold text-blue-700">{stats.pending}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Conversión</p>
+                        <p className="text-2xl font-bold text-green-700">
+                          {conversion.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {stats.accepted} aceptadas
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <p className="text-xs text-muted-foreground">Monto cotizado</p>
+                        <p className="text-2xl font-bold">
+                          ${Math.round(stats.totalAmount).toLocaleString("es-MX")}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ${Math.round(stats.acceptedAmount).toLocaleString("es-MX")} aceptado
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              })()}
+
+              {/* Búsqueda + filtros */}
+              <Card>
+                <CardContent className="pt-6 flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por número, cliente, email..."
+                      className="pl-10"
+                      value={quotationSearch}
+                      onChange={(e) => setQuotationSearch(e.target.value)}
+                    />
+                  </div>
                   <Select value={quotationFilter} onValueChange={setQuotationFilter}>
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger className="w-full sm:w-44">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="all">Todos los estados</SelectItem>
                       <SelectItem value="draft">Borrador</SelectItem>
-                      <SelectItem value="sent">Enviadas</SelectItem>
-                      <SelectItem value="accepted">Aceptadas</SelectItem>
-                      <SelectItem value="rejected">Rechazadas</SelectItem>
-                      <SelectItem value="expired">Expiradas</SelectItem>
+                      <SelectItem value="sent">Enviada</SelectItem>
+                      <SelectItem value="accepted">Aceptada</SelectItem>
+                      <SelectItem value="rejected">Rechazada</SelectItem>
+                      <SelectItem value="expired">Expirada</SelectItem>
+                      <SelectItem value="converted">Convertida</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Dialog open={newQuoteOpen} onOpenChange={setNewQuoteOpen}>
-                    <DialogTrigger asChild>
-                      <Button>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Nueva Cotización
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Nueva Cotización Manual</DialogTitle>
-                        <DialogDescription>Genera una cotización para un cliente</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Nombre del contacto *</Label>
-                            <Input value={newQuoteForm.contactName} onChange={e => setNewQuoteForm(p => ({ ...p, contactName: e.target.value }))} placeholder="Juan Pérez" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Empresa</Label>
-                            <Input value={newQuoteForm.companyName} onChange={e => setNewQuoteForm(p => ({ ...p, companyName: e.target.value }))} placeholder="Corporativo XYZ" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Email *</Label>
-                            <Input type="email" value={newQuoteForm.email} onChange={e => setNewQuoteForm(p => ({ ...p, email: e.target.value }))} placeholder="cliente@empresa.com" />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Teléfono</Label>
-                            <Input value={newQuoteForm.phone} onChange={e => setNewQuoteForm(p => ({ ...p, phone: e.target.value }))} placeholder="+52 55 1234 5678" />
-                          </div>
-                        </div>
+                </CardContent>
+              </Card>
 
-                        <Separator />
-
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-base font-semibold">Líneas de producto</Label>
-                            <Button size="sm" variant="outline" onClick={() => setNewQuoteItems(prev => [...prev, { id: Date.now().toString(), productName: '', quantity: 100, unitPrice: 0, customization: '' }])}>
-                              <Plus className="h-3 w-3 mr-1" /> Agregar línea
-                            </Button>
-                          </div>
-                          {newQuoteItems.length === 0 && (
-                            <p className="text-sm text-muted-foreground text-center py-4">Agrega al menos un producto</p>
-                          )}
-                          {newQuoteItems.map((item, idx) => (
-                            <div key={item.id} className="grid grid-cols-12 gap-2 items-end border border-border rounded-lg p-3">
-                              <div className="col-span-4 space-y-1">
-                                <Label className="text-xs">Producto</Label>
-                                <Input value={item.productName} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, productName: e.target.value } : i))} placeholder="Nombre del producto" />
-                              </div>
-                              <div className="col-span-2 space-y-1">
-                                <Label className="text-xs">Cantidad</Label>
-                                <Input type="number" min="1" value={item.quantity} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: parseInt(e.target.value) || 1 } : i))} />
-                              </div>
-                              <div className="col-span-3 space-y-1">
-                                <Label className="text-xs">Precio unit. ($)</Label>
-                                <Input type="number" step="0.01" value={item.unitPrice} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, unitPrice: parseFloat(e.target.value) || 0 } : i))} />
-                              </div>
-                              <div className="col-span-2 space-y-1">
-                                <Label className="text-xs">Total</Label>
-                                <p className="text-sm font-semibold text-primary pt-2">${(item.quantity * item.unitPrice).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                              </div>
-                              <div className="col-span-1 flex justify-end">
-                                <Button size="sm" variant="ghost" className="text-destructive h-8 w-8 p-0" onClick={() => setNewQuoteItems(prev => prev.filter(i => i.id !== item.id))}>
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="col-span-12 space-y-1">
-                                <Input value={item.customization} onChange={e => setNewQuoteItems(prev => prev.map(i => i.id === item.id ? { ...i, customization: e.target.value } : i))} placeholder="Especificaciones de personalización (opcional)" />
-                              </div>
-                            </div>
-                          ))}
-                          {newQuoteItems.length > 0 && (
-                            <div className="flex justify-end">
-                              <p className="text-lg font-bold text-primary">
-                                Total: ${newQuoteItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Notas adicionales</Label>
-                          <Textarea value={newQuoteForm.notes} onChange={e => setNewQuoteForm(p => ({ ...p, notes: e.target.value }))} placeholder="Condiciones especiales, términos de entrega, etc." rows={3} />
-                        </div>
-
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setNewQuoteOpen(false)}>Cancelar</Button>
-                          <Button onClick={saveAdminQuote} disabled={savingNewQuote || !newQuoteForm.contactName || !newQuoteForm.email || newQuoteItems.length === 0}>
-                            {savingNewQuote ? "Guardando..." : "Guardar Cotización"}
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
-
+              {/* Lista */}
               {loadingAdminQuotations ? (
                 <Card>
                   <CardContent className="py-10 text-center">
-                    <p className="text-muted-foreground">Cargando cotizaciones...</p>
+                    <Calculator className="h-8 w-8 text-muted-foreground mx-auto mb-2 animate-pulse" />
+                    <p className="text-sm text-muted-foreground">Cargando cotizaciones...</p>
                   </CardContent>
                 </Card>
-              ) : adminQuotations.filter(q => quotationFilter === 'all' || q.status === quotationFilter).length === 0 ? (
-                <Card>
-                  <CardContent className="py-10 text-center space-y-3">
-                    <Calculator className="h-12 w-12 text-muted-foreground mx-auto" />
-                    <p className="font-medium">No hay cotizaciones {quotationFilter !== 'all' ? `con estado "${quotationFilter}"` : ''}</p>
-                    <p className="text-sm text-muted-foreground">Crea la primera cotización manual con el botón de arriba, o espera a que los clientes envíen solicitudes desde el portal.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {adminQuotations
-                    .filter(q => quotationFilter === 'all' || q.status === quotationFilter)
-                    .map((q) => {
-                      const items = (() => { try { return JSON.parse(q.admin_notes || '[]') } catch { return [] } })()
-                      const statusColors: Record<string, string> = { draft: 'bg-gray-100 text-gray-800', sent: 'bg-blue-100 text-blue-800', accepted: 'bg-green-100 text-green-800', rejected: 'bg-red-100 text-red-800', expired: 'bg-amber-100 text-amber-800', converted: 'bg-purple-100 text-purple-800' }
-                      const statusLabels: Record<string, string> = { draft: 'Borrador', sent: 'Enviada', accepted: 'Aceptada', rejected: 'Rechazada', expired: 'Expirada', converted: 'Convertida' }
-                      return (
-                        <Card key={q.id}>
-                          <CardContent className="p-4">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="font-semibold">{q.quotation_number}</p>
-                                  <Badge className={statusColors[q.status] || 'bg-gray-100 text-gray-800'}>{statusLabels[q.status] || q.status}</Badge>
-                                </div>
-                                <p className="text-sm">{q.contact_info?.contactName} {q.contact_info?.companyName ? `· ${q.contact_info.companyName}` : ''}</p>
-                                <p className="text-xs text-muted-foreground">{q.contact_info?.email} {q.contact_info?.phone ? `· ${q.contact_info.phone}` : ''}</p>
-                                <p className="text-xs text-muted-foreground">{new Date(q.created_at).toLocaleDateString('es-MX')} · {items.length} producto(s)</p>
-                              </div>
-                              <div className="flex flex-col sm:items-end gap-2">
-                                <p className="text-xl font-bold text-primary">${(q.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                                <div className="flex gap-2 flex-wrap">
-                                  <Select defaultValue={q.status} onValueChange={(val) => updateQuotationStatus(q.id, val)}>
-                                    <SelectTrigger className="h-8 text-xs w-36">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="draft">Borrador</SelectItem>
-                                      <SelectItem value="sent">Enviada</SelectItem>
-                                      <SelectItem value="accepted">Aceptada</SelectItem>
-                                      <SelectItem value="rejected">Rechazada</SelectItem>
-                                      <SelectItem value="expired">Expirada</SelectItem>
-                                      <SelectItem value="converted">Convertida</SelectItem>
-                                      <SelectItem value="under_review">En revisión</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 text-xs"
-                                    disabled={sendingQuotationEmail === q.id}
-                                    onClick={() => handleSendQuotationEmail(q)}
-                                    title={`Enviar cotización por email a ${q.contact_info?.email || 'cliente'}`}
-                                  >
-                                    <Mail className="h-3 w-3 mr-1" />
-                                    {sendingQuotationEmail === q.id ? 'Enviando...' : 'Email'}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 text-xs text-green-700 border-green-300 hover:bg-green-50"
-                                    disabled={sendingQuotationWA === q.id}
-                                    onClick={() => handleSendQuotationWA(q)}
-                                    title={`Enviar por WhatsApp a ${q.contact_info?.phone || 'sin teléfono'}`}
-                                  >
-                                    <Phone className="h-3 w-3 mr-1" />
-                                    {sendingQuotationWA === q.id ? 'Enviando...' : 'WhatsApp'}
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                            {items.length > 0 && (
-                              <div className="mt-3 border-t pt-3 space-y-1">
-                                {items.map((item: any, idx: number) => (
-                                  <div key={idx} className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">{item.product} ({item.category}) × {item.quantity}</span>
-                                    <span>${(item.total || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+              ) : (() => {
+                const filtered = adminQuotations.filter((q) => {
+                  if (quotationFilter !== "all" && q.status !== quotationFilter) return false
+                  if (!quotationSearch.trim()) return true
+                  const term = quotationSearch.toLowerCase().trim()
+                  const ci = q.contact_info || {}
+                  return (
+                    (q.quotation_number || "").toLowerCase().includes(term) ||
+                    (ci.contactName || "").toLowerCase().includes(term) ||
+                    (ci.companyName || "").toLowerCase().includes(term) ||
+                    (ci.email || "").toLowerCase().includes(term) ||
+                    (ci.phone || "").toLowerCase().includes(term)
+                  )
+                })
+                if (filtered.length === 0) {
+                  return (
+                    <Card>
+                      <CardContent className="py-12 text-center space-y-3">
+                        <Calculator className="h-12 w-12 text-muted-foreground mx-auto" />
+                        <p className="font-medium">
+                          {adminQuotations.length === 0
+                            ? "No hay cotizaciones todavía"
+                            : "No hay cotizaciones que coincidan con tu búsqueda"}
+                        </p>
+                        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                          {adminQuotations.length === 0
+                            ? "Crea la primera cotización profesional con el botón de arriba. Puedes seleccionar productos del catálogo, vincular un cliente existente y enviar por email o WhatsApp."
+                            : "Prueba con otro término o cambia el filtro de estado."}
+                        </p>
+                        {adminQuotations.length === 0 && (
+                          <Button onClick={openNewQuoteEditor}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Crear primera cotización
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                }
+                const statusColors: Record<string, string> = {
+                  draft: "bg-gray-100 text-gray-800",
+                  sent: "bg-blue-100 text-blue-800",
+                  accepted: "bg-green-100 text-green-800",
+                  rejected: "bg-red-100 text-red-800",
+                  expired: "bg-amber-100 text-amber-800",
+                  converted: "bg-purple-100 text-purple-800",
+                }
+                const statusLabels: Record<string, string> = {
+                  draft: "Borrador",
+                  sent: "Enviada",
+                  accepted: "Aceptada",
+                  rejected: "Rechazada",
+                  expired: "Expirada",
+                  converted: "Convertida",
+                }
+                return (
+                  <Card>
+                    <CardContent className="p-0 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cotización</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead className="text-right">Items</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Vence</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filtered.map((q) => {
+                            const ci = q.contact_info || {}
+                            const itemsCount = Array.isArray(q.quotation_items)
+                              ? q.quotation_items.length
+                              : (() => {
+                                  try {
+                                    return JSON.parse(q.admin_notes || "[]").length
+                                  } catch {
+                                    return 0
+                                  }
+                                })()
+                            const isExpired =
+                              q.valid_until &&
+                              new Date(q.valid_until).getTime() < Date.now() &&
+                              q.status !== "accepted" &&
+                              q.status !== "converted"
+                            return (
+                              <TableRow
+                                key={q.id}
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => setDetailQuotation(q)}
+                              >
+                                <TableCell>
+                                  <div>
+                                    <p className="font-mono font-semibold text-sm">
+                                      {q.quotation_number}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(q.created_at).toLocaleDateString("es-MX", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                      })}
+                                    </p>
                                   </div>
-                                ))}
-                              </div>
-                            )}
-                            {q.notes && <p className="mt-2 text-xs text-muted-foreground border-t pt-2">Notas: {q.notes}</p>}
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                </div>
-              )}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="min-w-0">
+                                    <p className="font-medium truncate max-w-[200px]">
+                                      {ci.contactName || "—"}
+                                    </p>
+                                    {ci.companyName && (
+                                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                        {ci.companyName}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                      {ci.email}
+                                    </p>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Badge variant="outline">{itemsCount}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">
+                                  ${(q.total || 0).toLocaleString("es-MX", {
+                                    minimumFractionDigits: 2,
+                                  })}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    className={
+                                      statusColors[q.status] || "bg-gray-100 text-gray-800"
+                                    }
+                                  >
+                                    {statusLabels[q.status] || q.status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {q.valid_until ? (
+                                    <span
+                                      className={`text-xs ${
+                                        isExpired ? "text-red-600 font-medium" : ""
+                                      }`}
+                                    >
+                                      {new Date(q.valid_until).toLocaleDateString("es-MX", {
+                                        day: "numeric",
+                                        month: "short",
+                                      })}
+                                      {isExpired && " · Vencida"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div
+                                    className="flex justify-end gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Ver detalle"
+                                      onClick={() => setDetailQuotation(q)}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Editar"
+                                      onClick={() => openEditQuoteEditor(q)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Duplicar"
+                                      onClick={() => duplicateQuotation(q)}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Enviar email"
+                                      disabled={sendingQuotationEmail === q.id}
+                                      onClick={() => handleSendQuotationEmail(q)}
+                                    >
+                                      <Mail className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-green-700 hover:bg-green-50"
+                                      title="Enviar WhatsApp"
+                                      disabled={sendingQuotationWA === q.id || !ci.phone}
+                                      onClick={() => handleSendQuotationWA(q)}
+                                    >
+                                      <Phone className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive"
+                                      title="Eliminar"
+                                      disabled={deletingQuotationId === q.id}
+                                      onClick={() => deleteQuotation(q)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )
+              })()}
             </TabsContent>
 
             {/* Reports */}
@@ -7854,6 +8325,939 @@ EMAIL_FROM=ventas@3abranding.com`}
                     </div>
                   </div>
                 )}
+              </DialogContent>
+            </Dialog>
+
+            {/* =========================================
+                 EDITOR de cotizaciones (crear / editar)
+                 ========================================= */}
+            <Dialog
+              open={quoteEditorOpen}
+              onOpenChange={(open) => {
+                setQuoteEditorOpen(open)
+                if (!open) {
+                  setEditingQuotationId(null)
+                }
+              }}
+            >
+              <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingQuotationId ? "Editar cotización" : "Nueva cotización"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Completa los datos del cliente, agrega productos del catálogo y define los
+                    términos comerciales.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {(() => {
+                  const totals = computeQuoteTotals(newQuoteItems, newQuoteForm)
+                  return (
+                    <div className="space-y-4">
+                      <Tabs value={quoteEditorTab} onValueChange={(v) => setQuoteEditorTab(v as any)}>
+                        <TabsList className="grid grid-cols-3 w-full">
+                          <TabsTrigger value="client">
+                            <Users className="h-4 w-4 mr-2" />
+                            Cliente
+                          </TabsTrigger>
+                          <TabsTrigger value="products">
+                            <Package className="h-4 w-4 mr-2" />
+                            Productos {newQuoteItems.length > 0 && `(${newQuoteItems.length})`}
+                          </TabsTrigger>
+                          <TabsTrigger value="terms">
+                            <FileText className="h-4 w-4 mr-2" />
+                            Términos
+                          </TabsTrigger>
+                        </TabsList>
+
+                        {/* TAB: CLIENTE */}
+                        <TabsContent value="client" className="space-y-4 pt-4">
+                          {/* Buscador de clientes existentes */}
+                          <Card className="bg-muted/50">
+                            <CardContent className="pt-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-semibold">
+                                  Buscar cliente existente
+                                </Label>
+                                {newQuoteForm.userId && (
+                                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Vinculado
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  placeholder="Nombre, email, teléfono o empresa..."
+                                  className="pl-10"
+                                  value={clientSearchTerm}
+                                  onChange={(e) => searchClientsForQuote(e.target.value)}
+                                />
+                              </div>
+                              {searchingClients && (
+                                <p className="text-xs text-muted-foreground">Buscando...</p>
+                              )}
+                              {clientResults.length > 0 && (
+                                <div className="border rounded-lg bg-background max-h-48 overflow-y-auto">
+                                  {clientResults.map((c) => (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      onClick={() => selectClientForQuote(c)}
+                                      className="w-full text-left px-3 py-2 hover:bg-muted/50 border-b last:border-b-0"
+                                    >
+                                      <p className="text-sm font-medium">
+                                        {c.full_name || c.name || "Sin nombre"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {c.email} {c.phone ? `· ${c.phone}` : ""}
+                                      </p>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {newQuoteForm.userId && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setNewQuoteForm((p) => ({ ...p, userId: null }))
+                                  }
+                                  className="text-xs"
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  Desvincular cliente
+                                </Button>
+                              )}
+                            </CardContent>
+                          </Card>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>Nombre del contacto *</Label>
+                              <Input
+                                value={newQuoteForm.contactName}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, contactName: e.target.value }))
+                                }
+                                placeholder="Juan Pérez"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Empresa</Label>
+                              <Input
+                                value={newQuoteForm.companyName}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, companyName: e.target.value }))
+                                }
+                                placeholder="Corporativo XYZ"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Email *</Label>
+                              <Input
+                                type="email"
+                                value={newQuoteForm.email}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, email: e.target.value }))
+                                }
+                                placeholder="cliente@empresa.com"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Teléfono</Label>
+                              <Input
+                                value={newQuoteForm.phone}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, phone: e.target.value }))
+                                }
+                                placeholder="+52 55 1234 5678"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>RFC</Label>
+                              <Input
+                                value={newQuoteForm.taxId}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, taxId: e.target.value }))
+                                }
+                                placeholder="XAXX010101000"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Tipo de evento / proyecto</Label>
+                              <Input
+                                value={newQuoteForm.eventType}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, eventType: e.target.value }))
+                                }
+                                placeholder="Convención, kit corporativo..."
+                              />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <Label>Dirección de entrega</Label>
+                              <Textarea
+                                value={newQuoteForm.deliveryAddress}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    deliveryAddress: e.target.value,
+                                  }))
+                                }
+                                rows={2}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Fecha de entrega deseada</Label>
+                              <Input
+                                type="date"
+                                value={newQuoteForm.deliveryDate}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    deliveryDate: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Forma de pago</Label>
+                              <Input
+                                value={newQuoteForm.paymentTerms}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    paymentTerms: e.target.value,
+                                  }))
+                                }
+                                placeholder="50% anticipo / 50% contra entrega"
+                              />
+                            </div>
+                          </div>
+                        </TabsContent>
+
+                        {/* TAB: PRODUCTOS */}
+                        <TabsContent value="products" className="space-y-4 pt-4">
+                          {/* Buscador del catálogo */}
+                          <Card className="bg-muted/50">
+                            <CardContent className="pt-4 space-y-3">
+                              <Label className="text-sm font-semibold">
+                                Agregar producto del catálogo
+                              </Label>
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                  placeholder="Buscar por nombre o SKU..."
+                                  className="pl-10"
+                                  value={catalogSearchTerm}
+                                  onChange={(e) => searchCatalogForQuote(e.target.value)}
+                                />
+                              </div>
+                              {searchingCatalog && (
+                                <p className="text-xs text-muted-foreground">Buscando...</p>
+                              )}
+                              {catalogResults.length > 0 && (
+                                <div className="border rounded-lg bg-background max-h-64 overflow-y-auto">
+                                  {catalogResults.map((p) => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => addProductToQuote(p)}
+                                      className="w-full flex items-center gap-3 text-left px-3 py-2 hover:bg-muted/50 border-b last:border-b-0"
+                                    >
+                                      {p.product_images?.[0]?.url ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={p.product_images[0].url}
+                                          alt={p.name}
+                                          className="h-10 w-10 object-cover rounded"
+                                        />
+                                      ) : (
+                                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                                          <Package className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{p.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {p.sku && `${p.sku} · `}
+                                          {p.category?.name || "Sin categoría"}
+                                        </p>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <p className="text-sm font-semibold">
+                                          ${Number(p.price || 0).toLocaleString("es-MX")}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          stock: {p.stock_quantity ?? 0}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                También puedes agregar productos personalizados manualmente abajo.
+                              </p>
+                            </CardContent>
+                          </Card>
+
+                          {/* Líneas */}
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-semibold">
+                              Líneas de la cotización
+                            </Label>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setNewQuoteItems((prev) => [
+                                  ...prev,
+                                  {
+                                    id: Date.now().toString(),
+                                    productId: null,
+                                    productName: "",
+                                    productSku: null,
+                                    quantity: 100,
+                                    unitPrice: 0,
+                                    customization: "",
+                                    imageUrl: null,
+                                  },
+                                ])
+                              }
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Línea libre
+                            </Button>
+                          </div>
+
+                          {newQuoteItems.length === 0 ? (
+                            <Card>
+                              <CardContent className="py-8 text-center">
+                                <Package className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground">
+                                  Agrega productos desde el buscador de arriba o crea una línea
+                                  libre.
+                                </p>
+                              </CardContent>
+                            </Card>
+                          ) : (
+                            <div className="space-y-2">
+                              {newQuoteItems.map((item) => (
+                                <Card key={item.id}>
+                                  <CardContent className="p-3 space-y-2">
+                                    <div className="grid grid-cols-12 gap-2 items-end">
+                                      <div className="col-span-12 sm:col-span-5 space-y-1">
+                                        <Label className="text-xs">Producto</Label>
+                                        <Input
+                                          value={item.productName}
+                                          onChange={(e) =>
+                                            setNewQuoteItems((prev) =>
+                                              prev.map((i) =>
+                                                i.id === item.id
+                                                  ? { ...i, productName: e.target.value }
+                                                  : i
+                                              )
+                                            )
+                                          }
+                                          placeholder="Nombre del producto"
+                                        />
+                                        {item.productSku && (
+                                          <p className="text-xs text-muted-foreground font-mono">
+                                            SKU: {item.productSku}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="col-span-4 sm:col-span-2 space-y-1">
+                                        <Label className="text-xs">Cantidad</Label>
+                                        <Input
+                                          type="number"
+                                          min="1"
+                                          value={item.quantity}
+                                          onChange={(e) =>
+                                            setNewQuoteItems((prev) =>
+                                              prev.map((i) =>
+                                                i.id === item.id
+                                                  ? { ...i, quantity: parseInt(e.target.value) || 1 }
+                                                  : i
+                                              )
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                      <div className="col-span-4 sm:col-span-2 space-y-1">
+                                        <Label className="text-xs">Precio unit.</Label>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          value={item.unitPrice}
+                                          onChange={(e) =>
+                                            setNewQuoteItems((prev) =>
+                                              prev.map((i) =>
+                                                i.id === item.id
+                                                  ? {
+                                                      ...i,
+                                                      unitPrice: parseFloat(e.target.value) || 0,
+                                                    }
+                                                  : i
+                                              )
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                      <div className="col-span-3 sm:col-span-2 space-y-1">
+                                        <Label className="text-xs">Total</Label>
+                                        <p className="text-sm font-semibold pt-2">
+                                          $
+                                          {(item.quantity * item.unitPrice).toLocaleString(
+                                            "es-MX",
+                                            { minimumFractionDigits: 2 }
+                                          )}
+                                        </p>
+                                      </div>
+                                      <div className="col-span-1 flex justify-end">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="text-destructive h-8 w-8 p-0"
+                                          onClick={() =>
+                                            setNewQuoteItems((prev) =>
+                                              prev.filter((i) => i.id !== item.id)
+                                            )
+                                          }
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    <Input
+                                      value={item.customization}
+                                      onChange={(e) =>
+                                        setNewQuoteItems((prev) =>
+                                          prev.map((i) =>
+                                            i.id === item.id
+                                              ? { ...i, customization: e.target.value }
+                                              : i
+                                          )
+                                        )
+                                      }
+                                      placeholder="Personalización: 1 tinta, logo, color, etc. (opcional)"
+                                      className="text-sm"
+                                    />
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          )}
+                        </TabsContent>
+
+                        {/* TAB: TÉRMINOS */}
+                        <TabsContent value="terms" className="space-y-4 pt-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>Vigencia (días)</Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={newQuoteForm.validDays}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    validDays: e.target.value,
+                                  }))
+                                }
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Vence el{" "}
+                                {(() => {
+                                  const days =
+                                    Math.max(0, Math.floor(Number(newQuoteForm.validDays) || 30))
+                                  const d = new Date()
+                                  d.setDate(d.getDate() + days)
+                                  return d.toLocaleDateString("es-MX")
+                                })()}
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Estado</Label>
+                              <Select
+                                value={newQuoteForm.status}
+                                onValueChange={(v) =>
+                                  setNewQuoteForm((p) => ({ ...p, status: v as any }))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="draft">Borrador</SelectItem>
+                                  <SelectItem value="sent">Enviada</SelectItem>
+                                  <SelectItem value="accepted">Aceptada</SelectItem>
+                                  <SelectItem value="rejected">Rechazada</SelectItem>
+                                  <SelectItem value="expired">Expirada</SelectItem>
+                                  <SelectItem value="converted">Convertida</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Descuento (%)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={newQuoteForm.discountPercent}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    discountPercent: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Descuento adicional ($)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={newQuoteForm.discountAmount}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    discountAmount: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>IVA (%)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={newQuoteForm.taxRate}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({ ...p, taxRate: e.target.value }))
+                                }
+                                placeholder="16"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                0 si la cotización va sin IVA
+                              </p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Costo de envío ($)</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={newQuoteForm.shippingCost}
+                                onChange={(e) =>
+                                  setNewQuoteForm((p) => ({
+                                    ...p,
+                                    shippingCost: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Notas para el cliente</Label>
+                            <Textarea
+                              value={newQuoteForm.notes}
+                              onChange={(e) =>
+                                setNewQuoteForm((p) => ({ ...p, notes: e.target.value }))
+                              }
+                              placeholder="Tiempo de entrega: 10 días hábiles. Personalización a 1 tinta. Etc."
+                              rows={3}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              Notas internas
+                              <Badge variant="outline" className="text-xs">
+                                Solo equipo
+                              </Badge>
+                            </Label>
+                            <Textarea
+                              value={newQuoteForm.adminNotes}
+                              onChange={(e) =>
+                                setNewQuoteForm((p) => ({ ...p, adminNotes: e.target.value }))
+                              }
+                              placeholder="Comentarios para el equipo (no visible para el cliente)..."
+                              rows={2}
+                            />
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+
+                      {/* Resumen siempre visible */}
+                      <Card className="bg-muted/30 border-primary/30">
+                        <CardContent className="pt-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
+                            <div>
+                              <p className="text-muted-foreground text-xs">Subtotal</p>
+                              <p className="font-semibold">
+                                ${totals.subtotal.toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground text-xs">Descuento</p>
+                              <p className="font-semibold text-red-600">
+                                −${totals.discount.toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground text-xs">IVA</p>
+                              <p className="font-semibold">
+                                ${totals.taxes.toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground text-xs">Envío</p>
+                              <p className="font-semibold">
+                                ${totals.shipping.toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </p>
+                            </div>
+                            <div className="col-span-2 sm:col-span-1 sm:text-right border-t sm:border-t-0 sm:border-l pl-3 pt-2 sm:pt-0">
+                              <p className="text-muted-foreground text-xs">TOTAL</p>
+                              <p className="text-xl font-bold text-primary">
+                                ${totals.total.toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t">
+                        <Button variant="outline" onClick={() => setQuoteEditorOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button onClick={saveAdminQuote} disabled={savingNewQuote}>
+                          {savingNewQuote ? "Guardando..." : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              {editingQuotationId ? "Guardar cambios" : "Crear cotización"}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </DialogContent>
+            </Dialog>
+
+            {/* =========================================
+                 DETALLE de cotización (read-only)
+                 ========================================= */}
+            <Dialog
+              open={!!detailQuotation}
+              onOpenChange={(open) => !open && setDetailQuotation(null)}
+            >
+              <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="font-mono">
+                    {detailQuotation?.quotation_number}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Detalle de la cotización
+                  </DialogDescription>
+                </DialogHeader>
+                {detailQuotation && (() => {
+                  const q = detailQuotation
+                  const ci = q.contact_info || {}
+                  const items = Array.isArray(q.quotation_items)
+                    ? q.quotation_items
+                    : (() => {
+                        try {
+                          return JSON.parse(q.admin_notes || "[]")
+                        } catch {
+                          return []
+                        }
+                      })()
+                  const statusLabels: Record<string, string> = {
+                    draft: "Borrador",
+                    sent: "Enviada",
+                    accepted: "Aceptada",
+                    rejected: "Rechazada",
+                    expired: "Expirada",
+                    converted: "Convertida",
+                  }
+                  const statusColors: Record<string, string> = {
+                    draft: "bg-gray-100 text-gray-800",
+                    sent: "bg-blue-100 text-blue-800",
+                    accepted: "bg-green-100 text-green-800",
+                    rejected: "bg-red-100 text-red-800",
+                    expired: "bg-amber-100 text-amber-800",
+                    converted: "bg-purple-100 text-purple-800",
+                  }
+                  return (
+                    <div className="space-y-4">
+                      {/* Header */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className={statusColors[q.status] || "bg-gray-100 text-gray-800"}>
+                          {statusLabels[q.status] || q.status}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          Creada: {new Date(q.created_at).toLocaleDateString("es-MX")}
+                        </span>
+                        {q.valid_until && (
+                          <span className="text-sm text-muted-foreground">
+                            · Vigente hasta: {new Date(q.valid_until).toLocaleDateString("es-MX")}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Cliente */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">Cliente</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-muted-foreground text-xs">Contacto</p>
+                            <p className="font-medium">{ci.contactName || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-xs">Empresa</p>
+                            <p className="font-medium">{ci.companyName || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-xs">Email</p>
+                            <p className="font-medium break-all">{ci.email || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-xs">Teléfono</p>
+                            <p className="font-medium">{ci.phone || "—"}</p>
+                          </div>
+                          {ci.taxId && (
+                            <div>
+                              <p className="text-muted-foreground text-xs">RFC</p>
+                              <p className="font-medium font-mono">{ci.taxId}</p>
+                            </div>
+                          )}
+                          {ci.eventType && (
+                            <div>
+                              <p className="text-muted-foreground text-xs">Evento</p>
+                              <p className="font-medium">{ci.eventType}</p>
+                            </div>
+                          )}
+                          {ci.deliveryAddress && (
+                            <div className="sm:col-span-2">
+                              <p className="text-muted-foreground text-xs">Dirección de entrega</p>
+                              <p className="font-medium">{ci.deliveryAddress}</p>
+                            </div>
+                          )}
+                          {ci.deliveryDate && (
+                            <div>
+                              <p className="text-muted-foreground text-xs">Entrega deseada</p>
+                              <p className="font-medium">
+                                {new Date(ci.deliveryDate).toLocaleDateString("es-MX")}
+                              </p>
+                            </div>
+                          )}
+                          {ci.paymentTerms && (
+                            <div>
+                              <p className="text-muted-foreground text-xs">Forma de pago</p>
+                              <p className="font-medium">{ci.paymentTerms}</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Items */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-sm">
+                            Productos ({items.length})
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Producto</TableHead>
+                                <TableHead className="text-right">Cant.</TableHead>
+                                <TableHead className="text-right">P. Unit.</TableHead>
+                                <TableHead className="text-right">Subtotal</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {items.map((it: any, idx: number) => {
+                                const name = it.product_name || it.product || it.name || "—"
+                                const qty = Number(it.quantity) || 0
+                                const price = Number(it.unit_price ?? it.unitPrice) || 0
+                                const sub = Number(it.subtotal ?? it.total) || qty * price
+                                const customization =
+                                  it.customization_data?.description ||
+                                  it.customization ||
+                                  null
+                                return (
+                                  <TableRow key={it.id || idx}>
+                                    <TableCell>
+                                      <div className="space-y-0.5">
+                                        <p className="font-medium text-sm">{name}</p>
+                                        {it.product_sku && (
+                                          <p className="text-xs text-muted-foreground font-mono">
+                                            {it.product_sku}
+                                          </p>
+                                        )}
+                                        {customization && (
+                                          <p className="text-xs text-muted-foreground italic">
+                                            {customization}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">{qty}</TableCell>
+                                    <TableCell className="text-right">
+                                      ${price.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                      ${sub.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </CardContent>
+                      </Card>
+
+                      {/* Totales */}
+                      <Card>
+                        <CardContent className="pt-4 space-y-1.5 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Subtotal</span>
+                            <span>
+                              ${Number(q.subtotal || 0).toLocaleString("es-MX", {
+                                minimumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                          {Number(q.discount) > 0 && (
+                            <div className="flex justify-between text-red-600">
+                              <span>Descuento</span>
+                              <span>
+                                −${Number(q.discount).toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                          )}
+                          {Number(q.taxes) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">IVA</span>
+                              <span>
+                                ${Number(q.taxes).toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                          )}
+                          {Number(q.shipping_cost) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Envío</span>
+                              <span>
+                                ${Number(q.shipping_cost).toLocaleString("es-MX", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </span>
+                            </div>
+                          )}
+                          <Separator className="my-2" />
+                          <div className="flex justify-between text-lg font-bold">
+                            <span>TOTAL</span>
+                            <span className="text-primary">
+                              ${Number(q.total || 0).toLocaleString("es-MX", {
+                                minimumFractionDigits: 2,
+                              })}{" "}
+                              {q.currency || "MXN"}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {q.notes && (
+                        <Card>
+                          <CardContent className="pt-4 text-sm">
+                            <p className="text-muted-foreground text-xs mb-1">
+                              Notas para el cliente
+                            </p>
+                            <p className="whitespace-pre-line">{q.notes}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+                      {q.admin_notes && (
+                        <Card className="bg-amber-50 border-amber-200">
+                          <CardContent className="pt-4 text-sm">
+                            <p className="text-amber-700 text-xs mb-1 font-medium">
+                              Notas internas (no visibles para el cliente)
+                            </p>
+                            <p className="whitespace-pre-line">{q.admin_notes}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Acciones */}
+                      <div className="flex flex-wrap justify-end gap-2 pt-2 border-t">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setDetailQuotation(null)
+                            duplicateQuotation(q)
+                          }}
+                        >
+                          <Copy className="h-4 w-4 mr-2" />
+                          Duplicar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          disabled={sendingQuotationEmail === q.id}
+                          onClick={() => handleSendQuotationEmail(q)}
+                        >
+                          <Mail className="h-4 w-4 mr-2" />
+                          {sendingQuotationEmail === q.id ? "Enviando..." : "Enviar email"}
+                        </Button>
+                        {ci.phone && (
+                          <Button
+                            variant="outline"
+                            className="text-green-700 border-green-300 hover:bg-green-50"
+                            disabled={sendingQuotationWA === q.id}
+                            onClick={() => handleSendQuotationWA(q)}
+                          >
+                            <Phone className="h-4 w-4 mr-2" />
+                            {sendingQuotationWA === q.id ? "Enviando..." : "WhatsApp"}
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => {
+                            setDetailQuotation(null)
+                            openEditQuoteEditor(q)
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })()}
               </DialogContent>
             </Dialog>
 
