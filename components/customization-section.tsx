@@ -65,14 +65,6 @@ interface Product {
   category?: string | { name: string } | null
 }
 
-type MockupStyle = "professional" | "lifestyle" | "flat"
-
-const STYLE_OPTIONS: { value: MockupStyle; label: string; desc: string }[] = [
-  { value: "professional", label: "Estudio", desc: "Fondo neutro, iluminación profesional" },
-  { value: "lifestyle", label: "Lifestyle", desc: "Entorno de oficina moderno" },
-  { value: "flat", label: "Flat lay", desc: "Vista cenital, fondo blanco" },
-]
-
 // Elimina el fondo del logo muestreando los 4 bordes (para logos con fondo sólido)
 function removeLogoBackground(img: HTMLImageElement, tolerance = 40): HTMLCanvasElement {
   const c = document.createElement("canvas")
@@ -247,7 +239,6 @@ export function CustomizationSection() {
   const [logoFileName, setLogoFileName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [style, setStyle] = useState<MockupStyle>("professional")
   const [generating, setGenerating] = useState(false)
   const [genStep, setGenStep] = useState<"idle" | "analyzing" | "generating">("idle")
   const [analysis, setAnalysis] = useState<MockupAnalysis | null>(null)
@@ -255,8 +246,6 @@ export function CustomizationSection() {
   const [mockupMime, setMockupMime] = useState("image/png")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [usedFallback, setUsedFallback] = useState(false)
-  const [stage, setStage] = useState<string | null>(null)
-  const [aiModel, setAiModel] = useState<string | null>(null)
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -325,9 +314,6 @@ export function CustomizationSection() {
     setErrorMsg(null)
     setUsedFallback(false)
     setAnalysis(null)
-    setStage(null)
-    setAiModel(null)
-
     try {
       // El servidor hace paso 1 (análisis) y paso 2 (generación) internamente
       // Simulamos la transición visual de etapas con un pequeño delay
@@ -340,7 +326,7 @@ export function CustomizationSection() {
           productImageUrl: imageUrl,
           logoBase64: logoDataUrl,
           productName: selectedProduct.name,
-          style,
+          style: "professional",
         }),
       })
 
@@ -353,8 +339,6 @@ export function CustomizationSection() {
         const mime = data.mimeType || "image/png"
         setMockupMime(mime)
         setMockupUrl(`data:${mime};base64,${data.imageBase64}`)
-        setStage(data.stage ?? null)
-        setAiModel(data.model ?? null)
       } else if (data.fallback) {
         // Canvas inteligente con las coordenadas del análisis
         console.warn("[Mockup] Generación IA no disponible, usando canvas inteligente. Análisis:", data.analysis)
@@ -555,28 +539,6 @@ export function CustomizationSection() {
                   onChange={handleLogoUpload}
                 />
 
-                {/* Estilo del mockup */}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">2. Estilo del mockup</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {STYLE_OPTIONS.map((s) => (
-                      <button
-                        key={s.value}
-                        onClick={() => setStyle(s.value)}
-                        className={cn(
-                          "p-2.5 rounded-lg border text-left transition-all",
-                          style === s.value
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border hover:border-primary/30"
-                        )}
-                      >
-                        <p className="text-xs font-semibold">{s.label}</p>
-                        <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{s.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Botón generar */}
                 <Button
                   className="w-full gap-2 bg-primary hover:bg-primary/90"
@@ -674,33 +636,18 @@ export function CustomizationSection() {
                           alt="Mockup generado"
                           className="w-full object-contain max-h-[500px]"
                         />
-                        {usedFallback ? (
+                        {usedFallback && (
                           <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-md">
                             Composición IA
                           </div>
-                        ) : stage === "nano-banana" ? (
-                          <div className="absolute bottom-2 left-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-black text-[10px] font-semibold px-2 py-1 rounded-md shadow-md">
-                            🍌 Nano Banana
-                          </div>
-                        ) : stage === "imagen3" ? (
-                          <div className="absolute bottom-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-1 rounded-md">
-                            Imagen 3
-                          </div>
-                        ) : null}
+                        )}
                       </div>
                       <div className="p-4 flex items-center justify-between bg-muted/20 border-t">
                         <div>
                           <p className="text-sm font-semibold">
-                            {usedFallback
-                              ? "Composición inteligente"
-                              : stage === "nano-banana"
-                              ? "Mockup generado con Nano Banana"
-                              : "Mockup generado con IA"}
+                            {usedFallback ? "Composición inteligente" : "Mockup generado con IA"}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedProduct?.name}
-                            {aiModel && !usedFallback ? ` · ${aiModel}` : ""}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{selectedProduct?.name}</p>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" onClick={handleGenerate} className="gap-1.5">
