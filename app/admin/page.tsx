@@ -3455,100 +3455,103 @@ export default function AdminPage() {
 
             {/* Products Management - Enhanced */}
             <TabsContent value="products" className="space-y-6">
-              {/* Configuración masiva de precios — margen por proveedor */}
-              <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-primary" />
-                    Configuración masiva de precios
-                  </CardTitle>
-                  <CardDescription>
-                    Define el porcentaje de utilidad por proveedor en la tabla de &quot;Gestión de Productos&quot;
-                    (columna % utilidad). Al aplicar, cada producto usa el % según su proveedor en catálogo.
-                    Opcionalmente define un % para artículos sin proveedor. Luego usa &quot;Guardar
-                    seleccionados&quot; para guardar los cambios en la base de datos.
+              <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-muted/30 shadow-sm">
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center gap-2 gap-y-1">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <Package className="h-5 w-5 text-primary shrink-0" />
+                      Gestión de Productos
+                    </CardTitle>
+                    <Badge variant="outline" className="text-xs">
+                      Solo administradores
+                    </Badge>
+                  </div>
+                  <CardDescription className="max-w-4xl">
+                    Catálogo completo, sincronización por proveedor y utilidad por proveedor. Los porcentajes se guardan en este navegador; usa &quot;Guardar seleccionados&quot; en la tabla para persistir precios en Supabase.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap items-end gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="marginSinProveedor">% utilidad — sin proveedor</Label>
-                      <Input
-                        id="marginSinProveedor"
-                        type="number"
-                        min={0}
-                        step={0.5}
-                        placeholder="Ej: 20"
-                        value={providerMarginPercents["sin proveedor"] ?? ""}
-                        onChange={(e) =>
-                          setProviderMarginPercents((prev) => ({
-                            ...prev,
-                            "sin proveedor": e.target.value,
-                          }))
-                        }
-                        className="w-32"
-                      />
-                      <p className="text-xs text-muted-foreground max-w-xs">
-                        Para productos sin campo proveedor o con valor no reconocido.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Aplicar a</Label>
-                      <Select value={bulkMarginApplyToCategory} onValueChange={setBulkMarginApplyToCategory}>
-                        <SelectTrigger className="w-56">
-                          <SelectValue placeholder="Selección actual" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="selection">
-                            Selección actual ({selectedProductIds.length}{" "}
-                            {selectedProductIds.length === 1 ? "producto" : "productos"})
-                          </SelectItem>
-                          {categoryOptions.map((cat) => (
-                            <SelectItem key={cat} value={cat}>
-                              Todos de: {cat}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      onClick={applyBulkMargin}
-                      className="bg-primary hover:bg-primary/90"
-                      disabled={!hasAnyProviderMarginConfigured}
-                    >
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      Aplicar márgenes por proveedor
-                    </Button>
-                  </div>
-
-                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
-                    <p className="font-medium text-blue-900 mb-1">Cómo funciona:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                      <li>
-                        Indica el % de utilidad por cada proveedor en la tabla inferior (y opcionalmente para
-                        sin proveedor).
-                      </li>
-                      <li>Los valores se guardan automáticamente en este navegador.</li>
-                      <li>Elige si aplicar a la selección actual o a todos los de una categoría.</li>
-                      <li>Haz clic en &quot;Aplicar márgenes por proveedor&quot;</li>
-                      <li>Verifica los nuevos precios en la tabla (fondo amarillo en borradores)</li>
-                      <li>Haz clic en &quot;Guardar seleccionados&quot; para persistir en Supabase</li>
-                    </ol>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle>Gestión de Productos</CardTitle>
-                        <Badge variant="outline" className="text-xs">Solo administradores</Badge>
+                <CardContent className="space-y-8 pt-2">
+                  {/* Panel unificado: precios masivos + proveedores */}
+                  <div className="grid lg:grid-cols-2 gap-6 items-start">
+                    <div className="rounded-xl border border-primary/15 bg-card/80 p-4 sm:p-5 space-y-4 shadow-sm">
+                      <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                        <DollarSign className="h-4 w-4 text-primary shrink-0" />
+                        <h3 className="text-sm font-semibold tracking-tight">Utilidad y aplicación masiva</h3>
                       </div>
-                      <CardDescription>Administra el catálogo completo de productos. Los usuarios no pueden modificar esta configuración.</CardDescription>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Cada producto tomará el % de la columna de su proveedor (panel derecho). Define también un % para artículos sin proveedor reconocido.
+                      </p>
+                      <div className="flex flex-wrap items-end gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="marginSinProveedor">% utilidad — sin proveedor</Label>
+                          <Input
+                            id="marginSinProveedor"
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            placeholder="Ej: 20"
+                            value={providerMarginPercents["sin proveedor"] ?? ""}
+                            onChange={(e) =>
+                              setProviderMarginPercents((prev) => ({
+                                ...prev,
+                                "sin proveedor": e.target.value,
+                              }))
+                            }
+                            className="w-32"
+                          />
+                          <p className="text-xs text-muted-foreground max-w-[220px]">
+                            Productos sin campo proveedor o con valor no listado a la derecha.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Aplicar a</Label>
+                          <Select value={bulkMarginApplyToCategory} onValueChange={setBulkMarginApplyToCategory}>
+                            <SelectTrigger className="w-[min(100%,14rem)]">
+                              <SelectValue placeholder="Selección actual" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="selection">
+                                Selección actual ({selectedProductIds.length}{" "}
+                                {selectedProductIds.length === 1 ? "producto" : "productos"})
+                              </SelectItem>
+                              {categoryOptions.map((cat) => (
+                                <SelectItem key={cat} value={cat}>
+                                  Todos de: {cat}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          onClick={applyBulkMargin}
+                          className="bg-primary hover:bg-primary/90"
+                          disabled={!hasAnyProviderMarginConfigured}
+                        >
+                          <DollarSign className="h-4 w-4 mr-2" />
+                          Aplicar márgenes por proveedor
+                        </Button>
+                      </div>
+                      <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
+                        <p className="font-medium text-blue-900 mb-1.5">Cómo funciona</p>
+                        <ol className="list-decimal list-inside space-y-1 text-blue-800 text-xs sm:text-sm">
+                          <li>
+                            Completa el % de utilidad por proveedor en el panel derecho (y opcionalmente «sin proveedor» aquí).
+                          </li>
+                          <li>Los valores se guardan automáticamente en este navegador.</li>
+                          <li>Elige alcance: selección actual o todos los de una categoría.</li>
+                          <li>Pulsa «Aplicar márgenes por proveedor».</li>
+                          <li>Revisa precios en borrador en la tabla (resaltado).</li>
+                          <li>«Guardar seleccionados» envía los cambios a Supabase.</li>
+                        </ol>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-3 items-end min-w-[min(100%,28rem)] sm:min-w-[460px]">
+
+                    <div className="rounded-xl border border-primary/15 bg-card/80 p-4 sm:p-5 space-y-3 shadow-sm min-w-0">
+                      <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                        <Upload className="h-4 w-4 text-primary shrink-0" />
+                        <h3 className="text-sm font-semibold tracking-tight">Proveedores e integraciones</h3>
+                      </div>
+                      <div className="w-full rounded-lg border overflow-hidden divide-y text-sm bg-background">
                       {/* Tabla de proveedores: nombre | % utilidad | sincronizar | test */}
                       <div className="w-full rounded-lg border overflow-hidden divide-y text-sm">
                         <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -3817,7 +3820,7 @@ export default function AdminPage() {
                       )}
 
                       {/* Acciones generales */}
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 justify-end">
                         <Button variant="outline" size="sm">
                           <Download className="h-4 w-4 mr-2" />
                           Exportar
@@ -4013,11 +4016,14 @@ export default function AdminPage() {
                           </div>
                         </DialogContent>
                       </Dialog>
-                      </div>{/* /acciones generales */}
-                    </div>{/* /columna proveedores */}
+                      </div>
+
+                    </div>
+
                   </div>
-                </CardHeader>
-                <CardContent>
+
+                  <Separator />
+
                   {/* Filters */}
                   <div className="space-y-4 mb-6">
                     <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
