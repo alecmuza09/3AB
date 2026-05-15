@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ComponentType } from "react"
 import { useSearchParams } from "next/navigation"
 import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -120,6 +120,40 @@ const EMPTY_PROVIDER_MARGINS: Record<string, string> = {
   "sin proveedor": "",
 }
 
+/** Tipos de estado a nivel de módulo + hooks sin `useState<PascalCase>` para evitar que SWC los interprete como JSX */
+type ProductDraftsState = Record<
+  string,
+  Partial<{
+    price: number
+    minQuantity: number
+    multipleOf: number
+    isActive: boolean
+  }>
+>
+
+type ProviderMarginsState = Record<string, string>
+
+type IntegrationStatusRow = {
+  name: string
+  category: string
+  status: boolean
+  description: string
+  required: boolean
+}
+
+type VariantSelectionState = {
+  product: any
+  variations: any[]
+} | null
+
+type SyncProgress4PState = {
+  current: number
+  total: number
+  phase: string
+} | null
+
+type AdminSidebarIcon = ComponentType<{ className?: string }>
+
 export default function AdminPage() {
   const searchParams = useSearchParams()
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -237,8 +271,8 @@ export default function AdminPage() {
   const [quoteEditorOpen, setQuoteEditorOpen] = useState(false)
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null)
   const [quoteEditorTab, setQuoteEditorTab] = useState<"client" | "products" | "terms">("client")
-  const [newQuoteForm, setNewQuoteForm] = useState<QuoteForm>(emptyQuoteForm)
-  const [newQuoteItems, setNewQuoteItems] = useState<QuoteLine[]>([])
+  const [newQuoteForm, setNewQuoteForm] = useState(emptyQuoteForm)
+  const [newQuoteItems, setNewQuoteItems] = useState([] as QuoteLine[])
   const [savingNewQuote, setSavingNewQuote] = useState(false)
 
   // Búsqueda de productos del catálogo dentro del editor
@@ -256,10 +290,7 @@ export default function AdminPage() {
   const [deletingQuotationId, setDeletingQuotationId] = useState<string | null>(null)
 
   // Selector de variantes
-  const [variantSelection, setVariantSelection] = useState<{
-    product: any
-    variations: any[]
-  } | null>(null)
+  const [variantSelection, setVariantSelection] = useState(null as VariantSelectionState)
   const [loadingVariants, setLoadingVariants] = useState(false)
 
   // Conversión a pedido
@@ -300,7 +331,7 @@ export default function AdminPage() {
   const [savingShippingConfig, setSavingShippingConfig] = useState(false)
   
   // Estados para configuración del cotizador
-  const [cotizadorConfig, setCotizadorConfig] = useState<CotizadorConfig>(defaultCotizadorConfig)
+  const [cotizadorConfig, setCotizadorConfig] = useState(defaultCotizadorConfig as CotizadorConfig)
   const [loadingCotizadorConfig, setLoadingCotizadorConfig] = useState(false)
   const [savingCotizadorConfig, setSavingCotizadorConfig] = useState(false)
   
@@ -737,9 +768,9 @@ export default function AdminPage() {
     }
   }
 
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState([] as Product[])
   const [loadingProducts, setLoadingProducts] = useState(false)
-  const [movements, setMovements] = useState<InventoryMovement[]>([])
+  const [movements, setMovements] = useState([] as InventoryMovement[])
   const [loadingMovements, setLoadingMovements] = useState(false)
 
   // Cargar productos desde API (servidor con service role, evita problemas de cliente/RLS)
@@ -862,20 +893,14 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [syncingProducts, setSyncingProducts] = useState(false)
   const [syncResult, setSyncResult] = useState<any>(null)
-  const [syncProgress4P, setSyncProgress4P] = useState<{ current: number; total: number; phase: string } | null>(null)
+  const [syncProgress4P, setSyncProgress4P] = useState(null as SyncProgress4PState)
   const [syncingPromocion, setSyncingPromocion] = useState(false)
   const [syncingInnovation, setSyncingInnovation] = useState(false)
   const [syncingDoblevela, setSyncingDoblevela] = useState(false)
   const [syncingPromoopcion, setSyncingPromoopcion] = useState(false)
 
   // Estado de integraciones (se carga vía API para no exponer secrets en el bundle)
-  const [integrationsStatus, setIntegrationsStatus] = useState<Array<{
-    name: string
-    category: string
-    status: boolean
-    description: string
-    required: boolean
-  }>>([])
+  const [integrationsStatus, setIntegrationsStatus] = useState([] as IntegrationStatusRow[])
 
   useEffect(() => {
     fetch('/api/integrations-status')
@@ -1350,32 +1375,22 @@ export default function AdminPage() {
   // Edición masiva de productos (tipo WooCommerce)
   // =========================
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([])
-  const [productDrafts, setProductDrafts] = useState<
-    Record<
-      string,
-      Partial<{
-        price: number
-        minQuantity: number
-        multipleOf: number
-        isActive: boolean
-      }>
-    >
-  >({})
+  const [productDrafts, setProductDrafts] = useState({} as ProductDraftsState)
   const [bulkPriceMode, setBulkPriceMode] = useState<"set" | "increasePercent" | "decreasePercent">("set")
   const [bulkPriceValue, setBulkPriceValue] = useState<string>("")
   const [bulkMinQuantity, setBulkMinQuantity] = useState<string>("")
   const [bulkMultipleOf, setBulkMultipleOf] = useState<string>("")
   const [bulkCategoryForSelect, setBulkCategoryForSelect] = useState<string>("")
   // % de utilidad por proveedor (persistido en localStorage)
-  const [providerMarginPercents, setProviderMarginPercents] = useState<Record<string, string>>(() => {
-    if (typeof window === "undefined") return { ...EMPTY_PROVIDER_MARGINS }
+  const [providerMarginPercents, setProviderMarginPercents] = useState(() => {
+    if (typeof window === "undefined") return { ...EMPTY_PROVIDER_MARGINS } as ProviderMarginsState
     try {
       const raw = localStorage.getItem(PROVIDER_MARGIN_STORAGE_KEY)
-      if (!raw) return { ...EMPTY_PROVIDER_MARGINS }
+      if (!raw) return { ...EMPTY_PROVIDER_MARGINS } as ProviderMarginsState
       const parsed = JSON.parse(raw) as Record<string, string>
-      return { ...EMPTY_PROVIDER_MARGINS, ...parsed }
+      return { ...EMPTY_PROVIDER_MARGINS, ...parsed } as ProviderMarginsState
     } catch {
-      return { ...EMPTY_PROVIDER_MARGINS }
+      return { ...EMPTY_PROVIDER_MARGINS } as ProviderMarginsState
     }
   })
 
@@ -1398,7 +1413,7 @@ export default function AdminPage() {
   const [relationsDialogOpen, setRelationsDialogOpen] = useState(false)
   const [relationsTab, setRelationsTab] = useState<"related" | "crossSell">("related")
   const [relationsSearch, setRelationsSearch] = useState("")
-  const [relationsProduct, setRelationsProduct] = useState<Product | null>(null)
+  const [relationsProduct, setRelationsProduct] = useState(null as Product | null)
   const [relatedIdsDraft, setRelatedIdsDraft] = useState<string[]>([])
   const [crossSellIdsDraft, setCrossSellIdsDraft] = useState<string[]>([])
 
@@ -2826,12 +2841,12 @@ export default function AdminPage() {
     lastLogin: string | null
   }
 
-  const [users, setUsers] = useState<UserWithStats[]>([])
+  const [users, setUsers] = useState([] as UserWithStats[])
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [usersError, setUsersError] = useState<string | null>(null)
   const [creatingUser, setCreatingUser] = useState(false)
   const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false)
-  const [editingUser, setEditingUser] = useState<UserWithStats | null>(null)
+  const [editingUser, setEditingUser] = useState(null as UserWithStats | null)
   const [editUserDialogOpen, setEditUserDialogOpen] = useState(false)
   const [editUserPassword, setEditUserPassword] = useState("")
   const [editUserPasswordConfirm, setEditUserPasswordConfirm] = useState("")
@@ -2953,7 +2968,7 @@ export default function AdminPage() {
   })
 
   const getRoleBadge = (role: "customer" | "admin" | "staff" | string) => {
-    const roleConfig: Record<string, { label: string; color: string }> = {
+    const roleConfig = {
       customer: { label: "Cliente", color: "bg-blue-100 text-blue-800" },
       admin: { label: "Administrador", color: "bg-purple-100 text-purple-800" },
       staff: { label: "Personal", color: "bg-green-100 text-green-800" },
@@ -2995,7 +3010,7 @@ export default function AdminPage() {
   }: {
     itemKey: string
     label: string
-    Icon: React.ComponentType<{ className?: string }>
+    Icon: AdminSidebarIcon
     indented?: boolean
   }) => {
     const isActive = activeSection === itemKey
@@ -3074,7 +3089,6 @@ export default function AdminPage() {
 
         <Separator className="my-3" />
 
-        {/* Configuración */}
         {sidebarCollapsed ? (
           <Tooltip delayDuration={150}>
             <TooltipTrigger asChild>
@@ -3553,7 +3567,6 @@ export default function AdminPage() {
                       </div>
                       <div className="w-full rounded-lg border overflow-hidden divide-y text-sm bg-background">
                       {/* Tabla de proveedores: nombre | % utilidad | sincronizar | test */}
-                      <div className="w-full rounded-lg border overflow-hidden divide-y text-sm">
                         <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
                           <span>Proveedor</span>
                           <span className="text-center leading-tight px-0.5">% util.</span>
