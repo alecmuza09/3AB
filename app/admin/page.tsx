@@ -108,6 +108,18 @@ interface InventoryMovement {
   reason: string
 }
 
+/** Slugs en `product.proveedor` — deben coincidir con los valores guardados en catálogo */
+const PROVIDER_MARGIN_STORAGE_KEY = "3a-admin-provider-margin-percent"
+
+const EMPTY_PROVIDER_MARGINS: Record<string, string> = {
+  "4promotional": "",
+  doblevela: "",
+  innovation: "",
+  promoopcion: "",
+  "3a-promocion": "",
+  "sin proveedor": "",
+}
+
 export default function AdminPage() {
   const searchParams = useSearchParams()
   const [activeSection, setActiveSection] = useState("dashboard")
@@ -1354,10 +1366,34 @@ export default function AdminPage() {
   const [bulkMinQuantity, setBulkMinQuantity] = useState<string>("")
   const [bulkMultipleOf, setBulkMultipleOf] = useState<string>("")
   const [bulkCategoryForSelect, setBulkCategoryForSelect] = useState<string>("")
-  const [bulkMarginPercent, setBulkMarginPercent] = useState<string>("")
+  // % de utilidad por proveedor (persistido en localStorage)
+  const [providerMarginPercents, setProviderMarginPercents] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return { ...EMPTY_PROVIDER_MARGINS }
+    try {
+      const raw = localStorage.getItem(PROVIDER_MARGIN_STORAGE_KEY)
+      if (!raw) return { ...EMPTY_PROVIDER_MARGINS }
+      const parsed = JSON.parse(raw) as Record<string, string>
+      return { ...EMPTY_PROVIDER_MARGINS, ...parsed }
+    } catch {
+      return { ...EMPTY_PROVIDER_MARGINS }
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROVIDER_MARGIN_STORAGE_KEY, JSON.stringify(providerMarginPercents))
+    } catch {
+      /* ignore quota */
+    }
+  }, [providerMarginPercents])
+
   // "selection" = aplicar margen a la selección actual; cualquier otro valor = categoría concreta
   const [bulkMarginApplyToCategory, setBulkMarginApplyToCategory] = useState<string>("selection")
   const [savingBulkProducts, setSavingBulkProducts] = useState(false)
+
+  const hasAnyProviderMarginConfigured = Object.values(providerMarginPercents).some(
+    (v) => Number(String(v).replace(",", ".")) > 0,
+  )
 
   const [relationsDialogOpen, setRelationsDialogOpen] = useState(false)
   const [relationsTab, setRelationsTab] = useState<"related" | "crossSell">("related")
@@ -1442,9 +1478,10 @@ export default function AdminPage() {
   }
 
   const applyBulkMargin = () => {
-    const margin = Number(bulkMarginPercent) || 0
-    if (margin <= 0) {
-      alert("Indica un margen de ganancia (%) mayor a 0.")
+    if (!hasAnyProviderMarginConfigured) {
+      alert(
+        "Configura el porcentaje de utilidad para al menos un proveedor en la tabla de abajo (columna «% utilidad»).",
+      )
       return
     }
 
@@ -1454,7 +1491,7 @@ export default function AdminPage() {
         : ""
 
     const idsToApply = applyToCategory
-      ? products.filter((p) => p.category?.name === applyToCategory).map((p) => p.id)
+      ? products.filter((p) => p.category === applyToCategory).map((p) => p.id)
       : selectedProductIds
 
     if (idsToApply.length === 0) {
@@ -1466,26 +1503,55 @@ export default function AdminPage() {
       setSelectedProductIds(idsToApply)
     }
 
-    let totalUpdated = 0
+    const marginForProduct = (proveedor: string | null): number => {
+      const slug = (proveedor || "").trim().toLowerCase()
+      const key = slug && slug in EMPTY_PROVIDER_MARGINS ? slug : "sin proveedor"
+      const raw = providerMarginPercents[key] ?? providerMarginPercents["sin proveedor"] ?? ""
+      return Number(String(raw).replace(",", ".")) || 0
+    }
+
+    let skippedNoMargin = 0
+    const patches: Record<string, { price: number }> = {}
+
+    for (const id of idsToApply) {
+      const product = products.find((p) => p.id === id)
+      if (!product) continue
+      const margin = marginForProduct(product.proveedor)
+      if (margin <= 0) {
+        skippedNoMargin++
+        continue
+      }
+      const basePrice = product.price
+      const newPrice = Math.max(0, Number((basePrice * (1 + margin / 100)).toFixed(2)))
+      patches[id] = { price: newPrice }
+    }
+
+    const applied = Object.keys(patches).length
+    if (applied === 0) {
+      alert(
+        "Ningún producto del alcance elegido tiene un % de utilidad configurado para su proveedor.\n\n" +
+          "Revisa la columna «% utilidad» en la tabla de proveedores o el campo «Sin proveedor».",
+      )
+      return
+    }
+
     setProductDrafts((prev) => {
       const next = { ...prev }
-      for (const id of idsToApply) {
-        const product = products.find((p) => p.id === id)
-        if (!product) continue
-        
-        // IMPORTANTE: Siempre aplicar el margen sobre el precio ORIGINAL del producto,
-        // no sobre el draft actual (para evitar aplicación compuesta de márgenes)
-        const basePrice = product.price
-        const newPrice = Math.max(0, Number((basePrice * (1 + margin / 100)).toFixed(2)))
-        
-        const current = next[id] || {}
-        next[id] = { ...current, price: newPrice }
-        totalUpdated++
+      for (const [pid, patch] of Object.entries(patches)) {
+        const current = next[pid] || {}
+        next[pid] = { ...current, ...patch }
       }
       return next
     })
-    
-    alert(`✅ Margen del ${margin}% aplicado a ${totalUpdated} producto(s).\n\nAhora haz clic en "Guardar seleccionados" para aplicar los cambios permanentemente.`)
+
+    const skippedMsg =
+      skippedNoMargin > 0
+        ? `\n\n${skippedNoMargin} producto(s) omitidos (sin % de utilidad para su proveedor).`
+        : ""
+    alert(
+      `✅ Márgenes por proveedor aplicados a ${applied} producto(s).${skippedMsg}\n\n` +
+        `Ahora haz clic en "Guardar seleccionados" para aplicar los cambios permanentemente.`,
+    )
   }
 
   const applyBulkEditsToSelection = () => {
@@ -3389,7 +3455,7 @@ export default function AdminPage() {
 
             {/* Products Management - Enhanced */}
             <TabsContent value="products" className="space-y-6">
-              {/* Configuración masiva de precios con margen de ganancia */}
+              {/* Configuración masiva de precios — margen por proveedor */}
               <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -3397,23 +3463,34 @@ export default function AdminPage() {
                     Configuración masiva de precios
                   </CardTitle>
                   <CardDescription>
-                    Aumenta los precios aplicando un margen de ganancia (%) a la selección actual o a todos los productos de una categoría. Luego usa &quot;Guardar seleccionados&quot; para aplicar los cambios permanentemente.
+                    Define el porcentaje de utilidad por proveedor en la tabla de &quot;Gestión de Productos&quot;
+                    (columna % utilidad). Al aplicar, cada producto usa el % según su proveedor en catálogo.
+                    Opcionalmente define un % para artículos sin proveedor. Luego usa &quot;Guardar
+                    seleccionados&quot; para guardar los cambios en la base de datos.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap items-end gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="bulkMarginPercent">Margen de ganancia (%)</Label>
+                      <Label htmlFor="marginSinProveedor">% utilidad — sin proveedor</Label>
                       <Input
-                        id="bulkMarginPercent"
+                        id="marginSinProveedor"
                         type="number"
-                        min={0.01}
+                        min={0}
                         step={0.5}
-                        placeholder="Ej: 25"
-                        value={bulkMarginPercent}
-                        onChange={(e) => setBulkMarginPercent(e.target.value)}
+                        placeholder="Ej: 20"
+                        value={providerMarginPercents["sin proveedor"] ?? ""}
+                        onChange={(e) =>
+                          setProviderMarginPercents((prev) => ({
+                            ...prev,
+                            "sin proveedor": e.target.value,
+                          }))
+                        }
                         className="w-32"
                       />
+                      <p className="text-xs text-muted-foreground max-w-xs">
+                        Para productos sin campo proveedor o con valor no reconocido.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label>Aplicar a</Label>
@@ -3423,7 +3500,8 @@ export default function AdminPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="selection">
-                            Selección actual ({selectedProductIds.length} {selectedProductIds.length === 1 ? 'producto' : 'productos'})
+                            Selección actual ({selectedProductIds.length}{" "}
+                            {selectedProductIds.length === 1 ? "producto" : "productos"})
                           </SelectItem>
                           {categoryOptions.map((cat) => (
                             <SelectItem key={cat} value={cat}>
@@ -3433,25 +3511,28 @@ export default function AdminPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button 
+                    <Button
                       onClick={applyBulkMargin}
                       className="bg-primary hover:bg-primary/90"
-                      disabled={!bulkMarginPercent || Number(bulkMarginPercent) <= 0}
+                      disabled={!hasAnyProviderMarginConfigured}
                     >
                       <DollarSign className="h-4 w-4 mr-2" />
-                      Aplicar margen a precios
+                      Aplicar márgenes por proveedor
                     </Button>
                   </div>
-                  
-                  {/* Información de ayuda */}
+
                   <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
-                    <p className="font-medium text-blue-900 mb-1">💡 Cómo funciona:</p>
+                    <p className="font-medium text-blue-900 mb-1">Cómo funciona:</p>
                     <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                      <li>Ingresa el margen de ganancia (ej: 25 para 25%)</li>
-                      <li>Elige si aplicar a productos seleccionados o a una categoría completa</li>
-                      <li>Haz clic en &quot;Aplicar margen a precios&quot;</li>
-                      <li>Verifica los nuevos precios en la tabla (con fondo amarillo)</li>
-                      <li>Haz clic en &quot;Guardar seleccionados&quot; más abajo para guardar definitivamente</li>
+                      <li>
+                        Indica el % de utilidad por cada proveedor en la tabla inferior (y opcionalmente para
+                        sin proveedor).
+                      </li>
+                      <li>Los valores se guardan automáticamente en este navegador.</li>
+                      <li>Elige si aplicar a la selección actual o a todos los de una categoría.</li>
+                      <li>Haz clic en &quot;Aplicar márgenes por proveedor&quot;</li>
+                      <li>Verifica los nuevos precios en la tabla (fondo amarillo en borradores)</li>
+                      <li>Haz clic en &quot;Guardar seleccionados&quot; para persistir en Supabase</li>
                     </ol>
                   </div>
                 </CardContent>
@@ -3467,78 +3548,221 @@ export default function AdminPage() {
                       </div>
                       <CardDescription>Administra el catálogo completo de productos. Los usuarios no pueden modificar esta configuración.</CardDescription>
                     </div>
-                    <div className="flex flex-col gap-3 items-end min-w-[380px]">
-                      {/* Tabla de proveedores: nombre | sincronizar | test */}
+                    <div className="flex flex-col gap-3 items-end min-w-[min(100%,28rem)] sm:min-w-[460px]">
+                      {/* Tabla de proveedores: nombre | % utilidad | sincronizar | test */}
                       <div className="w-full rounded-lg border overflow-hidden divide-y text-sm">
-                        {/* Fila cabecera */}
-                        <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
                           <span>Proveedor</span>
+                          <span className="text-center leading-tight px-0.5">% util.</span>
                           <span className="w-28 text-center">Sincronizar</span>
                           <span className="w-16 text-center">Test</span>
                         </div>
 
-                        {/* 4Promotional */}
                         {(() => {
-                          const anySync = syncingProducts || syncingPromocion || syncingDoblevela || syncingInnovation || syncingPromoopcion
+                          const anySync =
+                            syncingProducts ||
+                            syncingPromocion ||
+                            syncingDoblevela ||
+                            syncingInnovation ||
+                            syncingPromoopcion
+                          const marginInput = (slug: keyof typeof EMPTY_PROVIDER_MARGINS | string) => (
+                            <Input
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              placeholder="%"
+                              title="% de incremento o utilidad sobre el precio base del catálogo"
+                              className="h-8 w-full text-xs px-1.5 py-0 tabular-nums"
+                              value={providerMarginPercents[slug] ?? ""}
+                              onChange={(e) =>
+                                setProviderMarginPercents((prev) => ({ ...prev, [slug]: e.target.value }))
+                              }
+                            />
+                          )
                           return (
                             <>
-                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
-                                <span className="flex items-center gap-2 font-medium">
+                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                                  4Promotional
+                                  <span className="truncate">4Promotional</span>
                                 </span>
-                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncProducts} disabled={anySync} title="Sincronización por chunks (sin timeout)">
+                                {marginInput("4promotional")}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-28"
+                                  onClick={handleSyncProducts}
+                                  disabled={anySync}
+                                  title="Sincronización por chunks (sin timeout)"
+                                >
                                   {syncingProducts ? (
-                                    <><Package className="h-3 w-3 mr-1 animate-spin" />
-                                      {syncProgress4P ? `${syncProgress4P.current}/${syncProgress4P.total}` : 'Sincronizando'}
+                                    <>
+                                      <Package className="h-3 w-3 mr-1 animate-spin" />
+                                      {syncProgress4P ? `${syncProgress4P.current}/${syncProgress4P.total}` : "Sincronizando"}
                                     </>
                                   ) : (
-                                    <><Upload className="h-3 w-3 mr-1" />Sincronizar</>
+                                    <>
+                                      <Upload className="h-3 w-3 mr-1" />
+                                      Sincronizar
+                                    </>
                                   )}
                                 </Button>
-                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTest4Promotional} disabled={testing4Promotional} title="Probar conexión con 4Promotional">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-16 text-xs"
+                                  onClick={handleTest4Promotional}
+                                  disabled={testing4Promotional}
+                                  title="Probar conexión con 4Promotional"
+                                >
                                   {testing4Promotional ? "…" : "🔍 Test"}
                                 </Button>
                               </div>
 
-                              {/* Doblevela */}
-                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
-                                <span className="flex items-center gap-2 font-medium">
-                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-600 shrink-0" />
-                                  Doblevela
+                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium min-w-0">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
+                                  <span className="truncate">3A Promoción</span>
                                 </span>
-                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncDoblevela} disabled={anySync}>
-                                  {syncingDoblevela ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                {marginInput("3a-promocion")}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-28"
+                                  onClick={handleSyncPromocion}
+                                  disabled={anySync}
+                                >
+                                  {syncingPromocion ? (
+                                    <>
+                                      <Package className="h-3 w-3 mr-1 animate-spin" />
+                                      Sincronizando
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="h-3 w-3 mr-1" />
+                                      Sincronizar
+                                    </>
+                                  )}
                                 </Button>
-                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestDoblevela} disabled={testingDoblevela} title="Probar conexión con Doblevela">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-16 text-xs"
+                                  onClick={handleTestPromocion}
+                                  disabled={testingPromocion}
+                                  title="Probar conexión con Promocionales en Línea"
+                                >
+                                  {testingPromocion ? "…" : "🔍 Test"}
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium min-w-0">
+                                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-600 shrink-0" />
+                                  <span className="truncate">Doblevela</span>
+                                </span>
+                                {marginInput("doblevela")}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-28"
+                                  onClick={handleSyncDoblevela}
+                                  disabled={anySync}
+                                >
+                                  {syncingDoblevela ? (
+                                    <>
+                                      <Package className="h-3 w-3 mr-1 animate-spin" />
+                                      Sincronizando
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="h-3 w-3 mr-1" />
+                                      Sincronizar
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-16 text-xs"
+                                  onClick={handleTestDoblevela}
+                                  disabled={testingDoblevela}
+                                  title="Probar conexión con Doblevela"
+                                >
                                   {testingDoblevela ? "…" : "🔍 Test"}
                                 </Button>
                               </div>
 
-                              {/* Innovation Line */}
-                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
-                                <span className="flex items-center gap-2 font-medium">
+                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
-                                  Innovation Line
+                                  <span className="truncate">Innovation Line</span>
                                 </span>
-                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncInnovation} disabled={anySync}>
-                                  {syncingInnovation ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                {marginInput("innovation")}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-28"
+                                  onClick={handleSyncInnovation}
+                                  disabled={anySync}
+                                >
+                                  {syncingInnovation ? (
+                                    <>
+                                      <Package className="h-3 w-3 mr-1 animate-spin" />
+                                      Sincronizando
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="h-3 w-3 mr-1" />
+                                      Sincronizar
+                                    </>
+                                  )}
                                 </Button>
-                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestInnovation} disabled={testingInnovation} title="Probar conexión con Innovation Line (solo en horario 9-10, 13-14, 17-18 CDMX)">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-16 text-xs"
+                                  onClick={handleTestInnovation}
+                                  disabled={testingInnovation}
+                                  title="Probar conexión con Innovation Line (solo en horario 9-10, 13-14, 17-18 CDMX)"
+                                >
                                   {testingInnovation ? "…" : "🔍 Test"}
                                 </Button>
                               </div>
 
-                              {/* PromoOpción */}
-                              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2">
-                                <span className="flex items-center gap-2 font-medium">
+                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                                <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-cyan-600 shrink-0" />
-                                  PromoOpción
+                                  <span className="truncate">PromoOpción</span>
                                 </span>
-                                <Button variant="outline" size="sm" className="w-28" onClick={handleSyncPromoopcion} disabled={anySync}>
-                                  {syncingPromoopcion ? <><Package className="h-3 w-3 mr-1 animate-spin" />Sincronizando</> : <><Upload className="h-3 w-3 mr-1" />Sincronizar</>}
+                                {marginInput("promoopcion")}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-28"
+                                  onClick={handleSyncPromoopcion}
+                                  disabled={anySync}
+                                >
+                                  {syncingPromoopcion ? (
+                                    <>
+                                      <Package className="h-3 w-3 mr-1 animate-spin" />
+                                      Sincronizando
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="h-3 w-3 mr-1" />
+                                      Sincronizar
+                                    </>
+                                  )}
                                 </Button>
-                                <Button variant="ghost" size="sm" className="w-16 text-xs" onClick={handleTestPromoopcion} disabled={testingPromoopcion} title="Probar conexión con PromoOpción">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-16 text-xs"
+                                  onClick={handleTestPromoopcion}
+                                  disabled={testingPromoopcion}
+                                  title="Probar conexión con PromoOpción"
+                                >
                                   {testingPromoopcion ? "…" : "🔍 Test"}
                                 </Button>
                               </div>
