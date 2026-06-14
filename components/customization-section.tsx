@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   Search,
@@ -384,13 +383,11 @@ export function CustomizationSection() {
 
         {/* Header */}
         <div className="text-center space-y-4 mb-14">
-          <Badge className="bg-accent/10 text-accent border-accent/20 px-4 py-1.5">
-            Personalización con IA
-          </Badge>
-          <h2 className="text-3xl lg:text-4xl font-bold text-balance">
-            <span className="text-primary">Personaliza</span> tu producto en tiempo real
+          <h2 className="font-black text-black text-balance" style={{ fontSize: "clamp(26px, 4vw, 44px)" }}>
+            PERSONALIZA TU PRODUCTO{" "}
+            <span className="text-[#DC2626]">EN TIEMPO REAL</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto text-pretty">
+          <p className="text-gray-500 text-base max-w-2xl mx-auto">
             Busca un producto, sube tu logo y nuestra IA generará un mockup fotorrealista de cómo
             quedaría impreso.
           </p>

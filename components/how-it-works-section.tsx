@@ -1,24 +1,45 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Package, Palette, Truck } from "lucide-react"
+import Image from "next/image"
+import { Package } from "lucide-react"
 import { useSiteContent } from "@/hooks/use-site-content"
 import { EditableText } from "@/components/editable-text"
+
+const steps = [
+  {
+    number: "1",
+    key: "step1",
+    defaultTitle: "ELIGE",
+    defaultDesc: "Explora el catálogo y encuentra la opción ideal para tu marca, equipo o proyecto.",
+    image: "/mochila-ejecutiva.png",
+    hasImage: true,
+  },
+  {
+    number: "2",
+    key: "step2",
+    defaultTitle: "PERSONALIZA",
+    defaultDesc: "Ajusta colores o bordado y visualiza tu diseño antes de producirlo.",
+    image: "/mochila-ejecutiva.png",
+    hasImage: true,
+    logoOverlay: true,
+  },
+  {
+    number: "3",
+    key: "step3",
+    defaultTitle: "ORDENA Y RECIBE",
+    defaultDesc: "Define cantidad, confirma tu pedido y recibe tus promocionales.",
+    image: null,
+    hasImage: false,
+  },
+]
 
 export function HowItWorksSection() {
   const { content, loading, refetch } = useSiteContent("home")
   const t = (key: string, fallback: string) => content[key] ?? fallback
 
-  const steps = [
-    { number: "01", icon: Package, title: t("how_step1_title", "Elige tu producto"), description: t("how_step1_desc", "Explora el catálogo y encuentra la opción ideal para tu marca, tu equipo o tu proyecto.") },
-    { number: "02", icon: Palette, title: t("how_step2_title", "Diseña y personaliza"), description: t("how_step2_desc", "Ajusta colores, impresión o bordado y visualiza cómo se verá tu diseño antes de producirlo.") },
-    { number: "03", icon: Truck, title: t("how_step3_title", "Ordena y recibe"), description: t("how_step3_desc", "Define cantidades, confirma tu pedido y recibe tus promocionales donde los necesites.") },
-  ]
-
   if (loading) {
     return (
-      <section className="py-20 lg:py-24 bg-white">
+      <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <div className="h-64 animate-pulse bg-gray-100 rounded-xl" />
         </div>
@@ -27,79 +48,85 @@ export function HowItWorksSection() {
   }
 
   return (
-    <section className="py-20 lg:py-24 bg-white">
+    <section className="py-16 lg:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center space-y-4 mb-16">
-          <EditableText
-            pageSlug="home"
-            contentKey="how_badge"
-            value={t("how_badge", "Proceso Simple")}
-            onSaved={refetch}
-            label="Badge Cómo Funciona"
-            type="input"
-          >
-            <Badge className="bg-[#DC2626]/10 text-[#DC2626] border-[#DC2626]/20 px-4 py-1.5 text-sm">
-              {t("how_badge", "Proceso Simple")}
-            </Badge>
-          </EditableText>
+
+        {/* Encabezado */}
+        <div className="text-center mb-14">
           <EditableText
             pageSlug="home"
             contentKey="how_title"
-            value={t("how_title", "Elige, diseña y ordena promocionales de forma simple")}
+            value={t("how_title", "PROCESO SIMPLE")}
             onSaved={refetch}
-            label="Título Cómo Funciona"
+            label="Título Proceso Simple"
             type="input"
           >
-            <h2 className="text-3xl lg:text-4xl xl:text-5xl font-bold text-black">
-              {t("how_title", "Elige, diseña y ordena promocionales de forma simple")}
+            <h2 className="font-black uppercase text-black" style={{ fontSize: "clamp(32px, 5vw, 52px)" }}>
+              {t("how_title", "PROCESO SIMPLE")}
             </h2>
           </EditableText>
           <EditableText
             pageSlug="home"
             contentKey="how_subtitle"
-            value={t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados listos para entregar")}
+            value={t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados, listos para entregar")}
             onSaved={refetch}
-            label="Subtítulo Cómo Funciona"
+            label="Subtítulo Proceso Simple"
             type="textarea"
           >
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              {t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados listos para entregar")}
+            <p className="text-gray-500 text-base mt-3 max-w-xl mx-auto">
+              {t("how_subtitle", "En solo 3 pasos tendrás tus artículos personalizados, listos para entregar")}
             </p>
           </EditableText>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {steps.map((step, index) => {
-            const IconComponent = step.icon
-            return (
-              <Card
-                key={index}
-                className="relative border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-shadow duration-300 bg-white"
-              >
-                <div className="absolute -top-4 -right-4 bg-[#DC2626] text-white rounded-lg w-12 h-12 flex items-center justify-center font-bold text-lg shadow-lg">
+        {/* Pasos */}
+        <div className="grid md:grid-cols-3 gap-8 lg:gap-10">
+          {steps.map((step) => (
+            <div key={step.key} className="flex flex-col items-center text-center gap-4">
+              {/* Número + Etiqueta */}
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 h-9 w-9 rounded-full bg-[#DC2626] text-white font-black text-sm flex items-center justify-center">
                   {step.number}
                 </div>
-                <CardContent className="p-8 pt-12">
-                  <div className="space-y-4">
-                    <div className="flex justify-center">
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <IconComponent className="h-8 w-8 text-gray-800" />
+                <span className="font-black text-black text-sm tracking-widest uppercase">
+                  {t(`how_${step.key}_title`, step.defaultTitle)}
+                </span>
+              </div>
+
+              {/* Imagen */}
+              <div className="relative w-full max-w-[220px] aspect-square flex items-center justify-center">
+                {step.hasImage && step.image ? (
+                  <div className="relative w-full h-full">
+                    <Image
+                      src={step.image}
+                      alt={t(`how_${step.key}_title`, step.defaultTitle)}
+                      fill
+                      className="object-contain"
+                      unoptimized
+                    />
+                    {step.logoOverlay && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="bg-white/80 backdrop-blur-sm text-black text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded border border-gray-300">
+                          LOGOTIPO
+                        </div>
                       </div>
-                    </div>
-                    <h3 className="text-xl font-bold text-black text-center">{step.title}</h3>
-                    <p className="text-gray-600 text-center leading-relaxed">{step.description}</p>
-                    <div className="flex items-center justify-center gap-2 pt-2">
-                      <div className="h-2 w-2 bg-[#DC2626] rounded-full" />
-                      <span className="text-sm text-gray-500">Fácil y rápido</span>
-                    </div>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+                ) : (
+                  <div className="w-full h-full bg-amber-100 rounded-xl flex items-center justify-center border border-amber-200">
+                    <Package className="h-20 w-20 text-amber-600" strokeWidth={1} />
+                  </div>
+                )}
+              </div>
+
+              {/* Descripción */}
+              <p className="text-gray-600 text-sm leading-relaxed max-w-[200px]">
+                {t(`how_${step.key}_desc`, step.defaultDesc)}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
   )
 }
-

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, type ComponentType } from "react"
+import { useState, useEffect, useRef, type ComponentType } from "react"
 import { useSearchParams } from "next/navigation"
 import { TopHeader } from "@/components/top-header"
 import { WhatsappButton } from "@/components/whatsapp-button"
@@ -1402,6 +1402,29 @@ export default function AdminPage() {
     }
   }, [providerMarginPercents])
 
+  const [marginPercentSavedKey, setMarginPercentSavedKey] = useState<string | null>(null)
+  const marginPercentSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (marginPercentSavedTimerRef.current) clearTimeout(marginPercentSavedTimerRef.current)
+    }
+  }, [])
+
+  const persistProviderMarginsWithFeedback = (key: string) => {
+    try {
+      localStorage.setItem(PROVIDER_MARGIN_STORAGE_KEY, JSON.stringify(providerMarginPercents))
+    } catch {
+      /* ignore quota */
+    }
+    if (marginPercentSavedTimerRef.current) clearTimeout(marginPercentSavedTimerRef.current)
+    setMarginPercentSavedKey(key)
+    marginPercentSavedTimerRef.current = setTimeout(() => {
+      setMarginPercentSavedKey(null)
+      marginPercentSavedTimerRef.current = null
+    }, 2000)
+  }
+
   // "selection" = aplicar margen a la selección actual; cualquier otro valor = categoría concreta
   const [bulkMarginApplyToCategory, setBulkMarginApplyToCategory] = useState<string>("selection")
   const [savingBulkProducts, setSavingBulkProducts] = useState(false)
@@ -1455,6 +1478,34 @@ export default function AdminPage() {
     const matchesProveedor = selectedProveedor === "all" || (product.proveedor || "sin proveedor") === selectedProveedor
     return matchesSearch && matchesCategory && matchesProveedor
   })
+
+  const handleExportProducts = () => {
+    const toExport = filteredProducts.length > 0 ? filteredProducts : products
+    const headers = ["SKU", "Nombre", "Categoría", "Proveedor", "Precio", "Stock", "Cantidad mínima", "Múltiplo de", "Activo", "Última actualización"]
+    const rows = toExport.map((p) => [
+      p.sku ?? "",
+      p.name,
+      p.category,
+      p.proveedor ?? "",
+      p.price,
+      p.stock,
+      p.minQuantity,
+      p.multipleOf,
+      p.isActive ? "Sí" : "No",
+      p.lastUpdated,
+    ])
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n")
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    const timestamp = new Date().toISOString().slice(0, 10)
+    link.download = `productos_3a_branding_${timestamp}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE))
   const safePage = Math.min(currentPage, totalPages)
@@ -3498,21 +3549,38 @@ export default function AdminPage() {
                       <div className="flex flex-wrap items-end gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="marginSinProveedor">% utilidad — sin proveedor</Label>
-                          <Input
-                            id="marginSinProveedor"
-                            type="number"
-                            min={0}
-                            step={0.5}
-                            placeholder="Ej: 20"
-                            value={providerMarginPercents["sin proveedor"] ?? ""}
-                            onChange={(e) =>
-                              setProviderMarginPercents((prev) => ({
-                                ...prev,
-                                "sin proveedor": e.target.value,
-                              }))
-                            }
-                            className="w-32"
-                          />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Input
+                              id="marginSinProveedor"
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              placeholder="Ej: 20"
+                              value={providerMarginPercents["sin proveedor"] ?? ""}
+                              onChange={(e) =>
+                                setProviderMarginPercents((prev) => ({
+                                  ...prev,
+                                  "sin proveedor": e.target.value,
+                                }))
+                              }
+                              className="w-32"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 shrink-0"
+                              onClick={() => persistProviderMarginsWithFeedback("sin proveedor")}
+                              title="Guardar % en este navegador"
+                            >
+                              {marginPercentSavedKey === "sin proveedor" ? (
+                                <CheckCircle className="h-4 w-4 text-green-600" aria-hidden />
+                              ) : (
+                                <Save className="h-4 w-4" aria-hidden />
+                              )}
+                              <span className="ml-1.5">Guardar</span>
+                            </Button>
+                          </div>
                           <p className="text-xs text-muted-foreground max-w-[220px]">
                             Productos sin campo proveedor o con valor no listado a la derecha.
                           </p>
@@ -3551,7 +3619,10 @@ export default function AdminPage() {
                           <li>
                             Completa el % de utilidad por proveedor en el panel derecho (y opcionalmente «sin proveedor» aquí).
                           </li>
-                          <li>Los valores se guardan automáticamente en este navegador.</li>
+                          <li>
+                            Los valores se guardan en este navegador al editarlos; pulsa «Guardar» junto al % si quieres
+                            confirmar la escritura explícitamente.
+                          </li>
                           <li>Elige alcance: selección actual o todos los de una categoría.</li>
                           <li>Pulsa «Aplicar márgenes por proveedor».</li>
                           <li>Revisa precios en borrador en la tabla (resaltado).</li>
@@ -3567,7 +3638,7 @@ export default function AdminPage() {
                       </div>
                       <div className="w-full rounded-lg border overflow-hidden divide-y text-sm bg-background">
                       {/* Tabla de proveedores: nombre | % utilidad | sincronizar | test */}
-                        <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,12rem)_auto_auto] items-center gap-2 px-3 py-1.5 bg-muted/60 text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
                           <span>Proveedor</span>
                           <span className="text-center leading-tight px-0.5">% util.</span>
                           <span className="w-28 text-center">Sincronizar</span>
@@ -3581,28 +3652,45 @@ export default function AdminPage() {
                             syncingDoblevela ||
                             syncingInnovation ||
                             syncingPromoopcion
-                          const marginInput = (slug: keyof typeof EMPTY_PROVIDER_MARGINS | string) => (
-                            <Input
-                              type="number"
-                              min={0}
-                              step={0.5}
-                              placeholder="%"
-                              title="% de incremento o utilidad sobre el precio base del catálogo"
-                              className="h-8 w-full text-xs px-1.5 py-0 tabular-nums"
-                              value={providerMarginPercents[slug] ?? ""}
-                              onChange={(e) =>
-                                setProviderMarginPercents((prev) => ({ ...prev, [slug]: e.target.value }))
-                              }
-                            />
+                          const marginCell = (slug: keyof typeof EMPTY_PROVIDER_MARGINS | string) => (
+                            <div className="flex items-center gap-1 min-w-0">
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.5}
+                                placeholder="%"
+                                title="% de incremento o utilidad sobre el precio base del catálogo"
+                                className="h-8 min-w-0 flex-1 text-xs px-1.5 py-0 tabular-nums"
+                                value={providerMarginPercents[slug] ?? ""}
+                                onChange={(e) =>
+                                  setProviderMarginPercents((prev) => ({ ...prev, [slug]: e.target.value }))
+                                }
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 shrink-0 px-1.5 sm:px-2 text-[10px] sm:text-xs whitespace-nowrap"
+                                onClick={() => persistProviderMarginsWithFeedback(slug)}
+                                title="Guardar % en este navegador"
+                              >
+                                {marginPercentSavedKey === slug ? (
+                                  <CheckCircle className="h-3.5 w-3.5 text-green-600" aria-hidden />
+                                ) : (
+                                  <Save className="h-3.5 w-3.5" aria-hidden />
+                                )}
+                                <span className="hidden sm:inline ml-1">Guardar</span>
+                              </Button>
+                            </div>
                           )
                           return (
                             <>
-                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                              <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,12rem)_auto_auto] items-center gap-2 px-3 py-2">
                                 <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
                                   <span className="truncate">4Promotional</span>
                                 </span>
-                                {marginInput("4promotional")}
+                                {marginCell("4promotional")}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -3635,12 +3723,12 @@ export default function AdminPage() {
                                 </Button>
                               </div>
 
-                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                              <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,12rem)_auto_auto] items-center gap-2 px-3 py-2">
                                 <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-purple-600 shrink-0" />
                                   <span className="truncate">3A Promoción</span>
                                 </span>
-                                {marginInput("3a-promocion")}
+                                {marginCell("3a-promocion")}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -3672,12 +3760,12 @@ export default function AdminPage() {
                                 </Button>
                               </div>
 
-                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                              <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,12rem)_auto_auto] items-center gap-2 px-3 py-2">
                                 <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-600 shrink-0" />
                                   <span className="truncate">Doblevela</span>
                                 </span>
-                                {marginInput("doblevela")}
+                                {marginCell("doblevela")}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -3709,12 +3797,12 @@ export default function AdminPage() {
                                 </Button>
                               </div>
 
-                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                              <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,12rem)_auto_auto] items-center gap-2 px-3 py-2">
                                 <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
                                   <span className="truncate">Innovation Line</span>
                                 </span>
-                                {marginInput("innovation")}
+                                {marginCell("innovation")}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -3746,12 +3834,12 @@ export default function AdminPage() {
                                 </Button>
                               </div>
 
-                              <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_auto_auto] items-center gap-2 px-3 py-2">
+                              <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,12rem)_auto_auto] items-center gap-2 px-3 py-2">
                                 <span className="flex items-center gap-2 font-medium min-w-0">
                                   <span className="inline-block w-2.5 h-2.5 rounded-full bg-cyan-600 shrink-0" />
                                   <span className="truncate">PromoOpción</span>
                                 </span>
-                                {marginInput("promoopcion")}
+                                {marginCell("promoopcion")}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -3834,9 +3922,9 @@ export default function AdminPage() {
 
                       {/* Acciones generales */}
                       <div className="flex flex-wrap gap-2 justify-end">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={handleExportProducts}>
                           <Download className="h-4 w-4 mr-2" />
-                          Exportar
+                          Exportar CSV
                         </Button>
                         <Dialog>
                           <DialogTrigger asChild>
