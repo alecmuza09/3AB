@@ -97,6 +97,7 @@ interface Product {
   status: "active" | "inactive" | "low-stock"
   lastUpdated: string
   proveedor: string | null
+  imageUrl: string | null
 }
 
 interface InventoryMovement {
@@ -800,6 +801,7 @@ export default function AdminPage() {
             : "active",
         lastUpdated: product.updated_at ? new Date(product.updated_at).toISOString().split("T")[0] : "",
         proveedor: (product.attributes?.proveedor as string) || null,
+        imageUrl: product.image_url || null,
       }))
 
       setProducts(formattedProducts)
@@ -1481,7 +1483,7 @@ export default function AdminPage() {
 
   const handleExportProducts = () => {
     const toExport = filteredProducts.length > 0 ? filteredProducts : products
-    const headers = ["SKU", "Nombre", "Categoría", "Proveedor", "Precio", "Stock", "Cantidad mínima", "Múltiplo de", "Activo", "Última actualización"]
+    const headers = ["SKU", "Nombre", "Categoría", "Proveedor", "Precio", "Stock", "Cantidad mínima", "Múltiplo de", "Activo", "URL Imagen", "Última actualización"]
     const rows = toExport.map((p) => [
       p.sku ?? "",
       p.name,
@@ -1492,6 +1494,7 @@ export default function AdminPage() {
       p.minQuantity,
       p.multipleOf,
       p.isActive ? "Sí" : "No",
+      p.imageUrl ?? "",
       p.lastUpdated,
     ])
     const csvContent = [headers, ...rows]
